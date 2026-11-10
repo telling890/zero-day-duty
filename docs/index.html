@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>零日值班 · 网络安全防御模拟器</title>
+  <meta name="description" content="零日值班：Python + Pygame 中文网络安全防御模拟游戏。10 回合、6 条攻击链、新手教程、存档与多结局，Windows 免安装版可下载。">
+  <meta name="theme-color" content="#070b12">
+  <link rel="icon" href="assets/icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="grid-bg" aria-hidden="true"></div>
+
+  <header class="nav">
+    <a class="brand" href="#top">
+      <span class="brand-mark">0</span>
+      <span>零日值班</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#features">玩法</a>
+      <a href="#screens">截图</a>
+      <a href="#start">上手</a>
+      <a href="#safety">声明</a>
+    </nav>
+    <a class="nav-gh" href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">GitHub ↗</a>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">NETWORK DEFENSE SIMULATOR <span>v1.0.1</span></p>
+        <h1>守到<br><em>早上八点。</em></h1>
+        <p class="lead">
+          你是虚构公司「云栖示例科技」的夜班安全管理员。10 个小时、6 条攻击链、有限的行动点和预算：
+          读日志、查告警、隔离设备、打补丁、恢复备份，顺便应付客户和媒体。
+        </p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/telling890/zero-day-duty/releases/latest/download/ZeroDayDuty-Windows-x64.zip">
+            下载 Windows 版
+          </a>
+          <a class="btn" href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">
+            查看源码
+          </a>
+        </div>
+        <ul class="quick">
+          <li>Windows 10 / 11</li>
+          <li>免安装 · 无需 Python</li>
+          <li>约 14 MB</li>
+          <li>30 项自动化测试</li>
+        </ul>
+      </div>
+      <div class="hero-shot">
+        <div class="shot-frame">
+          <img src="assets/gameplay.png" alt="零日值班游戏界面：网络拓扑、告警、日志与操作面板">
+          <span class="shot-tag">LIVE SOC · 03:00</span>
+        </div>
+        <div class="hero-note">
+          <span class="dot"></span>
+          威胁等级 4/5 · 检测到零日漏洞利用
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <div class="section-head">
+        <p class="section-kicker">GAMEPLAY</p>
+        <h2>不是背知识点，是撑过这个夜班</h2>
+        <p>调查、判断、取舍。每个操作都要花行动点和钱，还会影响业务可用性。</p>
+      </div>
+      <div class="feature-grid">
+        <article class="card">
+          <span class="card-index">01</span>
+          <h3>6 条攻击链</h3>
+          <p>钓鱼邮件、异常登录、模拟勒索软件、Web 流量异常、内部账号异常，以及第 8 回合的零日 BOSS。</p>
+        </article>
+        <article class="card">
+          <span class="card-index">02</span>
+          <h3>先调查，再处置</h3>
+          <p>告警等级在调查前显示为“待评估”。平台会误报，颜色不是答案，证据才是。</p>
+        </article>
+        <article class="card">
+          <span class="card-index">03</span>
+          <h3>每种选择都有代价</h3>
+          <p>隔离和关停降低可用性，补丁带来维护窗口，误封合作方 IP 会扣声誉。</p>
+        </article>
+        <article class="card">
+          <span class="card-index">04</span>
+          <h3>威胁升级与连击</h3>
+          <p>活跃攻击链越多，威胁等级越高、伤害越大；连续正确处置会累积 COMBO 并奖励行动点。</p>
+        </article>
+        <article class="card">
+          <span class="card-index">05</span>
+          <h3>加固与决策</h3>
+          <p>4 项安全加固、2 个剧情决策。预算花在日志分析、EDR、离线备份还是自动封禁？</p>
+        </article>
+        <article class="card">
+          <span class="card-index">06</span>
+          <h3>6 种结局</h3>
+          <p>完美防守、损失严重、数据泄露、勒索失控、过度防御、安全体系崩溃。结算还有连击与成就。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="screens" class="section">
+      <div class="section-head">
+        <p class="section-kicker">SCREENSHOTS</p>
+        <h2>深色 SOC，真实的夜间节奏</h2>
+      </div>
+      <div class="gallery">
+        <figure class="gallery-main">
+          <img src="assets/tutorial.png" alt="新手教程：高亮操作面板并解释调查与处置">
+          <figcaption><strong>8 页新手教程 + 4 步实战演练</strong><span>先看会，再上手；教程背景就是真实游戏界面。</span></figcaption>
+        </figure>
+        <figure>
+          <img src="assets/upgrades.png" alt="安全加固商店">
+          <figcaption><strong>安全加固</strong><span>把预算变成能力。</span></figcaption>
+        </figure>
+        <figure>
+          <img src="assets/decision.png" alt="剧情决策：客户施压">
+          <figcaption><strong>剧情决策</strong><span>客户、媒体与安全团队，谁先让步？</span></figcaption>
+        </figure>
+        <figure>
+          <img src="assets/result.png" alt="结算界面：完美防守 123 分 S">
+          <figcaption><strong>结算与成就</strong><span>得分、等级、统计、连击、成就。</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="start" class="section start-section">
+      <div class="start-copy">
+        <p class="section-kicker">GET STARTED</p>
+        <h2>三步开始值班</h2>
+        <ol class="steps">
+          <li><span>01</span><div><strong>下载并解压</strong><p>下载 <code>ZeroDayDuty-Windows-x64.zip</code>，解压到任意目录。</p></div></li>
+          <li><span>02</span><div><strong>双击运行</strong><p>双击 <code>零日值班.exe</code>。不需要安装 Python 或 Pygame。</p></div></li>
+          <li><span>03</span><div><strong>先看教程</strong><p>主菜单 → 新手教程，跟完 4 步演练，再开始正式值班。</p></div></li>
+        </ol>
+        <p class="note">首次启动 1~3 秒；未做代码签名，SmartScreen 提示时选择“更多信息 → 仍要运行”。</p>
+      </div>
+      <div class="keys-card">
+        <h3>关键操作</h3>
+        <div class="keys">
+          <div><kbd>空格</kbd><span>推进回合</span></div>
+          <div><kbd>Esc</kbd><span>暂停 / 菜单</span></div>
+          <div><kbd>F1</kbd><span>值班手册</span></div>
+          <div><kbd>U</kbd><span>安全加固</span></div>
+          <div><kbd>F5</kbd><span>保存进度</span></div>
+          <div><kbd>F9</kbd><span>读取进度</span></div>
+          <div><kbd>M</kbd><span>音效开关</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="safety" class="section safety">
+      <div>
+        <p class="section-kicker">SAFETY</p>
+        <h2>只做模拟，不碰真实网络</h2>
+        <p>
+          本项目仅用于 Python 课程展示。不扫描真实网络、不连接真实服务器、不执行真实系统命令、不包含真实恶意代码。
+          所有 IP、账号、域名、服务器与事件均为虚构；示例 IP 使用 192.0.2.0/24、198.51.100.0/24、203.0.113.0/24 等文档保留地址段。
+        </p>
+      </div>
+      <a class="btn" href="https://github.com/telling890/zero-day-duty/releases/latest" target="_blank" rel="noreferrer">查看全部 Release ↗</a>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-brand"><span class="brand-mark small">0</span> 零日值班 · 网络安全防御模拟器</div>
+    <div class="footer-links">
+      <a href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">GitHub</a>
+      <a href="https://github.com/telling890/zero-day-duty/releases/latest" target="_blank" rel="noreferrer">Release</a>
+      <a href="https://github.com/telling890/zero-day-duty/blob/main/README.md" target="_blank" rel="noreferrer">README</a>
+    </div>
+    <p class="footer-small">Python 3.10 + Pygame · 课程作业项目 · 所有数据均为虚构</p>
+  </footer>
+</body>
+</html>

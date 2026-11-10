@@ -29,6 +29,7 @@
 
 > Windows 免安装版：[下载 v1.0.1 Release](https://github.com/telling890/zero-day-duty/releases/latest)（`ZeroDayDuty-Windows-x64.zip`），解压后双击 `零日值班.exe`，无需安装 Python。
 > 源码仓库：[github.com/telling890/zero-day-duty](https://github.com/telling890/zero-day-duty)
+> 项目主页：[telling890.github.io/zero-day-duty](https://telling890.github.io/zero-day-duty/)
 
 ---
 
@@ -249,7 +250,8 @@ cyber_defense_game/
 │   ├── make_icon.py            # 生成 icon.png / icon.ico
 │   ├── version_info.txt        # Windows 文件版本资源
 │   └── portable_readme.txt     # 分发给最终用户的说明
-├── dist/                       # 打包产物
+├── dist/                       # 本地打包产物
+├── docs/                       # GitHub Pages 项目主页
 ├── saves/                      # savegame.json / history.json
 ├── assets/                     # 图标与截图
 └── README.md
