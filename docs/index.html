@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>零日值班 · 网络安全防御模拟器</title>
-  <meta name="description" content="零日值班：Python + Pygame 中文网络安全防御模拟游戏。10 小时夜班、6 条攻击链、12 种处置操作、新手教程、存档与 6 种结局，Windows 免安装版可下载。">
+  <meta name="description" content="零日值班：一款回合制的网络安全防御模拟。你是公司今晚唯一的安全值班员，10 个回合、6 条攻击链、每回合 6 点行动点——先控制、再清除、最后恢复业务。Windows 免安装版可下载。">
   <meta name="theme-color" content="#05070c">
   <meta property="og:title" content="零日值班 · 网络安全防御模拟器">
-  <meta property="og:description" content="10 个小时、6 条攻击链、有限行动点：先控制、再清除、最后恢复业务，守到早上八点。">
+  <meta property="og:description" content="10 个回合，6 条攻击链，每回合 6 点行动点。守到早上八点，别把公司业务一起关掉。">
   <meta property="og:image" content="assets/gameplay.png">
   <link rel="icon" href="assets/icon.png">
   <link rel="preload" as="image" href="assets/gameplay.png">
@@ -32,22 +32,18 @@
     <div class="ticker-track">
       <span class="ticker-run">
         <i class="live"></i>LIVE · 值班中
-        <b>威胁等级 4/5</b>
-        <span>检测到零日漏洞利用</span>
-        <b>03:00</b>
-        <span>行动点 5/6</span>
-        <b>收入 ¥14,320</b>
-        <span>声誉 74%</span>
+        <b>回合 6/10</b><span>03:00</span>
+        <b>威胁等级 4/5</b><span>活跃攻击链 3</span>
+        <b>行动点 5/6</b><span>可用性 82%</span>
+        <b>声誉 71</b>
         <span class="ticker-hint">先控制 → 再清除 → 最后恢复业务</span>
       </span>
       <span class="ticker-run">
         <i class="live"></i>LIVE · 值班中
-        <b>威胁等级 4/5</b>
-        <span>检测到零日漏洞利用</span>
-        <b>03:00</b>
-        <span>行动点 5/6</span>
-        <b>收入 ¥14,320</b>
-        <span>声誉 74%</span>
+        <b>回合 6/10</b><span>03:00</span>
+        <b>威胁等级 4/5</b><span>活跃攻击链 3</span>
+        <b>行动点 5/6</b><span>可用性 82%</span>
+        <b>声誉 71</b>
         <span class="ticker-hint">先控制 → 再清除 → 最后恢复业务</span>
       </span>
     </div>
@@ -60,10 +56,11 @@
         <span class="brand-text">零日值班<em>ZERO-DAY DUTY</em></span>
       </a>
       <nav class="nav-links" aria-label="页面导航">
+        <a href="#try">试玩</a>
         <a href="#features">玩法</a>
         <a href="#screens">截图</a>
+        <a href="#endings">结局</a>
         <a href="#start">上手</a>
-        <a href="#safety">声明</a>
       </nav>
       <a class="nav-gh" href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.95 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.85-2.34 4.7-4.57 4.95.36.31.68.92.68 1.86v2.75c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
@@ -73,30 +70,35 @@
   </header>
 
   <main id="top">
+    <!-- ============================ 首屏 ============================ -->
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow reveal">
-          <span class="eyebrow-dot"></span>NETWORK DEFENSE SIMULATOR
-          <span class="pill">v1.4.4</span>
+        <p class="tags reveal">
+          <span class="tag tag-hot">单人</span>
+          <span class="tag">回合制</span>
+          <span class="tag">策略模拟</span>
+          <span class="tag">一局约 15 分钟</span>
+          <span class="tag tag-ver">v1.4.4</span>
         </p>
         <h1 class="reveal" style="--i:1">守到<br><em>早上八点。</em></h1>
         <p class="lead reveal" style="--i:2">
-          你是虚构公司「云栖示例科技」的夜班安全管理员。10 个小时、6 条攻击链、有限的行动点和预算：
-          <strong>先控制、再清除、最后恢复业务</strong>，顺便应付客户和媒体。
+          你是「云栖示例科技」今晚唯一的安全值班员。22:00 交接，08:00 早会，中间 10 个回合：
+          6 条攻击链会轮流推进，而你每回合只有 <strong>6 点行动点</strong>。
+          调查、控制、清除、恢复——顺序错了，公司要么被打穿，要么被你自己关停。
         </p>
         <div class="cta reveal" style="--i:3">
           <a class="btn primary" href="https://github.com/telling890/zero-day-duty/releases/latest/download/ZeroDayDuty-Windows-x64.zip">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-            下载 Windows 版
+            下载 Windows 版 · 25 MB
           </a>
-          <a class="btn ghost" href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">
-            查看源码<span class="arrow">↗</span>
+          <a class="btn ghost" href="#try">
+            先试一回合<span class="arrow">↓</span>
           </a>
         </div>
         <ul class="quick reveal" style="--i:4">
           <li>Windows 10 / 11</li>
           <li>免安装 · 无需 Python</li>
-          <li>约 25 MB</li>
+          <li>1280 × 720 固定窗口</li>
           <li>35 项自动化测试</li>
         </ul>
       </div>
@@ -110,43 +112,127 @@
             <span class="monitor-live"><i></i>LIVE</span>
           </div>
           <div class="monitor-body">
-            <img src="assets/gameplay.png" alt="零日值班游戏界面：网络拓扑、告警列表、日志终端与处置操作面板" width="1280" height="720">
+            <img src="assets/gameplay.png" alt="游戏界面：左侧网络拓扑、中间告警与日志终端、右侧设备详情、底部处置操作面板" width="1280" height="720">
           </div>
         </figure>
         <div class="hero-chips">
           <span class="chip chip-danger"><i></i>威胁等级 4/5</span>
-          <span class="chip">活跃事件 2</span>
+          <span class="chip">活跃攻击链 3</span>
           <span class="chip">行动点 5/6</span>
         </div>
       </div>
     </section>
 
-    <section class="shift" aria-label="一个夜班的节奏">
-      <div class="shift-head reveal">
-        <p class="section-kicker">SHIFT 22:00 → 08:00</p>
-        <h2 class="shift-title">一个夜班的十个小时</h2>
+    <!-- ============================ 试玩一个回合 ============================ -->
+    <section id="try" class="section demo-section">
+      <div class="section-head reveal">
+        <p class="section-kicker">TRY A TURN</p>
+        <h2>不用下载，先打一个回合</h2>
+        <p>下面是一回合的简化版：一条钓鱼告警、6 点行动点、4 个操作。按顺序点下去，看威胁怎么被按停、账怎么走。</p>
       </div>
-      <ol class="rail reveal" style="--i:1">
-        <li><span class="rail-time">22:00</span><strong>夜班交接</strong><p>听完主管、公关和运维的留言，再开始巡逻。</p></li>
-        <li><span class="rail-time">深夜</span><strong>调查与控制</strong><p>读日志、查告警、隔离设备，先把攻击链停住。</p></li>
-        <li><span class="rail-time">凌晨</span><strong>清除与恢复</strong><p>控制不是结束：清除根因、恢复服务，SLA 在滴答作响。</p></li>
-        <li><span class="rail-time">08:00</span><strong>早会交接</strong><p>结算得分、等级与成就，第二天同事看你的记录。</p></li>
-      </ol>
+
+      <div class="demo reveal" id="demo">
+        <div class="demo-status" role="status" aria-live="polite">
+          <span class="ds"><i>回合</i><b data-demo="turn">1 / 10</b></span>
+          <span class="ds"><i>时钟</i><b data-demo="clock">22:00</b></span>
+          <span class="ds"><i>行动点</i><b data-demo="ap">6 / 6</b></span>
+          <span class="ds"><i>资金</i><b data-demo="funds">¥1280</b></span>
+          <span class="ds"><i>威胁等级</i><b data-demo="threat" class="is-warn">3 / 5</b></span>
+          <span class="ds"><i>可用性</i><b data-demo="avail">100%</b></span>
+        </div>
+
+        <div class="demo-grid">
+          <div class="demo-alert">
+            <p class="demo-label"><i class="pulse"></i>告警 · 待评估</p>
+            <p class="demo-title">可疑邮件：伪造付款通知</p>
+            <ul class="demo-facts">
+              <li>设备 <b>PC-01</b></li>
+              <li>员工 李婧</li>
+              <li>附件 付款清单.zip</li>
+            </ul>
+            <p class="demo-hint" data-demo="hint">先调查——不调查就隔离，误封会扣 12 分。</p>
+          </div>
+
+          <div class="demo-actions">
+            <button class="dbtn" type="button" data-step="investigate">
+              <span class="dbtn-name">调查告警</span><span class="dbtn-cost">1 AP · ¥20</span>
+            </button>
+            <button class="dbtn" type="button" data-step="isolate">
+              <span class="dbtn-name">隔离 PC-01</span><span class="dbtn-cost">1 AP</span>
+            </button>
+            <button class="dbtn" type="button" data-step="clean">
+              <span class="dbtn-name">清除威胁</span><span class="dbtn-cost">2 AP · ¥40</span>
+            </button>
+            <button class="dbtn" type="button" data-step="restore">
+              <span class="dbtn-name">恢复备份</span><span class="dbtn-cost">1 AP</span>
+            </button>
+            <button class="dbtn dbtn-ghost" type="button" data-demo-reset>重置 ↺</button>
+          </div>
+        </div>
+
+        <div class="demo-log" data-demo="log">
+          <p class="log-line is-muted">这是演示用的固定剧本，不是真结局。完整版有 6 条攻击链、12 种操作。</p>
+        </div>
+      </div>
     </section>
 
-    <section class="stats" aria-label="关键数字">
-      <div class="stat reveal"><b>10</b><span>小时值班</span></div>
-      <div class="stat reveal" style="--i:1"><b>6</b><span>条攻击链</span></div>
-      <div class="stat reveal" style="--i:2"><b>12</b><span>种处置操作</span></div>
-      <div class="stat reveal" style="--i:3"><b>8</b><span>台虚构设备</span></div>
-      <div class="stat reveal" style="--i:4"><b>6</b><span>种结局</span></div>
-    </section>
-
+    <!-- ============================ 玩法：四步循环 ============================ -->
     <section id="features" class="section">
       <div class="section-head reveal">
-        <p class="section-kicker">GAMEPLAY</p>
-        <h2>不是背知识点，是撑过这个夜班</h2>
-        <p>调查、判断、取舍。每个操作都要花行动点和钱，还会影响业务可用性。</p>
+        <p class="section-kicker">HOW IT PLAYS</p>
+        <h2>四个动作，一整晚</h2>
+        <p>每一回合都在这四步里打转。点开看每一步能做什么、容易错在哪。</p>
+      </div>
+
+      <div class="loop reveal">
+        <div class="loop-tabs" role="tablist" aria-label="回合四步">
+          <button class="loop-tab is-active" type="button" role="tab" aria-selected="true" data-loop="0"><b>01</b>调查</button>
+          <button class="loop-tab" type="button" role="tab" aria-selected="false" data-loop="1"><b>02</b>控制</button>
+          <button class="loop-tab" type="button" role="tab" aria-selected="false" data-loop="2"><b>03</b>清除</button>
+          <button class="loop-tab" type="button" role="tab" aria-selected="false" data-loop="3"><b>04</b>恢复</button>
+        </div>
+
+        <div class="loop-panels">
+          <article class="loop-panel is-active" data-loop-panel="0">
+            <h3>调查：把「待评估」变成可信的风险</h3>
+            <p class="loop-body">告警等级在调查前只显示「待评估」——不能靠颜色猜。调查会给出风险区间，区间收窄之后，才轮到决定隔离谁。</p>
+            <dl class="loop-meta">
+              <div><dt>常用操作</dt><dd>调查告警（1 AP · ¥20）</dd></div>
+              <div><dt>加固加成</dt><dd>日志关联插件：置信度 +15%，调查成本 −¥10</dd></div>
+              <div><dt>常见失误</dt><dd>不调查直接隔离 → 误封，一次 −12 分</dd></div>
+            </dl>
+          </article>
+
+          <article class="loop-panel" data-loop-panel="1">
+            <h3>控制：先让攻击停手</h3>
+            <p class="loop-body">隔离、封禁、关停都只是「控制」。它能让攻击链停在原地，但根因还在——事件不会自己结束。</p>
+            <dl class="loop-meta">
+              <div><dt>常用操作</dt><dd>隔离设备、封禁来源 IP、关闭服务</dd></div>
+              <div><dt>代价</dt><dd>被隔离或关停的服务开始停机，收入按小时掉</dd></div>
+              <div><dt>常见失误</dt><dd>把「控制成功」当成结束，事件带进下一回合继续升级</dd></div>
+            </dl>
+          </article>
+
+          <article class="loop-panel" data-loop-panel="2">
+            <h3>清除：处理根因</h3>
+            <p class="loop-body">删邮件、打补丁、清威胁、重置密码。告警只有在清除根因之后才会关闭，威胁等级也才会往下走。</p>
+            <dl class="loop-meta">
+              <div><dt>常用操作</dt><dd>清除威胁、安装补丁、删除钓鱼邮件、重置账号</dd></div>
+              <div><dt>回报</dt><dd>彻底清除一条链，得分 +18；连续清除累积 COMBO</dd></div>
+              <div><dt>常见失误</dt><dd>只控制不清除：结算里会被记成「仅控制未清除」</dd></div>
+            </dl>
+          </article>
+
+          <article class="loop-panel" data-loop-panel="3">
+            <h3>恢复：把业务拉回来</h3>
+            <p class="loop-body">启动服务、备份恢复、解除隔离。业务停着的时候，账一直在走；可用性连续 3 回合 ≤ 40，直接判负。</p>
+            <dl class="loop-meta">
+              <div><dt>常用操作</dt><dd>启动服务、备份恢复、解除隔离</dd></div>
+              <div><dt>数值</dt><dd>每回合收入按各服务健康度结算，满额 ¥120，运维 −¥40</dd></div>
+              <div><dt>常见失误</dt><dd>忘了恢复——安全度守住了，可用性把结局拖成「过度防御」</dd></div>
+            </dl>
+          </article>
+        </div>
       </div>
 
       <div class="feature-grid">
@@ -159,169 +245,258 @@
             <span class="card-index">01</span>
           </header>
           <h3>6 条攻击链</h3>
-          <p>钓鱼邮件、异常登录、模拟勒索软件、Web 流量异常、内部账号异常，以及第 8 回合的零日 BOSS。</p>
+          <p>钓鱼、异常登录、模拟勒索、Web 流量异常、内部账号异常，第 8 回合再加一条零日 BOSS。拖着不管，它自己进下一阶段。</p>
+          <div class="card-meta">每条 3~4 阶段</div>
         </article>
 
         <article class="card reveal" style="--i:1">
           <span class="card-glow" aria-hidden="true"></span>
           <header>
             <span class="card-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4-8 4-8-4 8-4Z"/><path d="m4 12 8 4 8-4"/><path d="m4 17 8 4 8-4"/></svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 3 10 2.5-6 1.5 3h5"/></svg>
             </span>
             <span class="card-index">02</span>
           </header>
-          <h3>控制不是结束</h3>
-          <p>隔离只能停下攻击；还要清除根因、恢复业务。三段式响应让每一步都要取舍。</p>
+          <h3>6 项服务在算账</h3>
+          <p>邮箱、官网下单、财务 ERP、核心数据库、备份、办公网各自挂着 SLA。停一小时少一截收入，也掉声誉。</p>
+          <div class="card-meta">SLA 99.5% / 99.9%</div>
         </article>
 
         <article class="card reveal" style="--i:2">
           <span class="card-glow" aria-hidden="true"></span>
           <header>
             <span class="card-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 3 10 2.5-6 1.5 3h5"/></svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3"/></svg>
             </span>
             <span class="card-index">03</span>
           </header>
-          <h3>业务服务与 SLA</h3>
-          <p>邮箱、官网、财务、数据库、备份、办公网各自有 SLA。停服会减少收入并扣声誉。</p>
+          <h3>攻击会往下一跳走</h3>
+          <p>调查之后会预测下一个目标。提前隔离那台设备，就能把攻击链拖进你已经守住的节点。</p>
+          <div class="card-meta">8 台设备 · 邻接表推进</div>
         </article>
 
         <article class="card reveal" style="--i:3">
           <span class="card-glow" aria-hidden="true"></span>
           <header>
             <span class="card-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3"/></svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.2 3 7.2 7.5 9 4.5-1.8 7.5-4.8 7.5-9V6L12 3Z"/><path d="m8.8 11.8 2.2 2.2 4.2-4.4"/></svg>
             </span>
             <span class="card-index">04</span>
           </header>
-          <h3>预判下一跳</h3>
-          <p>调查后会预测攻击下一台设备；提前隔离可以拖住攻击链，把战场推到你想守的地方。</p>
-        </article>
-
-        <article class="card reveal" style="--i:4">
-          <span class="card-glow" aria-hidden="true"></span>
-          <header>
-            <span class="card-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-4 3.2V6Z"/><path d="m8.8 10 2 2 4-4"/></svg>
-            </span>
-            <span class="card-index">05</span>
-          </header>
-          <h3>每一步都有反馈</h3>
-          <p>调查、控制、清除、恢复后，屏幕中央只显示一句「调查成功 / 控制成功 / 清除成功 / 恢复完成」，透明无框；不再只写进日志。</p>
-        </article>
-
-        <article class="card reveal" style="--i:5">
-          <span class="card-glow" aria-hidden="true"></span>
-          <header>
-            <span class="card-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M9 4H6v2a3 3 0 0 0 3 3M15 4h3v2a3 3 0 0 1-3 3"/><path d="M12 14v3M9 21h6l-.6-3.2a1 1 0 0 0-1-.8h-2.8a1 1 0 0 0-1 .8L9 21Z"/></svg>
-            </span>
-            <span class="card-index">06</span>
-          </header>
-          <h3>6 种结局</h3>
-          <p>完美防守、损失严重、数据泄露、勒索失控、过度防御、安全体系崩溃。结算还有连击与成就。</p>
+          <h3>4 项安全加固</h3>
+          <p>¥150~240 的四张牌：日志插件、EDR、离线备份、自动封禁。花的是这局的预算，换的是后面的行动点。</p>
+          <div class="card-meta">¥150 · ¥180 · ¥210 · ¥240</div>
         </article>
       </div>
     </section>
 
+    <!-- ============================ 截图 ============================ -->
     <section id="screens" class="section">
       <div class="section-head reveal">
         <p class="section-kicker">SCREENSHOTS</p>
-        <h2>深色 SOC，清晰的回合节奏</h2>
-        <p>教程、简报、服务面板、加固商店、剧情决策与结算——都是真实游戏画面。</p>
+        <h2>深色 SOC，点开看大图</h2>
+        <p>教程、交接简报、服务面板、加固商店、剧情决策、结算——都是真实游戏画面，没有补拍。</p>
       </div>
 
       <div class="gallery">
-        <figure class="gallery-main reveal">
+        <figure class="reveal">
           <div class="shot">
-            <img src="assets/tutorial.png" alt="新手教程：高亮操作面板并解释调查与处置" width="1280" height="720" loading="lazy" decoding="async">
+            <img src="assets/tutorial.png" alt="新手教程第 1 页「一分钟看懂」：五条基本规则写在中央" width="1280" height="720" loading="lazy" decoding="async">
+            <button class="shot-zoom" type="button" data-src="assets/tutorial.png" data-cap="新手教程 1/12：一分钟看懂五条规则" aria-label="放大查看：新手教程"></button>
           </div>
           <figcaption>
-            <strong>12 页新手教程 + 6 步实战演练</strong>
-            <span>先看会，再上手；教程背景就是真实游戏界面。</span>
+            <strong>12 页教程 + 6 步演练</strong>
+            <span>第一次进游戏，背景就是真实界面。</span>
           </figcaption>
         </figure>
 
         <figure class="reveal" style="--i:1">
           <div class="shot">
-            <img src="assets/briefing.png" alt="夜班交接简报" width="1280" height="720" loading="lazy" decoding="async">
+            <img src="assets/briefing.png" alt="夜班交接简报：主管、公关、运维的三段留言" width="1280" height="720" loading="lazy" decoding="async">
+            <button class="shot-zoom" type="button" data-src="assets/briefing.png" data-cap="夜班交接：今晚，守住这家公司" aria-label="放大查看：夜班交接"></button>
           </div>
           <figcaption>
             <strong>夜班交接</strong>
-            <span>先听主管、公关和运维说完。</span>
+            <span>三段留言，决定你开局先看哪块屏。</span>
           </figcaption>
         </figure>
 
         <figure class="reveal" style="--i:2">
           <div class="shot">
-            <img src="assets/services.png" alt="业务服务与 SLA 面板" width="1280" height="720" loading="lazy" decoding="async">
+            <img src="assets/services.png" alt="业务服务与 SLA 面板，显示六项服务健康度" width="1280" height="720" loading="lazy" decoding="async">
+            <button class="shot-zoom" type="button" data-src="assets/services.png" data-cap="业务服务与 SLA：停掉的那一小时会写进结算" aria-label="放大查看：业务服务与 SLA"></button>
           </div>
           <figcaption>
             <strong>业务服务与 SLA</strong>
-            <span>停服不是免费的，收入会说话。</span>
+            <span>六项服务各自算账，停服不是免费的。</span>
           </figcaption>
         </figure>
 
         <figure class="reveal" style="--i:3">
           <div class="shot">
-            <img src="assets/upgrades.png" alt="安全加固商店" width="1280" height="720" loading="lazy" decoding="async">
+            <img src="assets/upgrades.png" alt="安全加固商店，四项加固项目与价格" width="1280" height="720" loading="lazy" decoding="async">
+            <button class="shot-zoom" type="button" data-src="assets/upgrades.png" data-cap="安全加固：日志插件 ¥150 / 自动封禁 ¥180 / EDR ¥210 / 离线备份 ¥240" aria-label="放大查看：安全加固"></button>
           </div>
           <figcaption>
             <strong>安全加固</strong>
-            <span>把预算变成能力。</span>
+            <span>把预算换成置信度、行动点和一份离线备份。</span>
           </figcaption>
         </figure>
 
         <figure class="reveal" style="--i:4">
           <div class="shot">
-            <img src="assets/decision.png" alt="剧情决策：客户施压" width="1280" height="720" loading="lazy" decoding="async">
+            <img src="assets/decision.png" alt="剧情决策弹窗：第 4 回合客户施压" width="1280" height="720" loading="lazy" decoding="async">
+            <button class="shot-zoom" type="button" data-src="assets/decision.png" data-cap="第 4 回合 · 客户施压：两个选项都标好了代价" aria-label="放大查看：剧情决策"></button>
           </div>
           <figcaption>
             <strong>剧情决策</strong>
-            <span>客户、媒体与安全团队，谁先让步？</span>
+            <span>第 4 回合客户施压，第 7 回合媒体询问。</span>
           </figcaption>
         </figure>
 
         <figure class="reveal" style="--i:5">
           <div class="shot">
-            <img src="assets/result.png" alt="结算界面：完美防守 123 分 S" width="1280" height="720" loading="lazy" decoding="async">
+            <img src="assets/result.png" alt="结算界面：成功但损失严重 64 分 C，含得分、等级、值班风格与统计" width="1280" height="720" loading="lazy" decoding="async">
+            <button class="shot-zoom" type="button" data-src="assets/result.png" data-cap="结算：64 分 · C · 值班风格「反应迟缓型」" aria-label="放大查看：结算界面"></button>
           </div>
           <figcaption>
             <strong>结算与成就</strong>
-            <span>得分、等级、统计、连击、成就。</span>
+            <span>得分、S–D 等级、误报与误封、值班风格。</span>
           </figcaption>
         </figure>
 
         <aside class="gallery-note reveal" style="--i:6">
           <div class="note-copy">
             <p class="section-kicker">AFTER THE SHIFT</p>
-            <p>一早八点，结算会告诉你三件事：<strong>有没有守住</strong>、<strong>业务被拖累了多少</strong>、<strong>下一次该先做什么</strong>。</p>
+            <p>08:00，报告把这一夜拆成一张表——<strong>正确识别、彻底清除、仅控制、漏掉的威胁、误报与误封、平均响应</strong>——再给你的值班风格下一句定语，比如「反应迟缓型」。</p>
           </div>
           <div class="rank">
             <span class="rank-badge">S</span>
-            <div><strong>123 分 · 完美防守</strong><span>零日被拦在备份服务器之外。</span></div>
+            <div><strong>98 分起 · 完美防守</strong><span>零误封、零外泄，记录干净得像教学范例。</span></div>
           </div>
         </aside>
       </div>
     </section>
 
+    <!-- ============================ 结局 ============================ -->
+    <section id="endings" class="section">
+      <div class="section-head reveal">
+        <p class="section-kicker">SIX ENDINGS</p>
+        <h2>同一个夜班，六种收尾</h2>
+        <p>点一个看它的原文，以及它最高能拿到什么等级——S 只属于完美防守。</p>
+      </div>
+
+      <div class="endings reveal">
+        <div class="ending-tabs" role="tablist" aria-label="结局">
+          <button class="ending-tab is-active" type="button" role="tab" aria-selected="true" data-ending-tab="perfect">完美防守</button>
+          <button class="ending-tab" type="button" role="tab" aria-selected="false" data-ending-tab="costly">损失严重</button>
+          <button class="ending-tab" type="button" role="tab" aria-selected="false" data-ending-tab="data_leak">数据泄露</button>
+          <button class="ending-tab" type="button" role="tab" aria-selected="false" data-ending-tab="over_defense">过度防御</button>
+          <button class="ending-tab" type="button" role="tab" aria-selected="false" data-ending-tab="ransomware">勒索失控</button>
+          <button class="ending-tab" type="button" role="tab" aria-selected="false" data-ending-tab="security_breach">体系崩溃</button>
+        </div>
+
+        <div class="ending-panels">
+          <article class="ending-panel is-active" data-ending-panel="perfect">
+            <header>
+              <h3>完美防守</h3>
+              <span class="grade grade-s">等级上限 S</span>
+            </header>
+            <p>所有真实威胁都在造成重大损失前被阻断，公司平安度过这个夜班。没有误封，没有数据外泄，值班记录干净得像一份教学范例。</p>
+            <p class="ending-cond">达成条件：全部彻底清除、没有「仅控制」、完整度 ≥90、安全度 ≥60、可用性 ≥80、零误封。</p>
+          </article>
+
+          <article class="ending-panel" data-ending-panel="costly">
+            <header>
+              <h3>成功但损失严重</h3>
+              <span class="grade grade-a">等级上限 A</span>
+            </header>
+            <p>危机最终被控制，但数据、声誉或资金付出了明显代价。公司还在运转，只是这份值班报告不太适合在晨会上展示。</p>
+            <p class="ending-cond">达成条件：撑到 08:00，威胁被压住，但没满足完美防守的任一条件。</p>
+          </article>
+
+          <article class="ending-panel" data-ending-panel="data_leak">
+            <header>
+              <h3>数据泄露</h3>
+              <span class="grade grade-c">等级上限 C</span>
+            </header>
+            <p>核心数据已经外泄或被破坏，监管通报与客户索赔接踵而至。止损做得再快，也无法当作什么都没发生。</p>
+            <p class="ending-cond">达成条件：数据完整度跌到 ≤20，或核心数据库被攻破。</p>
+          </article>
+
+          <article class="ending-panel" data-ending-panel="over_defense">
+            <header>
+              <h3>过度防御导致业务崩溃</h3>
+              <span class="grade grade-c">等级上限 C</span>
+            </header>
+            <p>为了阻断攻击，你关闭或隔离了过多服务，业务连续性先于攻击崩溃。安全的目标是让业务安全地运行，而不是让业务停止运行。</p>
+            <p class="ending-cond">达成条件：可用性连续 3 回合 ≤ 40。</p>
+          </article>
+
+          <article class="ending-panel" data-ending-panel="ransomware">
+            <header>
+              <h3>模拟勒索软件失控</h3>
+              <span class="grade grade-d">等级上限 D</span>
+            </header>
+            <p>勒索软件完成了对核心数据的模拟加密，且备份未能救场。业务恢复时间无法估算，这将是公司历史上最长的一个夜晚。</p>
+            <p class="ending-cond">达成条件：勒索链走到最后阶段，而备份与恢复没能把数据拉回来。</p>
+          </article>
+
+          <article class="ending-panel" data-ending-panel="security_breach">
+            <header>
+              <h3>安全体系崩溃</h3>
+              <span class="grade grade-d">等级上限 D</span>
+            </header>
+            <p>安全度归零，告警、身份与边界控制全面失效。这不是某一次操作的失误，而是整晚响应节奏的累积结果。</p>
+            <p class="ending-cond">达成条件：安全度归零。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ 评分 ============================ -->
+    <section class="section scoring">
+      <div class="scoring-copy reveal">
+        <p class="section-kicker">SCORING</p>
+        <h2>分数是怎么算出来的</h2>
+        <p>满分 130，五项指标按权重加权，再加上完成度、误报、连击这些加减项。想把分打高，只能同时守住安全和业务。</p>
+        <ul class="mods">
+          <li class="plus">彻底清除 <b>+18 / 条</b></li>
+          <li class="plus">误报处理 <b>+2 / 次</b></li>
+          <li class="plus">连击 <b>×3</b></li>
+          <li class="minus">误封 <b>−12 / 次</b></li>
+          <li class="minus">漏报 <b>−15 / 条</b></li>
+        </ul>
+      </div>
+
+      <div class="weights reveal" style="--i:1">
+        <div class="weight"><span>数据完整度</span><i style="--w:25%"></i><b>25%</b></div>
+        <div class="weight"><span>安全度</span><i style="--w:22%"></i><b>22%</b></div>
+        <div class="weight"><span>服务可用性</span><i style="--w:20%"></i><b>20%</b></div>
+        <div class="weight"><span>公司声誉</span><i style="--w:12%"></i><b>12%</b></div>
+        <div class="weight"><span>剩余资金</span><i style="--w:8%"></i><b>8%</b></div>
+      </div>
+    </section>
+
+    <!-- ============================ 上手 ============================ -->
     <section id="start" class="section start-section">
       <div class="start-copy reveal">
         <p class="section-kicker">GET STARTED</p>
         <h2>三步开始值班</h2>
         <ol class="steps">
-          <li><span>01</span><div><strong>下载并解压</strong><p>下载 <code>ZeroDayDuty-Windows-x64.zip</code>，解压到任意目录。</p></div></li>
-          <li><span>02</span><div><strong>双击运行</strong><p>双击 <code>零日值班.exe</code>。不需要安装 Python 或 Pygame。</p></div></li>
-          <li><span>03</span><div><strong>先看简报</strong><p>主菜单开始值班，听同事说完，再跟完 6 步演练。</p></div></li>
+          <li><span>01</span><div><strong>下载并解压</strong><p>拿到 <code>ZeroDayDuty-Windows-x64.zip</code>，解到任意目录。</p></div></li>
+          <li><span>02</span><div><strong>双击运行</strong><p>运行 <code>零日值班.exe</code>，不需要 Python 或 Pygame。</p></div></li>
+          <li><span>03</span><div><strong>先看简报</strong><p>从主菜单开始值班，听完交接，再跟完 6 步演练。</p></div></li>
         </ol>
-        <p class="note">首次启动 1~3 秒；未做代码签名，SmartScreen 提示时选择「更多信息 → 仍要运行」。</p>
+        <p class="note">首次启动 1~3 秒；没有代码签名，SmartScreen 提示时选「更多信息 → 仍要运行」。</p>
 
         <div class="terminal">
           <div class="terminal-bar">
             <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
             <span>PowerShell · 源码运行</span>
+            <button class="copy-btn" type="button" data-copy="#run-cmds">复制</button>
           </div>
-          <pre><code><span class="p">PS&gt;</span> py -3.10 -m pip install -r requirements.txt
+          <pre id="run-cmds"><code><span class="p">PS&gt;</span> py -3.10 -m pip install -r requirements.txt
 <span class="p">PS&gt;</span> py -3.10 main.py
 <span class="c"># 固定随机种子，复现同一局</span>
 <span class="p">PS&gt;</span> py -3.10 main.py --seed 2024</code></pre>
@@ -341,22 +516,26 @@
             <div><kbd>M</kbd><span>音效开关</span></div>
           </div>
         </div>
-        <div class="mini-card">
-          <span class="mini-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>
-          </span>
-          <div><strong>一局约 15 分钟</strong><span>1280 × 720 窗口，随时暂停存档。</span></div>
-        </div>
+
+        <ul class="specs">
+          <li><span>平台</span><b>Windows 10 / 11</b></li>
+          <li><span>窗口</span><b>1280 × 720 固定</b></li>
+          <li><span>体积</span><b>24.4 MB（免安装）</b></li>
+          <li><span>依赖</span><b>打包版无需 Python</b></li>
+          <li><span>存档</span><b>JSON · 手动 / 自动</b></li>
+          <li><span>语言</span><b>简体中文</b></li>
+        </ul>
       </div>
     </section>
 
+    <!-- ============================ 安全声明 ============================ -->
     <section id="safety" class="section safety">
       <div class="safety-copy reveal">
         <p class="section-kicker">SAFETY</p>
         <h2>只做模拟，不碰真实网络</h2>
         <p>
-          本项目仅用于 Python 课程展示。不扫描真实网络、不连接真实服务器、不执行真实系统命令、不包含真实恶意代码。
-          所有 IP、账号、域名、服务器与事件均为虚构；示例 IP 使用文档保留地址段。
+          课程展示用途：不扫描真实网络、不连接真实服务器、不执行系统命令、不含真实恶意代码。
+          IP、账号、域名与事件全部虚构，示例地址取自文档保留段。
         </p>
         <ul class="ip-chips">
           <li>192.0.2.0/24</li>
@@ -379,6 +558,17 @@
     </nav>
     <p class="footer-small">Python 3.10 + Pygame · 课程作业项目 · 所有数据均为虚构</p>
   </footer>
+
+  <dialog class="shotbox" id="shotbox" aria-label="截图大图">
+    <button class="shotbox-close" type="button" data-shotbox-close aria-label="关闭">×</button>
+    <img id="shotbox-img" alt="">
+    <p class="shotbox-cap" id="shotbox-cap"></p>
+    <div class="shotbox-nav">
+      <button type="button" data-shotbox-prev aria-label="上一张">←</button>
+      <span id="shotbox-count">1 / 6</span>
+      <button type="button" data-shotbox-next aria-label="下一张">→</button>
+    </div>
+  </dialog>
 
   <script src="app.js" defer></script>
 </body>
