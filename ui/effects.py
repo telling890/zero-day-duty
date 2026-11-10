@@ -82,7 +82,7 @@ class EffectsManager:
         color: tuple[int, int, int] = settings.GREEN,
         stage: str = "",
         correct: bool = True,
-        duration: float = 3.2,
+        duration: float = 2.6,
     ) -> None:
         """操作面板上方“正确/注意”反馈卡：让玩家清楚知道刚才为什么对。"""
         self.feedback = Feedback(
@@ -94,6 +94,8 @@ class EffectsManager:
             life=duration,
             total=duration,
         )
+        if correct:
+            self.add_burst((settings.SCREEN_WIDTH // 2, settings.SCREEN_HEIGHT // 2), color, 20)
 
     # ------------------------------------------------------------------
     def add_floater(
@@ -207,21 +209,40 @@ class EffectsManager:
         if feedback is None:
             return
         progress = 1.0 - feedback.life / feedback.total
-        alpha = 255
-        if feedback.life < 0.55:
-            alpha = int(255 * feedback.life / 0.55)
+        fade_in = min(1.0, progress / 0.06)
+        fade_out = min(1.0, feedback.life / 0.55)
+        alpha = int(255 * min(fade_in, fade_out))
+        ease = 1.0 - (1.0 - min(1.0, progress / 0.35)) ** 3
         title = feedback.title
-        font = draw_utils.get_font(34, True)
+        font = draw_utils.get_font(42, True)
         text = font.render(title, True, feedback.color)
         text.set_alpha(alpha)
-        x = settings.SCREEN_WIDTH // 2 - text.get_width() // 2
-        y = settings.SCREEN_HEIGHT // 2 - text.get_height() // 2 - int(progress * 24)
-        # 只保留一句结果，不加底板、不加边框；用深色描边保证在复杂背景上可读。
+        cx = settings.SCREEN_WIDTH // 2
+        cy = settings.SCREEN_HEIGHT // 2 - int(26 * ease)
+        x = cx - text.get_width() // 2
+        y = cy - text.get_height() // 2
+
+        # 透明光晕与扩散环：没有底板/边框，只在文字周围留一层呼吸感。
+        glow = pygame.Surface((360, 190), pygame.SRCALPHA)
+        gx, gy = glow.get_width() // 2, glow.get_height() // 2
+        for radius, strength in ((118, 8), (86, 12), (58, 18)):
+            pygame.draw.circle(glow, (*feedback.color, int(strength * alpha / 255)), (gx, gy), radius)
+        ring_radius = 36 + int(92 * ease)
+        pygame.draw.circle(glow, (*feedback.color, int(90 * fade_out)), (gx, gy), ring_radius, 2)
+        surface.blit(glow, (cx - gx, cy - gy))
+
+        # 轻微上浮 + 深色描边；画面里只保留结果文字。
         shadow = font.render(title, True, (3, 7, 10))
         shadow.set_alpha(int(alpha * 0.8))
         for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
             surface.blit(shadow, (x + dx, y + dy))
         surface.blit(text, (x, y))
+
+        line_half = int(48 + 82 * ease)
+        line_alpha = int(170 * fade_out)
+        line = pygame.Surface((line_half * 2, 3), pygame.SRCALPHA)
+        pygame.draw.rect(line, (*feedback.color, line_alpha), line.get_rect(), border_radius=2)
+        surface.blit(line, (cx - line_half, y + text.get_height() + 8))
 
     def _draw_particles(self, surface: pygame.Surface) -> None:
         for particle in self.particles:
