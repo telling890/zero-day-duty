@@ -36,11 +36,17 @@
         if (el.getBoundingClientRect().top < vh * 0.9) el.classList.add('in');
       });
     });
+
+    // 兜底：若观察器因异常没有回调，3 秒后全部显示
+    window.setTimeout(function () {
+      items.forEach(function (el) { el.classList.add('in'); });
+    }, 3000);
   }
 
   /* ---------------------------- 导航状态 ---------------------------- */
   function initNav() {
-    var nav = document.querySelector('.nav');
+    var nav = document.querySelector('.nav-wrap');
+    var bar = document.querySelector('.progress i');
     var links = Array.prototype.slice.call(document.querySelectorAll('.nav-links a'));
     var sections = links
       .map(function (link) { return document.querySelector(link.getAttribute('href')); })
@@ -52,6 +58,12 @@
       ticking = false;
 
       if (nav) nav.classList.toggle('scrolled', window.scrollY > 10);
+
+      if (bar) {
+        var scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        var ratio = scrollable > 0 ? Math.min(1, Math.max(0, window.scrollY / scrollable)) : 0;
+        bar.style.transform = 'scaleX(' + ratio + ')';
+      }
 
       var current = null;
       sections.forEach(function (section) {
