@@ -4,98 +4,215 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>零日值班 · 网络安全防御模拟器</title>
-  <meta name="description" content="零日值班：Python + Pygame 中文网络安全防御模拟游戏。10 回合、6 条攻击链、新手教程、存档与多结局，Windows 免安装版可下载。">
-  <meta name="theme-color" content="#070b12">
+  <meta name="description" content="零日值班：Python + Pygame 中文网络安全防御模拟游戏。10 小时夜班、6 条攻击链、12 种处置操作、新手教程、存档与 6 种结局，Windows 免安装版可下载。">
+  <meta name="theme-color" content="#05070c">
+  <meta property="og:title" content="零日值班 · 网络安全防御模拟器">
+  <meta property="og:description" content="10 个小时、6 条攻击链、有限行动点：先控制、再清除、最后恢复业务，守到早上八点。">
+  <meta property="og:image" content="assets/gameplay.png">
   <link rel="icon" href="assets/icon.png">
+  <link rel="preload" as="image" href="assets/gameplay.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="grid-bg" aria-hidden="true"></div>
+  <a class="skip" href="#top">跳到正文</a>
+
+  <div class="bg" aria-hidden="true">
+    <span class="aurora aurora-cyan"></span>
+    <span class="aurora aurora-violet"></span>
+    <span class="aurora aurora-mint"></span>
+    <span class="bg-grid"></span>
+    <span class="bg-vignette"></span>
+  </div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track">
+      <span class="ticker-run">
+        <i class="live"></i>LIVE · 值班中
+        <b>威胁等级 4/5</b>
+        <span>检测到零日漏洞利用</span>
+        <b>03:00</b>
+        <span>行动点 5/6</span>
+        <b>收入 ¥14,320</b>
+        <span>声誉 74%</span>
+        <span class="ticker-hint">先控制 → 再清除 → 最后恢复业务</span>
+      </span>
+      <span class="ticker-run">
+        <i class="live"></i>LIVE · 值班中
+        <b>威胁等级 4/5</b>
+        <span>检测到零日漏洞利用</span>
+        <b>03:00</b>
+        <span>行动点 5/6</span>
+        <b>收入 ¥14,320</b>
+        <span>声誉 74%</span>
+        <span class="ticker-hint">先控制 → 再清除 → 最后恢复业务</span>
+      </span>
+    </div>
+  </div>
 
   <header class="nav">
     <a class="brand" href="#top">
       <span class="brand-mark">0</span>
-      <span>零日值班</span>
+      <span class="brand-text">零日值班<em>ZERO-DAY DUTY</em></span>
     </a>
-    <nav class="nav-links">
+    <nav class="nav-links" aria-label="页面导航">
       <a href="#features">玩法</a>
       <a href="#screens">截图</a>
       <a href="#start">上手</a>
       <a href="#safety">声明</a>
     </nav>
-    <a class="nav-gh" href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">GitHub ↗</a>
+    <a class="nav-gh" href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.95 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.85-2.34 4.7-4.57 4.95.36.31.68.92.68 1.86v2.75c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+      GitHub
+    </a>
   </header>
 
   <main id="top">
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">NETWORK DEFENSE SIMULATOR <span>v1.4.0</span></p>
-        <h1>守到<br><em>早上八点。</em></h1>
-        <p class="lead">
-          你是虚构公司「云栖示例科技」的夜班安全管理员。10 个小时、6 条攻击链、有限的行动点和预算：
-          先控制、再清除、最后恢复业务，顺便应付客户和媒体。
+        <p class="eyebrow reveal">
+          <span class="eyebrow-dot"></span>NETWORK DEFENSE SIMULATOR
+          <span class="pill">v1.4.0</span>
         </p>
-        <div class="cta">
+        <h1 class="reveal" style="--i:1">守到<br><em>早上八点。</em></h1>
+        <p class="lead reveal" style="--i:2">
+          你是虚构公司「云栖示例科技」的夜班安全管理员。10 个小时、6 条攻击链、有限的行动点和预算：
+          <strong>先控制、再清除、最后恢复业务</strong>，顺便应付客户和媒体。
+        </p>
+        <div class="cta reveal" style="--i:3">
           <a class="btn primary" href="https://github.com/telling890/zero-day-duty/releases/latest/download/ZeroDayDuty-Windows-x64.zip">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
             下载 Windows 版
           </a>
-          <a class="btn" href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">
-            查看源码
+          <a class="btn ghost" href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">
+            查看源码<span class="arrow">↗</span>
           </a>
         </div>
-        <ul class="quick">
+        <ul class="quick reveal" style="--i:4">
           <li>Windows 10 / 11</li>
           <li>免安装 · 无需 Python</li>
-          <li>约 15 MB</li>
-          <li>34 项自动化测试</li>
+          <li>约 25 MB</li>
+          <li>35 项自动化测试</li>
         </ul>
       </div>
-      <div class="hero-shot">
-        <div class="shot-frame">
-          <img src="assets/gameplay.png" alt="零日值班游戏界面：网络拓扑、告警、日志与操作面板">
-          <span class="shot-tag">LIVE SOC · 03:00</span>
-        </div>
-        <div class="hero-note">
-          <span class="dot"></span>
-          威胁等级 4/5 · 检测到零日漏洞利用
+
+      <div class="hero-visual reveal" style="--i:2">
+        <span class="glow-ring" aria-hidden="true"></span>
+        <figure class="monitor">
+          <div class="monitor-bar">
+            <span class="monitor-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="monitor-title">soc-console — 03:00</span>
+            <span class="monitor-live"><i></i>LIVE</span>
+          </div>
+          <div class="monitor-body">
+            <img src="assets/gameplay.png" alt="零日值班游戏界面：网络拓扑、告警列表、日志终端与处置操作面板" width="1280" height="720">
+          </div>
+        </figure>
+        <div class="hero-chips">
+          <span class="chip chip-danger"><i></i>威胁等级 4/5</span>
+          <span class="chip">活跃事件 2</span>
+          <span class="chip">行动点 5/6</span>
         </div>
       </div>
     </section>
 
+    <section class="shift" aria-label="一个夜班的节奏">
+      <div class="shift-head reveal">
+        <p class="section-kicker">SHIFT 22:00 → 08:00</p>
+        <h2 class="shift-title">一个夜班的十个小时</h2>
+      </div>
+      <ol class="rail reveal" style="--i:1">
+        <li><span class="rail-time">22:00</span><strong>夜班交接</strong><p>听完主管、公关和运维的留言，再开始巡逻。</p></li>
+        <li><span class="rail-time">深夜</span><strong>调查与控制</strong><p>读日志、查告警、隔离设备，先把攻击链停住。</p></li>
+        <li><span class="rail-time">凌晨</span><strong>清除与恢复</strong><p>控制不是结束：清除根因、恢复服务，SLA 在滴答作响。</p></li>
+        <li><span class="rail-time">08:00</span><strong>早会交接</strong><p>结算得分、等级与成就，第二天同事看你的记录。</p></li>
+      </ol>
+    </section>
+
+    <section class="stats" aria-label="关键数字">
+      <div class="stat reveal"><b>10</b><span>小时值班</span></div>
+      <div class="stat reveal" style="--i:1"><b>6</b><span>条攻击链</span></div>
+      <div class="stat reveal" style="--i:2"><b>12</b><span>种处置操作</span></div>
+      <div class="stat reveal" style="--i:3"><b>8</b><span>台虚构设备</span></div>
+      <div class="stat reveal" style="--i:4"><b>6</b><span>种结局</span></div>
+    </section>
+
     <section id="features" class="section">
-      <div class="section-head">
+      <div class="section-head reveal">
         <p class="section-kicker">GAMEPLAY</p>
         <h2>不是背知识点，是撑过这个夜班</h2>
         <p>调查、判断、取舍。每个操作都要花行动点和钱，还会影响业务可用性。</p>
       </div>
+
       <div class="feature-grid">
-        <article class="card">
-          <span class="card-index">01</span>
+        <article class="card reveal">
+          <span class="card-glow" aria-hidden="true"></span>
+          <header>
+            <span class="card-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 14.5 14.5 9.5"/><path d="M7 17a3.5 3.5 0 0 1 0-5l2.5-2.5a3.5 3.5 0 0 1 5 0"/><path d="M17 7a3.5 3.5 0 0 1 0 5L14.5 14.5a3.5 3.5 0 0 1-5 0"/></svg>
+            </span>
+            <span class="card-index">01</span>
+          </header>
           <h3>6 条攻击链</h3>
           <p>钓鱼邮件、异常登录、模拟勒索软件、Web 流量异常、内部账号异常，以及第 8 回合的零日 BOSS。</p>
         </article>
-        <article class="card">
-          <span class="card-index">02</span>
+
+        <article class="card reveal" style="--i:1">
+          <span class="card-glow" aria-hidden="true"></span>
+          <header>
+            <span class="card-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4-8 4-8-4 8-4Z"/><path d="m4 12 8 4 8-4"/><path d="m4 17 8 4 8-4"/></svg>
+            </span>
+            <span class="card-index">02</span>
+          </header>
           <h3>控制不是结束</h3>
           <p>隔离只能停下攻击；还要清除根因、恢复业务。三段式响应让每一步都要取舍。</p>
         </article>
-        <article class="card">
-          <span class="card-index">03</span>
+
+        <article class="card reveal" style="--i:2">
+          <span class="card-glow" aria-hidden="true"></span>
+          <header>
+            <span class="card-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 3 10 2.5-6 1.5 3h5"/></svg>
+            </span>
+            <span class="card-index">03</span>
+          </header>
           <h3>业务服务与 SLA</h3>
           <p>邮箱、官网、财务、数据库、备份、办公网各自有 SLA。停服会减少收入并扣声誉。</p>
         </article>
-        <article class="card">
-          <span class="card-index">04</span>
+
+        <article class="card reveal" style="--i:3">
+          <span class="card-glow" aria-hidden="true"></span>
+          <header>
+            <span class="card-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3"/></svg>
+            </span>
+            <span class="card-index">04</span>
+          </header>
           <h3>预判下一跳</h3>
           <p>调查后会预测攻击下一台设备；提前隔离可以拖住攻击链，把战场推到你想守的地方。</p>
         </article>
-        <article class="card">
-          <span class="card-index">05</span>
+
+        <article class="card reveal" style="--i:4">
+          <span class="card-glow" aria-hidden="true"></span>
+          <header>
+            <span class="card-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-4 3.2V6Z"/><path d="m8.8 10 2 2 4-4"/></svg>
+            </span>
+            <span class="card-index">05</span>
+          </header>
           <h3>每一步都有反馈</h3>
-          <p>调查、控制、清除、恢复后，屏幕右下直接显示“为什么这一步是对的”，并标出所处阶段；不再只写进日志。</p>
+          <p>调查、控制、清除、恢复后，屏幕右下直接显示「为什么这一步是对的」，并标出所处阶段；不再只写进日志。</p>
         </article>
-        <article class="card">
-          <span class="card-index">06</span>
+
+        <article class="card reveal" style="--i:5">
+          <span class="card-glow" aria-hidden="true"></span>
+          <header>
+            <span class="card-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M9 4H6v2a3 3 0 0 0 3 3M15 4h3v2a3 3 0 0 1-3 3"/><path d="M12 14v3M9 21h6l-.6-3.2a1 1 0 0 0-1-.8h-2.8a1 1 0 0 0-1 .8L9 21Z"/></svg>
+            </span>
+            <span class="card-index">06</span>
+          </header>
           <h3>6 种结局</h3>
           <p>完美防守、损失严重、数据泄露、勒索失控、过度防御、安全体系崩溃。结算还有连击与成就。</p>
         </article>
@@ -103,40 +220,86 @@
     </section>
 
     <section id="screens" class="section">
-      <div class="section-head">
+      <div class="section-head reveal">
         <p class="section-kicker">SCREENSHOTS</p>
         <h2>深色 SOC，清晰的回合节奏</h2>
+        <p>教程、简报、服务面板、加固商店、剧情决策与结算——都是真实游戏画面。</p>
       </div>
+
       <div class="gallery">
-        <figure class="gallery-main">
-          <img src="assets/tutorial.png" alt="新手教程：高亮操作面板并解释调查与处置">
-          <figcaption><strong>12 页新手教程 + 6 步实战演练</strong><span>先看会，再上手；教程背景就是真实游戏界面。</span></figcaption>
+        <figure class="gallery-main reveal">
+          <div class="shot">
+            <img src="assets/tutorial.png" alt="新手教程：高亮操作面板并解释调查与处置" width="1280" height="720" loading="lazy" decoding="async">
+          </div>
+          <figcaption>
+            <strong>12 页新手教程 + 6 步实战演练</strong>
+            <span>先看会，再上手；教程背景就是真实游戏界面。</span>
+          </figcaption>
         </figure>
-        <figure>
-          <img src="assets/briefing.png" alt="夜班交接简报">
-          <figcaption><strong>夜班交接</strong><span>先听主管、公关和运维说完。</span></figcaption>
+
+        <figure class="reveal" style="--i:1">
+          <div class="shot">
+            <img src="assets/briefing.png" alt="夜班交接简报" width="1280" height="720" loading="lazy" decoding="async">
+          </div>
+          <figcaption>
+            <strong>夜班交接</strong>
+            <span>先听主管、公关和运维说完。</span>
+          </figcaption>
         </figure>
-        <figure>
-          <img src="assets/services.png" alt="业务服务与 SLA 面板">
-          <figcaption><strong>业务服务与 SLA</strong><span>停服不是免费的，收入会说话。</span></figcaption>
+
+        <figure class="reveal" style="--i:2">
+          <div class="shot">
+            <img src="assets/services.png" alt="业务服务与 SLA 面板" width="1280" height="720" loading="lazy" decoding="async">
+          </div>
+          <figcaption>
+            <strong>业务服务与 SLA</strong>
+            <span>停服不是免费的，收入会说话。</span>
+          </figcaption>
         </figure>
-        <figure>
-          <img src="assets/upgrades.png" alt="安全加固商店">
-          <figcaption><strong>安全加固</strong><span>把预算变成能力。</span></figcaption>
+
+        <figure class="reveal" style="--i:3">
+          <div class="shot">
+            <img src="assets/upgrades.png" alt="安全加固商店" width="1280" height="720" loading="lazy" decoding="async">
+          </div>
+          <figcaption>
+            <strong>安全加固</strong>
+            <span>把预算变成能力。</span>
+          </figcaption>
         </figure>
-        <figure>
-          <img src="assets/decision.png" alt="剧情决策：客户施压">
-          <figcaption><strong>剧情决策</strong><span>客户、媒体与安全团队，谁先让步？</span></figcaption>
+
+        <figure class="reveal" style="--i:4">
+          <div class="shot">
+            <img src="assets/decision.png" alt="剧情决策：客户施压" width="1280" height="720" loading="lazy" decoding="async">
+          </div>
+          <figcaption>
+            <strong>剧情决策</strong>
+            <span>客户、媒体与安全团队，谁先让步？</span>
+          </figcaption>
         </figure>
-        <figure>
-          <img src="assets/result.png" alt="结算界面：完美防守 123 分 S">
-          <figcaption><strong>结算与成就</strong><span>得分、等级、统计、连击、成就。</span></figcaption>
+
+        <figure class="reveal" style="--i:5">
+          <div class="shot">
+            <img src="assets/result.png" alt="结算界面：完美防守 123 分 S" width="1280" height="720" loading="lazy" decoding="async">
+          </div>
+          <figcaption>
+            <strong>结算与成就</strong>
+            <span>得分、等级、统计、连击、成就。</span>
+          </figcaption>
         </figure>
+
+        <aside class="gallery-note reveal" style="--i:6">
+          <p class="section-kicker">AFTER THE SHIFT</p>
+          <p>一早八点，结算会告诉你三件事：<strong>有没有守住</strong>、<strong>业务被拖累了多少</strong>、<strong>下一次该先做什么</strong>。</p>
+          <div class="rank">
+            <span class="rank-badge">S</span>
+            <div><strong>123 分 · 完美防守</strong><span>零日被拦在备份服务器之外。</span></div>
+          </div>
+        </aside>
       </div>
     </section>
 
     <section id="start" class="section start-section">
-      <div class="start-copy">
+      <div class="start-copy reveal">
         <p class="section-kicker">GET STARTED</p>
         <h2>三步开始值班</h2>
         <ol class="steps">
@@ -144,43 +307,72 @@
           <li><span>02</span><div><strong>双击运行</strong><p>双击 <code>零日值班.exe</code>。不需要安装 Python 或 Pygame。</p></div></li>
           <li><span>03</span><div><strong>先看简报</strong><p>主菜单开始值班，听同事说完，再跟完 6 步演练。</p></div></li>
         </ol>
-        <p class="note">首次启动 1~3 秒；未做代码签名，SmartScreen 提示时选择“更多信息 → 仍要运行”。</p>
+        <p class="note">首次启动 1~3 秒；未做代码签名，SmartScreen 提示时选择「更多信息 → 仍要运行」。</p>
+
+        <div class="terminal">
+          <div class="terminal-bar">
+            <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span>PowerShell · 源码运行</span>
+          </div>
+          <pre><code><span class="p">PS&gt;</span> py -3.10 -m pip install -r requirements.txt
+<span class="p">PS&gt;</span> py -3.10 main.py
+<span class="c"># 固定随机种子，复现同一局</span>
+<span class="p">PS&gt;</span> py -3.10 main.py --seed 2024</code></pre>
+        </div>
       </div>
-      <div class="keys-card">
-        <h3>关键操作</h3>
-        <div class="keys">
-          <div><kbd>空格</kbd><span>推进回合</span></div>
-          <div><kbd>Esc</kbd><span>暂停 / 菜单</span></div>
-          <div><kbd>F1</kbd><span>值班手册</span></div>
-          <div><kbd>U</kbd><span>安全加固</span></div>
-          <div><kbd>F5</kbd><span>保存进度</span></div>
-          <div><kbd>F9</kbd><span>读取进度</span></div>
-          <div><kbd>M</kbd><span>音效开关</span></div>
+
+      <div class="start-side reveal" style="--i:1">
+        <div class="keys-card">
+          <h3>关键操作</h3>
+          <div class="keys">
+            <div><kbd>空格</kbd><span>推进回合</span></div>
+            <div><kbd>Esc</kbd><span>暂停 / 菜单</span></div>
+            <div><kbd>F1</kbd><span>值班手册</span></div>
+            <div><kbd>U</kbd><span>安全加固</span></div>
+            <div><kbd>F5</kbd><span>保存进度</span></div>
+            <div><kbd>F9</kbd><span>读取进度</span></div>
+            <div><kbd>M</kbd><span>音效开关</span></div>
+          </div>
+        </div>
+        <div class="mini-card">
+          <span class="mini-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>
+          </span>
+          <div><strong>一局约 15 分钟</strong><span>1280 × 720 窗口，随时暂停存档。</span></div>
         </div>
       </div>
     </section>
 
     <section id="safety" class="section safety">
-      <div>
+      <div class="safety-copy reveal">
         <p class="section-kicker">SAFETY</p>
         <h2>只做模拟，不碰真实网络</h2>
         <p>
           本项目仅用于 Python 课程展示。不扫描真实网络、不连接真实服务器、不执行真实系统命令、不包含真实恶意代码。
-          所有 IP、账号、域名、服务器与事件均为虚构；示例 IP 使用 192.0.2.0/24、198.51.100.0/24、203.0.113.0/24 等文档保留地址段。
+          所有 IP、账号、域名、服务器与事件均为虚构；示例 IP 使用文档保留地址段。
         </p>
+        <ul class="ip-chips">
+          <li>192.0.2.0/24</li>
+          <li>198.51.100.0/24</li>
+          <li>203.0.113.0/24</li>
+        </ul>
       </div>
-      <a class="btn" href="https://github.com/telling890/zero-day-duty/releases/latest" target="_blank" rel="noreferrer">查看全部 Release ↗</a>
+      <a class="btn ghost safety-btn reveal" style="--i:1" href="https://github.com/telling890/zero-day-duty/releases/latest" target="_blank" rel="noreferrer">
+        查看全部 Release<span class="arrow">↗</span>
+      </a>
     </section>
   </main>
 
   <footer>
     <div class="footer-brand"><span class="brand-mark small">0</span> 零日值班 · 网络安全防御模拟器</div>
-    <div class="footer-links">
+    <nav class="footer-links" aria-label="页脚链接">
       <a href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">GitHub</a>
       <a href="https://github.com/telling890/zero-day-duty/releases/latest" target="_blank" rel="noreferrer">Release</a>
       <a href="https://github.com/telling890/zero-day-duty/blob/main/README.md" target="_blank" rel="noreferrer">README</a>
-    </div>
+    </nav>
     <p class="footer-small">Python 3.10 + Pygame · 课程作业项目 · 所有数据均为虚构</p>
   </footer>
+
+  <script src="app.js" defer></script>
 </body>
 </html>
