@@ -17,13 +17,17 @@ class DevicePanel:
         device = game.selected_device()
         alert = game.selected_alert
         title = f"设备详情 · {device.name}" if device else "值班简报"
-        content = draw_utils.draw_panel(surface, self.rect, title, header_right="点击拓扑节点可切换")
+        service_views = game.services.views(game.devices)
+        outages = [view for view in service_views if view.interrupted]
+        if outages:
+            header_right = f"业务中断 {len(outages)} 项 · 点空白返回总览"
+        else:
+            header_right = "业务正常 · 点空白返回总览"
+        content = draw_utils.draw_panel(surface, self.rect, title, header_right=header_right)
 
         if device is None:
             small = draw_utils.get_font(settings.FONT_TINY)
-            active = game.events.active_events()
-            resolved = len([event for event in game.events.events if event.contained])
-            pending = len([alert for alert in game.events.alerts if not alert.investigated and not alert.resolved])
+            tiny = draw_utils.get_font(10)
             surface.blit(
                 draw_utils.get_font(13, True).render(
                     "夜班目标：在 08:00 前阻止全部攻击链，并尽量保持业务在线。",
@@ -32,49 +36,40 @@ class DevicePanel:
                 ),
                 (content.x, content.y + 2),
             )
-            tags = (
-                (f"威胁 {game.threat_level}/5", settings.RED if game.threat_level >= 4 else settings.ORANGE),
-                (f"活跃攻击链 {len(active)}", settings.RED if active else settings.GREEN),
-                (f"已阻断 {resolved}", settings.GREEN),
-                (f"待调查 {pending}", settings.ACCENT),
+            threat_text = tiny.render(
+                f"威胁 {game.threat_level}/5  ·  活跃 {len(game.events.active_events())}",
+                True,
+                settings.RED if game.threat_level >= 4 else settings.ORANGE,
             )
-            x = content.x
-            for text, color in tags:
-                tag_rect = draw_utils.draw_tag(surface, text, small, (x, content.y + 26), color)
-                x = tag_rect.right + 8
+            surface.blit(threat_text, (content.right - threat_text.get_width(), content.y + 4))
 
-            timeline = pygame.Rect(content.x, content.y + 56, content.width, 18)
-            segment_width = (timeline.width - 9 * 4) / 10
-            for index in range(10):
-                segment = pygame.Rect(
-                    int(timeline.x + index * (segment_width + 4)),
-                    timeline.y,
-                    int(segment_width),
-                    12,
-                )
-                if index + 1 < game.turn:
-                    color = (50, 76, 90)
-                elif index + 1 == game.turn:
-                    color = settings.ACCENT
+            services = service_views
+            column_width = content.width // 2
+            for index, view in enumerate(services[:6]):
+                column = index // 3
+                row = index % 3
+                x = content.x + column * column_width
+                y = content.y + 24 + row * 20
+                if view.status == "正常":
+                    color = settings.GREEN
+                elif view.status in ("降级", "维护"):
+                    color = settings.YELLOW
                 else:
-                    color = (30, 42, 56)
-                pygame.draw.rect(surface, color, segment, border_radius=3)
-                if index + 1 == game.turn:
-                    pygame.draw.rect(surface, settings.WHITE, segment, 1, border_radius=3)
-            surface.blit(
-                small.render("22:00", True, settings.TEXT_FAINT),
-                (content.x, content.y + 72),
+                    color = settings.RED
+                pygame.draw.circle(surface, color, (x + 4, y + 7), 3)
+                name = view.config.short_name
+                surface.blit(small.render(name, True, settings.TEXT_DIM), (x + 13, y))
+                status_text = tiny.render(view.status, True, color)
+                surface.blit(status_text, (x + 13 + small.size(name)[0] + 8, y + 2))
+                if view.revenue_loss > 0:
+                    loss = tiny.render(f"-¥{view.revenue_loss}", True, settings.ORANGE)
+                    surface.blit(loss, (x + column_width - 54, y + 2))
+            hint = tiny.render(
+                "服务中断会减少收入并触发 SLA 违约；点击节点可查看设备与处置选项。",
+                True,
+                settings.TEXT_FAINT,
             )
-            end_text = small.render("08:00", True, settings.TEXT_FAINT)
-            surface.blit(end_text, (content.right - end_text.get_width(), content.y + 72))
-            surface.blit(
-                small.render(
-                    "提示：点击左侧节点查看设备，或点击右侧告警开始调查。",
-                    True,
-                    settings.TEXT_FAINT,
-                ),
-                (content.x, content.y + 92),
-            )
+            surface.blit(hint, (content.x, content.y + 92))
             return
 
         # 第一行：状态标签 + 健康值
@@ -161,6 +156,9 @@ class DevicePanel:
             filled=alert.investigated and not alert.false_positive,
         )
         info = f"来源 {alert.source_ip or '—'}   账号 {alert.account or '—'}   {alert.status_text}"
+        related = game.related_alerts(alert)
+        if related:
+            info += f"   关联 {len(related)} 条"
         surface.blit(small.render(draw_utils.ellipsize(info, small, content.width), True, settings.TEXT_DIM), (content.x, y + 18))
 
         event = game.event_for_alert(alert)
@@ -172,7 +170,16 @@ class DevicePanel:
             threat = game.risk.threat_text(low, high)
             risk_line = f"风险估计：{low} ~ {high}（{threat}，置信度 {confidence}%）"
             surface.blit(small.render(risk_line, True, settings.ORANGE), (content.x, y + 36))
-            stage_line = f"已掌握线索 {event.revealed_clues}/{event.total_clues} · {event.progress_text}"
-            surface.blit(small.render(stage_line, True, settings.TEXT_FAINT), (content.x + 280, y + 36))
+            stage_line = f"线索 {event.revealed_clues}/{event.total_clues} · {event.progress_text}"
+            if event.next_device_id:
+                next_device = game.devices.get(event.next_device_id)
+                next_name = next_device.short_name if next_device else event.next_device_id
+                blocked = next_device is not None and not next_device.is_available
+                stage_line += f" · 下一跳 {next_name}" + ("（已预隔离）" if blocked else "")
+                stage_color = settings.GREEN if blocked else settings.YELLOW
+            else:
+                stage_color = settings.TEXT_FAINT
+            stage_line = draw_utils.ellipsize(stage_line, small, content.width - 268)
+            surface.blit(small.render(stage_line, True, stage_color), (content.x + 260, y + 36))
         else:
             surface.blit(small.render("该告警未关联到进行中的事件，建议先调查确认。", True, settings.TEXT_FAINT), (content.x, y + 36))

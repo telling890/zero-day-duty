@@ -10,16 +10,23 @@
         {
           "label": "关闭搜索接口，优先排查",
           "hint": "可用性 -8，安全度 +5",
-          "effects": {"availability": -8, "security": 5},
+          "effects": {
+            "availability": -8,
+            "security": 5
+          },
           "result": "搜索接口短暂下线，异常请求被挡住，但客户在群里连续追问了三次。"
         },
         {
           "label": "保持在线，只加强监控",
           "hint": "声誉 +3，安全度 -2",
-          "effects": {"reputation": 3, "security": -2},
+          "effects": {
+            "reputation": 3,
+            "security": -2
+          },
           "result": "服务没有中断，客户满意；但攻击面仍然暴露，安全团队只能继续观察。"
         }
-      ]
+      ],
+      "speaker": "项目经理 · 周航"
     },
     {
       "id": "media_rumor",
@@ -30,16 +37,24 @@
         {
           "label": "主动披露并安抚客户",
           "hint": "资金 -120，声誉 +5，安全度 +2",
-          "effects": {"funds": -120, "reputation": 5, "security": 2},
+          "effects": {
+            "funds": -120,
+            "reputation": 5,
+            "security": 2
+          },
           "result": "公司发布简短声明并启动客户沟通，短期成本增加，但信任没有崩塌。"
         },
         {
           "label": "暂不回应，集中排查",
           "hint": "声誉 -4，安全度 +3",
-          "effects": {"reputation": -4, "security": 3},
+          "effects": {
+            "reputation": -4,
+            "security": 3
+          },
           "result": "团队把全部精力放在排查上，媒体的报道在第二天变成了质疑。"
         }
-      ]
+      ],
+      "speaker": "公关负责人 · 林岚"
     }
   ]
 }

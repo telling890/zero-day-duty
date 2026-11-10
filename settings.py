@@ -42,6 +42,7 @@ SAVE_DIR = APP_DIR / "saves"
 ASSET_DIR = BASE_DIR / "assets"
 EVENTS_FILE = DATA_DIR / "events.json"
 DEVICES_FILE = DATA_DIR / "devices.json"
+SERVICES_FILE = DATA_DIR / "services.json"
 UPGRADES_FILE = DATA_DIR / "upgrades.json"
 DECISIONS_FILE = DATA_DIR / "decisions.json"
 SAVE_FILE = SAVE_DIR / "savegame.json"
@@ -51,7 +52,7 @@ HISTORY_FILE = SAVE_DIR / "history.json"
 # 基本信息
 # ---------------------------------------------------------------------------
 GAME_TITLE = "零日值班：网络安全防御模拟器"
-GAME_VERSION = "v1.0.1"
+GAME_VERSION = "v1.2.0"
 COMPANY_NAME = "云栖示例科技（虚构）"
 
 SCREEN_WIDTH = 1280
@@ -96,6 +97,7 @@ CONFIDENCE_MAX = 0.95
 COST_INVESTIGATE = (1, 20)
 COST_ISOLATE = (2, 30)
 COST_UNISOLATE = (1, 0)
+COST_ERADICATE = (2, 60)
 COST_DELETE_MAIL = (1, 10)
 COST_RESET_PASSWORD = (1, 35)
 COST_BLOCK_SOURCE = (1, 25)

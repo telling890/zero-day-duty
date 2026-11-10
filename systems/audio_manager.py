@@ -33,11 +33,32 @@ class AudioManager:
                 "turn": self._tone([(480, 0.09), (600, 0.09)], 0.10),
                 "combo": self._tone([(880, 0.06), (1100, 0.07), (1320, 0.10)], 0.13),
             }
+            self.ambient = self._ambient()
+            self.ambient_channel: pygame.mixer.Channel | None = None
             self.enabled = True
         except (pygame.error, OSError):
             self.enabled = False
+            self.ambient = None
+            self.ambient_channel = None
 
     # ------------------------------------------------------------------
+    def _ambient(self) -> pygame.mixer.Sound:
+        """4 秒低频值班室底噪，循环播放；音量很低，不盖过提示音。"""
+        duration = 4.0
+        count = int(_SAMPLE_RATE * duration)
+        data = array.array("h")
+        for index in range(count):
+            t = index / _SAMPLE_RATE
+            sample = (
+                0.42 * math.sin(2.0 * math.pi * 55.0 * t)
+                + 0.20 * math.sin(2.0 * math.pi * 110.0 * t)
+                + 0.06 * math.sin(2.0 * math.pi * 220.0 * t)
+            )
+            data.append(int(32767 * 0.035 * sample))
+        sound = pygame.mixer.Sound(buffer=data.tobytes())
+        sound.set_volume(0.18)
+        return sound
+
     def _tone(self, notes: list[tuple[float, float]], volume: float) -> pygame.mixer.Sound:
         data = array.array("h")
         for frequency, duration in notes:
@@ -54,6 +75,24 @@ class AudioManager:
                 data.append(int(32767 * volume * envelope * sample))
         return pygame.mixer.Sound(buffer=data.tobytes())
 
+    def play_ambient(self) -> None:
+        if not self.enabled or self.ambient is None or self.muted:
+            return
+        try:
+            if self.ambient_channel is None or not self.ambient_channel.get_busy():
+                self.ambient_channel = self.ambient.play(loops=-1)
+                if self.ambient_channel is not None:
+                    self.ambient_channel.set_volume(0.18)
+        except pygame.error:
+            pass
+
+    def stop_ambient(self) -> None:
+        if self.ambient_channel is not None:
+            try:
+                self.ambient_channel.stop()
+            except pygame.error:
+                pass
+
     def play(self, name: str) -> None:
         if not self.enabled or self.muted:
             return
@@ -67,6 +106,13 @@ class AudioManager:
 
     def toggle_mute(self) -> bool:
         self.muted = not self.muted
+        if self.ambient_channel is not None:
+            try:
+                self.ambient_channel.set_volume(0.0 if self.muted else 0.18)
+            except pygame.error:
+                pass
+        if not self.muted:
+            self.play_ambient()
         return self.muted
 
     @property

@@ -189,4 +189,7 @@ class NetworkView:
                     except Exception:
                         pass
                     return True
+            if self.rect.collidepoint(event.pos):
+                game.clear_selection()
+                return True
         return False

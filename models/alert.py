@@ -46,6 +46,7 @@ class Alert:
 
         self.investigated = False
         self.verdict = ""          # "真实威胁" / "误报"
+        self.controlled = False
         self.resolved = False
         self.resolve_note = ""
 
@@ -79,7 +80,9 @@ class Alert:
     @property
     def status_text(self) -> str:
         if self.resolved:
-            return "已处置"
+            return "已清除"
+        if self.controlled:
+            return "已控制·待清除"
         if self.investigated:
             return f"已调查·{self.verdict}" if self.verdict else "已调查"
         return "未调查"
@@ -90,6 +93,8 @@ class Alert:
 
         if self.resolved:
             return GREEN
+        if self.controlled:
+            return YELLOW
         if self.investigated:
             return YELLOW if self.verdict == "真实威胁" else TEXT_DIM
         return TEXT_DIM
@@ -98,16 +103,29 @@ class Alert:
         self.investigated = True
         self.verdict = verdict
 
+    def mark_controlled(self, note: str = "") -> None:
+        """攻击已停止但根因尚未清除。"""
+        if self.resolved:
+            return
+        self.controlled = True
+        self.resolve_note = note
+
     def resolve(self, note: str = "") -> None:
         self.resolved = True
+        self.controlled = False
         self.resolve_note = note
         if not self.investigated:
             self.investigated = True
             self.verdict = "真实威胁"
 
-    def sort_key(self) -> tuple[int, int, int]:
-        """未处置优先、调查后按等级、新告警优先；未调查时不暴露等级顺序。"""
-        return (1 if self.resolved else 0, -self.display_priority, -self.turn)
+    def sort_key(self) -> tuple[int, int, int, int]:
+        """未清除优先、已控制次之、已清除最后；调查后按等级、新告警优先。"""
+        return (
+            1 if self.resolved else 0,
+            1 if self.controlled else 0,
+            -self.display_priority,
+            -self.turn,
+        )
 
     # ------------------------------------------------------------------
     # 存档序列化
@@ -128,6 +146,7 @@ class Alert:
             "conclusion": self.conclusion,
             "investigated": self.investigated,
             "verdict": self.verdict,
+            "controlled": self.controlled,
             "resolved": self.resolved,
             "resolve_note": self.resolve_note,
         }
@@ -150,6 +169,7 @@ class Alert:
         )
         alert.investigated = bool(data.get("investigated", False))
         alert.verdict = str(data.get("verdict", ""))
+        alert.controlled = bool(data.get("controlled", False))
         alert.resolved = bool(data.get("resolved", False))
         alert.resolve_note = str(data.get("resolve_note", ""))
         return alert

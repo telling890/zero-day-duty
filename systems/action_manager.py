@@ -68,6 +68,7 @@ class ActionManager:
         "block_source": ("封禁来源 IP", settings.COST_BLOCK_SOURCE[0], settings.COST_BLOCK_SOURCE[1], "_block_source"),
         "isolate": ("隔离设备", settings.COST_ISOLATE[0], settings.COST_ISOLATE[1], "_isolate_device"),
         "unisolate": ("解除隔离", settings.COST_UNISOLATE[0], settings.COST_UNISOLATE[1], "_unisolate_device"),
+        "eradicate": ("清除威胁", settings.COST_ERADICATE[0], settings.COST_ERADICATE[1], "_eradicate_device"),
         "patch": ("安装安全补丁", settings.COST_PATCH[0], settings.COST_PATCH[1], "_patch_device"),
         "shutdown": ("关闭服务器", settings.COST_SHUTDOWN[0], settings.COST_SHUTDOWN[1], "_shutdown_device"),
         "startup": ("启动服务器", settings.COST_STARTUP[0], settings.COST_STARTUP[1], "_startup_device"),
@@ -90,11 +91,18 @@ class ActionManager:
             return []
         options: list[ActionOption] = []
         if target.kind == "alert" and target.alert is not None:
+            event = game.event_for_alert(target.alert)
+            if event is not None and event.contained and not event.eradicated:
+                options.append(self._build("eradicate", game, target))
+                if target.device is not None:
+                    options.append(
+                        self._build("unisolate" if target.device.isolated else "isolate", game, target)
+                    )
+                return options
             for action_id in self.ALERT_ACTION_ORDER:
                 options.append(self._build(action_id, game, target))
             if target.device is not None:
                 options.append(self._build("unisolate" if target.device.isolated else "isolate", game, target))
-                event = game.event_for_alert(target.alert)
                 if (
                     event is not None
                     and event.event_type in ("Web 流量异常", "零日漏洞")
@@ -107,11 +115,13 @@ class ActionManager:
         return options
 
     def _device_options(self, game: "Game", target: Target) -> list[ActionOption]:
-        """设备相关的操作最多 5 个，刚好放进 3×2 操作面板。"""
+        """设备相关的操作最多 6 个，刚好放进 3×2 操作面板。"""
         device = target.device
         if device is None:
             return []
         action_ids: list[str] = []
+        if game.controlled_events_for_device(device.device_id):
+            action_ids.append("eradicate")
         if device.isolated:
             action_ids.append("unisolate")
         elif device.online:
@@ -124,7 +134,7 @@ class ActionManager:
             action_ids.append("restore_backup")
         if device.device_id == "BAK-01" and not device.backup_protected:
             action_ids.append("protect_backup")
-        return [self._build(action_id, game, target) for action_id in action_ids]
+        return [self._build(action_id, game, target) for action_id in action_ids[:6]]
 
     def _build(self, action_id: str, game: "Game", target: Target) -> ActionOption:
         name, ap_cost, money_cost, handler_name = self.ACTIONS[action_id]
@@ -218,6 +228,18 @@ class ActionManager:
                 return False, "设备已处于隔离状态，请使用“解除隔离”"
             if not device.online:
                 return False, "设备已经关机，无法再隔离"
+            return True, ""
+
+        if action_id == "eradicate":
+            if alert is not None:
+                event = game.event_for_alert(alert)
+                if event is None or not event.contained or event.eradicated:
+                    return False, "该告警没有已控制、等待清除的事件"
+                return True, ""
+            if device is None:
+                return False, "请先选择一台设备"
+            if not game.controlled_events_for_device(device.device_id):
+                return False, "该设备没有已控制、等待清除的事件"
             return True, ""
 
         if action_id == "unisolate":
@@ -365,6 +387,25 @@ class ActionManager:
                 f"风险提示：{warning}",
                 source=device.name if device else event.target_id,
             )
+        if event.next_device_id:
+            next_device = game.devices.get(event.next_device_id)
+            next_name = next_device.name if next_device else event.next_device_id
+            game.logs.add(
+                game.turn,
+                settings.clock_text(game.turn),
+                "告警",
+                f"预测下一跳：{next_name}（{event.next_stage_name}）。提前隔离可拖住攻击。",
+                source=device.name if device else event.target_id,
+            )
+        related = game.related_alerts(alert)
+        if related:
+            game.logs.add(
+                game.turn,
+                settings.clock_text(game.turn),
+                "告警",
+                f"情报关联：发现 {len(related)} 条同源/同账号告警，可能属于同一攻击活动。",
+                source=device.name if device else event.target_id,
+            )
         spread_condition = str(event.config.get("spread_condition", ""))
         if spread_condition:
             game.logs.add(
@@ -385,7 +426,7 @@ class ActionManager:
         assert event is not None
         if event.stage_index <= 1:
             success_text = event.stage_text("success", "邮件在附件被打开前删除，事件被阻断。")
-            game.contain_event(event, "删除可疑邮件", security_gain=4)
+            game.eradicate_event(event, "删除可疑邮件", security_gain=4)
             return ActionResult(True, f"已删除可疑邮件并从网关拦截。{success_text}")
         return ActionResult(False, "邮件已删除，但凭据已在更早阶段泄露，攻击链仍在继续。")
 
@@ -393,7 +434,7 @@ class ActionManager:
         event = game.event_for_alert(target.alert)
         assert event is not None
         event.credentials_reset = True
-        game.contain_event(event, "重置账号密码", security_gain=3)
+        game.eradicate_event(event, "重置账号密码", security_gain=3)
         return ActionResult(
             True,
             f"已重置 {event.account or '相关账号'} 的密码并踢出现有会话，攻击者持有的凭据失效。",
@@ -434,9 +475,11 @@ class ActionManager:
             for event in events:
                 game.contain_event(event, "隔离设备", security_gain=2, device_id=device.device_id)
             names = "、".join(event.name for event in events)
+            impact = game.services.impact_for_device(device.device_id, game.devices)
+            suffix = f" 业务影响：{impact}。" if impact else ""
             return ActionResult(
                 True,
-                f"{device.name} 已隔离，切断了「{names}」的攻击路径；服务可用性下降。",
+                f"{device.name} 已隔离，切断了「{names}」的攻击路径；攻击已控制，仍需清除根因。{suffix}",
             )
         if game.has_event_relation(device.device_id):
             return ActionResult(
@@ -449,6 +492,29 @@ class ActionManager:
         return ActionResult(
             False,
             f"{device.name} 已隔离，但没有发现该设备相关的活动事件，可能属于误封，声誉下降。",
+        )
+
+    def _eradicate_device(self, game: "Game", target: Target) -> ActionResult:
+        device = target.device
+        if target.kind == "alert":
+            event = game.event_for_alert(target.alert)
+            if event is None or not event.contained or event.eradicated:
+                return ActionResult(False, "该告警没有已控制、等待清除的事件。")
+            events = [event]
+            device = game.devices.get(event.active_device_id)
+        else:
+            if device is None:
+                return ActionResult(False, "请先选择一台设备。")
+            events = game.controlled_events_for_device(device.device_id)
+        if not events:
+            return ActionResult(False, "该设备没有已控制、等待清除的事件。")
+        for event in events:
+            game.eradicate_event(event, "清除威胁", security_gain=3, device_id=device.device_id if device else "")
+        names = "、".join(event.name for event in events)
+        target_name = device.name if device else "目标设备"
+        return ActionResult(
+            True,
+            f"{target_name} 上的「{names}」已完成取证与清除；现在可以恢复业务。",
         )
 
     def _patch_device(self, game: "Game", target: Target) -> ActionResult:
@@ -467,10 +533,10 @@ class ActionManager:
         ]
         if web_events:
             for event in web_events:
-                game.contain_event(event, "安装安全补丁", security_gain=2, device_id=device.device_id)
+                game.eradicate_event(event, "安装安全补丁", security_gain=2, device_id=device.device_id)
             return ActionResult(
                 True,
-                f"{device.name} 补丁/缓解措施安装完成，漏洞利用链被阻断；维护期间可用性略降。",
+                f"{device.name} 补丁/缓解措施安装完成，漏洞利用链被清除；维护期间可用性略降。",
             )
         return ActionResult(
             True,
@@ -487,9 +553,11 @@ class ActionManager:
             for event in events:
                 game.contain_event(event, "关闭服务器", security_gain=1, device_id=device.device_id)
             names = "、".join(event.name for event in events)
+            impact = game.services.impact_for_device(device.device_id, game.devices)
+            suffix = f" 业务影响：{impact}。" if impact else ""
             return ActionResult(
                 True,
-                f"{device.name} 已关停，攻击链「{names}」被切断；代价是相关业务中断。",
+                f"{device.name} 已关停，攻击链「{names}」被控制；仍需清除根因。{suffix}",
             )
         game.adjust_metric(MetricKey.REPUTATION, -4, f"无事件时关停 {device.name}，业务中断")
         game.player.stats["false_isolations"] = game.player.stats.get("false_isolations", 0) + 1

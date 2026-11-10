@@ -28,7 +28,7 @@ class AlertPanel:
     def draw(self, surface: pygame.Surface, game: "object") -> None:
         alerts = self._ordered(game)
         unresolved = len([alert for alert in alerts if not alert.resolved])
-        header = f"未处置 {unresolved} / 共 {len(alerts)}   （滚轮滚动）"
+        header = f"未清除 {unresolved} / 共 {len(alerts)}   （滚轮滚动）"
         content = draw_utils.draw_panel(surface, self.rect, "安全告警", header_right=header)
 
         if not alerts:
@@ -74,6 +74,7 @@ class AlertPanel:
             alert.investigated
             and not alert.false_positive
             and not alert.resolved
+            and not alert.controlled
             and alert.level in ("高危", "极危")
         ):
             import math
@@ -100,6 +101,9 @@ class AlertPanel:
         info = f"目标 {alert.target_id} {target_name} · 第{alert.turn}回合 {alert.clock}"
         if alert.source_ip:
             info += f" · 来源 {alert.source_ip}"
+        related = game.related_alerts(alert)
+        if related:
+            info += f" · 关联 {len(related)} 条"
         surface.blit(tiny.render(draw_utils.ellipsize(info, tiny, rect.width - 20), True, settings.TEXT_DIM), (rect.x + 10, rect.y + 25))
 
     # ------------------------------------------------------------------

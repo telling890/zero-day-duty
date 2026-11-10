@@ -57,25 +57,25 @@ PAGES: tuple[TutorialPage, ...] = (
         card=(26, 326, 560, 300),
     ),
     TutorialPage(
-        title="调查之后怎么处置",
-        body="不同事件需要不同操作，没有一颗万能按钮。",
+        title="处置分为三段",
+        body="控制、清除、恢复是三件事。隔离能阻止扩散，但不会自动清除根因。",
         bullets=(
-            "钓鱼邮件：删除可疑邮件；账号异常：重置密码。",
-            "勒索/横向移动：隔离或关停当前活动设备。",
-            "Web/零日：安装补丁；外部来源：封禁 IP。",
-            "悬停灰色按钮可以看到为什么不可用。",
+            "控制：隔离、关停、封禁来源，先让攻击停下来。",
+            "清除：删除邮件、重置密码、打补丁，或在设备上执行“清除威胁”。",
+            "恢复：解除隔离、启动服务、从备份恢复，并确认业务可用。",
+            "删除邮件/补丁这类“提前阻断”可以直接清除，不必再补一刀。",
         ),
         target=(616, 516, 656, 196),
         card=(26, 176, 560, 300),
     ),
     TutorialPage(
-        title="每个操作都有代价",
-        body="行动点和资金有限，隔离、关停、补丁维护都会影响服务可用性。",
+        title="每个操作都有业务代价",
+        body="左下角现在是业务服务面板：邮箱、官网、财务、数据库、备份、办公网。",
         bullets=(
-            "隔离和关停会降低可用性；误封还会扣声誉。",
-            "补丁需要维护，短时间内容量下降。",
-            "备份恢复消耗快照，保护备份服务器可以减轻勒索损失。",
-            "低可用性连续 3 回合会触发“过度防御”失败。",
+            "隔离和关停会让对应服务中断，收入按 SLA 减少。",
+            "关键服务中断会持续扣声誉；连续低可用性会失败。",
+            "补丁会进入维护窗口，服务短暂降级。",
+            "先控制、再清除、最后恢复，才能把损失压到最低。",
         ),
         target=(8, 392, 600, 166),
         card=(620, 330, 620, 300),
@@ -109,7 +109,7 @@ PAGES: tuple[TutorialPage, ...] = (
         body="接下来是一个 4 步演练：选择告警 → 调查 → 删除钓鱼邮件 → 推进回合。",
         bullets=(
             "教程中只有一条钓鱼事件，不会出现其他攻击。",
-            "跟着左下角的提示操作即可，随时可以退出教程。",
+            "删除邮件会直接清除根因；隔离则只完成“控制”，还需要“清除威胁”。",
             "完成后可以开始真正的 10 回合值班。",
         ),
         target=None,
@@ -272,7 +272,7 @@ class TutorialGuide:
     STEP_TEXT = (
         "第 1 步：点击右侧第一条告警。",
         "第 2 步：在操作面板点击“调查告警”。",
-        "第 3 步：点击“删除可疑邮件”，在附件被打开前阻断事件。",
+        "第 3 步：点击“删除可疑邮件”；如果已隔离，则点击“清除威胁”。",
         "第 4 步：点击“推进回合 →”，进入下一个小时。",
     )
 
@@ -296,7 +296,7 @@ class TutorialGuide:
             self._advance(game)
         elif self.step == 1 and game.selected_alert is not None and game.selected_alert.investigated:
             self._advance(game)
-        elif self.step == 2 and any(event.contained for event in game.events.events):
+        elif self.step == 2 and any(event.eradicated for event in game.events.events):
             self._advance(game)
         elif self.step == 3 and game.turn >= 2:
             self._advance(game)
@@ -374,9 +374,13 @@ class TutorialGuide:
     def _highlight_target(self, surface: pygame.Surface, game: "object") -> None:
         target = pygame.Rect(624, 102, 640, 44)
         if self.step == 1:
-            target = self._action_button_rect(game, "investigate")
+            target = self._action_button_rect(game, "investigate") or target
         elif self.step == 2:
-            target = self._action_button_rect(game, "delete_mail")
+            target = (
+                self._action_button_rect(game, "delete_mail")
+                or self._action_button_rect(game, "eradicate")
+                or pygame.Rect(624, 580, 200, 50)
+            )
         elif self.step == 3:
             target = game.bottom_buttons["advance"].rect
         pulse = (pygame.time.get_ticks() // 200) % 2
@@ -384,11 +388,11 @@ class TutorialGuide:
         pygame.draw.rect(surface, color, target.inflate(4, 4), 2, border_radius=6)
 
     @staticmethod
-    def _action_button_rect(game: "object", action_id: str) -> pygame.Rect:
+    def _action_button_rect(game: "object", action_id: str) -> pygame.Rect | None:
         for button, option in game.action_panel.buttons:
             if option.action_id == action_id:
                 return button.rect
-        return pygame.Rect(624, 580, 200, 50)
+        return None
 
     # ------------------------------------------------------------------
     def handle_event(self, event: pygame.event.Event, game: "object") -> bool:

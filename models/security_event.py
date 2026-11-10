@@ -55,6 +55,9 @@ class SecurityEvent:
         self.containment_method = ""
         self.containment_device = ""
         self.contained_turn = 0
+        self.eradicated = False
+        self.eradication_method = ""
+        self.eradicated_turn = 0
         self.failed = False
         self.failed_turn = 0
         self.investigations = 0
@@ -90,7 +93,38 @@ class SecurityEvent:
 
     @property
     def is_active(self) -> bool:
-        return not self.contained and not self.failed
+        return not self.contained and not self.eradicated and not self.failed
+
+    @property
+    def is_resolved(self) -> bool:
+        """只有清除根因才算真正解决；单纯隔离只是控制。"""
+        return self.eradicated
+
+    @property
+    def status_text(self) -> str:
+        if self.eradicated:
+            return "已清除"
+        if self.contained:
+            return "已控制·待清除"
+        if self.failed:
+            return "已失守"
+        if self.investigations > 0:
+            return "调查中"
+        return "待调查"
+
+    @property
+    def next_device_id(self) -> str:
+        """下一阶段预计受影响的设备；已到最终阶段时返回空字符串。"""
+        if self.stage_index >= self.max_stage_index:
+            return ""
+        next_stage = self.stages[self.stage_index + 1]
+        return str(next_stage.get("active_device", self.target_id))
+
+    @property
+    def next_stage_name(self) -> str:
+        if self.stage_index >= self.max_stage_index:
+            return ""
+        return str(self.stages[self.stage_index + 1].get("name", ""))
 
     # ------------------------------------------------------------------
     # 推进与线索
@@ -126,8 +160,19 @@ class SecurityEvent:
         self.containment_device = device_id
         self.last_advance_turn = turn
 
+    def mark_eradicated(self, method: str, turn: int, device_id: str = "") -> None:
+        if not self.contained:
+            self.mark_contained(method, turn, device_id)
+        self.eradicated = True
+        self.eradication_method = method
+        self.eradicated_turn = turn
+        self.containment_method = self.containment_method or method
+        self.containment_device = self.containment_device or device_id
+
     def resume(self) -> None:
-        """解除隔离后，被隔离“压住”的事件重新活跃。"""
+        """解除隔离后，被隔离“压住”的事件重新活跃；已清除事件不会复活。"""
+        if self.eradicated:
+            return
         self.contained = False
         self.containment_method = ""
         self.containment_device = ""
@@ -163,6 +208,9 @@ class SecurityEvent:
             "containment_method": self.containment_method,
             "containment_device": self.containment_device,
             "contained_turn": self.contained_turn,
+            "eradicated": self.eradicated,
+            "eradication_method": self.eradication_method,
+            "eradicated_turn": self.eradicated_turn,
             "failed": self.failed,
             "failed_turn": self.failed_turn,
             "investigations": self.investigations,
@@ -182,6 +230,9 @@ class SecurityEvent:
         self.containment_method = str(state.get("containment_method", ""))
         self.containment_device = str(state.get("containment_device", ""))
         self.contained_turn = int(state.get("contained_turn", 0))
+        self.eradicated = bool(state.get("eradicated", False))
+        self.eradication_method = str(state.get("eradication_method", ""))
+        self.eradicated_turn = int(state.get("eradicated_turn", 0))
         self.failed = bool(state.get("failed", False))
         self.failed_turn = int(state.get("failed_turn", 0))
         self.investigations = max(0, int(state.get("investigations", 0)))
@@ -194,5 +245,5 @@ class SecurityEvent:
         self.rewarded = bool(state.get("rewarded", False))
 
     def __repr__(self) -> str:  # 便于调试
-        state = "已处置" if self.contained else ("已失败" if self.failed else "进行中")
+        state = "已清除" if self.eradicated else ("已控制" if self.contained else ("已失败" if self.failed else "进行中"))
         return f"<SecurityEvent {self.event_id} {self.name} {self.progress_text} {state}>"

@@ -20,6 +20,8 @@ class ScoreReport:
     style_comment: str
     stats: list[tuple[str, str]] = field(default_factory=list)
     achievements: list[str] = field(default_factory=list)
+    news_headline: str = ""
+    news_detail: str = ""
 
 
 ENDINGS = {
@@ -61,6 +63,7 @@ STYLE_COMMENTS = {
     "精准快速型": "你几乎在第一时间锁定并阻断了威胁，调查与处置的节奏非常干净。",
     "资源透支型": "你有效控制了风险，但资金消耗过大，后续运营压力明显。",
     "稳健均衡型": "你在安全、业务与成本之间保持了相对均衡，属于可持续的值班风格。",
+    "善后不足型": "你成功压制了攻击，但把清除根因留到了最后；控制不等于解决。",
 }
 
 
@@ -76,6 +79,7 @@ class ScoreSystem:
         grade = self._cap_grade(self._grade(score), ending_key)
         style = self._style(summary)
         stats = self._stats(summary)
+        news_headline, news_detail = self._news(summary, ending_key)
         return ScoreReport(
             score=score,
             grade=grade,
@@ -86,6 +90,8 @@ class ScoreSystem:
             style_comment=STYLE_COMMENTS.get(style, ""),
             stats=stats,
             achievements=self._achievements(summary, ending_key),
+            news_headline=news_headline,
+            news_detail=news_detail,
         )
 
     def _achievements(self, summary: dict[str, Any], ending_key: str) -> list[str]:
@@ -126,9 +132,11 @@ class ScoreSystem:
             return "data_leak"
         total = int(summary.get("total_events", 0))
         resolved = int(summary.get("resolved", 0))
+        controlled_only = int(summary.get("controlled_only", 0))
         perfect = (
             total > 0
             and resolved == total
+            and controlled_only == 0
             and int(summary.get("integrity", 0)) >= 90
             and int(summary.get("security", 0)) >= 60
             and int(summary.get("availability", 0)) >= 80
@@ -144,6 +152,7 @@ class ScoreSystem:
         funds = int(summary.get("funds", 0))
         total = max(1, int(summary.get("total_events", 0)))
         resolved = int(summary.get("resolved", 0))
+        controlled_only = int(summary.get("controlled_only", 0))
         checked = int(summary.get("false_positives_checked", 0))
         false_isolations = int(summary.get("false_isolations", 0))
         missed = int(summary.get("missed", 0))
@@ -156,11 +165,12 @@ class ScoreSystem:
             + availability * 0.20
             + funds_ratio * 0.08
         )
-        score += resolved / total * 18
+        score += (resolved + controlled_only * 0.35) / total * 18
         score += checked * 2
         score += int(summary.get("best_combo", 0)) * 3
         score -= false_isolations * 12
         score -= missed * 15
+        score -= controlled_only * 2
         return int(max(0, min(130, round(score))))
 
     def _grade(self, score: int) -> str:
@@ -186,6 +196,8 @@ class ScoreSystem:
     def _style(self, summary: dict[str, Any]) -> str:
         if int(summary.get("false_isolations", 0)) >= 2:
             return "激进隔离型"
+        if int(summary.get("controlled_only", 0)) >= 2:
+            return "善后不足型"
         if int(summary.get("missed", 0)) >= 1:
             return "反应迟缓型"
         average = float(summary.get("average_response", 0.0))
@@ -199,17 +211,45 @@ class ScoreSystem:
             return "资源透支型"
         return "稳健均衡型"
 
+    def _news(self, summary: dict[str, Any], ending_key: str) -> tuple[str, str]:
+        """结算页的“早间新闻”，让结局落到具体叙事里。"""
+        company = "云栖示例科技"
+        controlled = int(summary.get("controlled_only", 0))
+        headlines = {
+            "perfect": f"{company}夜班零事故，客户称“完全没感觉到攻击”",
+            "costly": f"{company}凌晨经历服务抖动，早间已恢复",
+            "data_leak": f"{company}疑似客户数据外泄，监管已介入",
+            "over_defense": f"为防攻击全面停服，{company}早间遭客户投诉",
+            "security_breach": f"{company}安全体系失守，早会紧急取消",
+            "ransomware": f"{company}核心数据被加密，恢复时间未定",
+        }
+        details = {
+            "perfect": "安全团队在 08:00 前清除全部攻击链，官网与下单服务始终保持在线。",
+            "costly": "威胁已被压制，但服务降级、声誉损失与善后成本写进了今早的复盘报告。",
+            "data_leak": "凌晨的异常外联没有被及时切断，客户名单出现在不该出现的地方。",
+            "over_defense": "攻击没有击垮业务，连续的隔离与停服先让下单服务崩溃了。",
+            "security_breach": "身份与边界控制全面失效，值班记录被移交到应急委员会。",
+            "ransomware": "备份未能及时保护，核心数据库被模拟加密，恢复窗口仍未知。",
+        }
+        headline = headlines.get(ending_key, f"{company}经历了一个不平静的夜班")
+        detail = details.get(ending_key, "")
+        if controlled:
+            detail += f" 另有 {controlled} 条攻击链只完成控制、未清除根因。"
+        return headline, detail
+
     def _stats(self, summary: dict[str, Any]) -> list[tuple[str, str]]:
         total = int(summary.get("total_events", 0))
         identified = int(summary.get("identified", 0))
         resolved = int(summary.get("resolved", 0))
+        controlled_only = int(summary.get("controlled_only", 0))
         average = float(summary.get("average_response", 0.0))
         avg_text = f"{average:.1f} 回合" if average > 0 else "—"
         checked = int(summary.get("false_positives_checked", 0))
         seen = int(summary.get("false_positives_seen", 0))
         return [
             ("正确识别事件", f"{identified} / {total}"),
-            ("成功阻断事件", f"{resolved} / {total}"),
+            ("彻底清除事件", f"{resolved} / {total}"),
+            ("仅控制未清除", f"{controlled_only} 个"),
             ("漏掉的真实威胁", f"{int(summary.get('missed', 0))} 个"),
             ("误报告警处理", f"{checked} / {seen}"),
             ("误封次数", f"{int(summary.get('false_isolations', 0))} 次"),
@@ -219,5 +259,4 @@ class ScoreSystem:
             ("最终数据完整度", f"{int(summary.get('integrity', 0))}%"),
             ("剩余安全度", f"{int(summary.get('security', 0))}%"),
             ("最高连击", f"×{int(summary.get('best_combo', 0))}"),
-            ("坚持回合", f"{int(summary.get('turn', 0))} / {int(summary.get('total_turns', settings.TOTAL_TURNS))}"),
         ]

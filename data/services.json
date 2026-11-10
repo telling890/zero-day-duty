@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "note": "虚构业务服务清单。所有主机、客户与金额均为课程模拟数据，不指向真实系统。",
+  "services": [
+    {
+      "id": "mail",
+      "name": "企业邮箱",
+      "short": "企业邮箱",
+      "device": "MAIL-01",
+      "criticality": 3,
+      "revenue": 15,
+      "customers": 180,
+      "sla": "99.5%"
+    },
+    {
+      "id": "web",
+      "name": "官网 / 在线下单",
+      "short": "官网下单",
+      "device": "WEB-01",
+      "criticality": 5,
+      "revenue": 35,
+      "customers": 900,
+      "sla": "99.9%"
+    },
+    {
+      "id": "erp",
+      "name": "财务 / ERP",
+      "short": "财务ERP",
+      "device": "FIN-01",
+      "criticality": 4,
+      "revenue": 25,
+      "customers": 60,
+      "sla": "99.5%"
+    },
+    {
+      "id": "db",
+      "name": "核心数据库",
+      "short": "数据库",
+      "device": "DB-01",
+      "criticality": 5,
+      "revenue": 25,
+      "customers": 0,
+      "sla": "99.9%"
+    },
+    {
+      "id": "backup",
+      "name": "备份与恢复",
+      "short": "备份恢复",
+      "device": "BAK-01",
+      "criticality": 5,
+      "revenue": 5,
+      "customers": 0,
+      "sla": "99.9%"
+    },
+    {
+      "id": "office",
+      "name": "办公网络",
+      "short": "办公网络",
+      "device": "GW-01",
+      "criticality": 4,
+      "revenue": 15,
+      "customers": 300,
+      "sla": "99.5%"
+    }
+  ]
+}

@@ -160,8 +160,9 @@ class GameFlowTest(unittest.TestCase):
         game.perform_action(option, game.current_target())
         device = game.devices["PC-01"]
         self.assertTrue(device.isolated)
-        self.assertLess(game.player.availability, 100)
+        self.assertEqual(game.player.availability, 100)  # 终端不承载业务服务
         self.assertTrue(game.events.events[0].contained)
+        self.assertFalse(game.events.events[0].eradicated)
         game.action_panel.sync(game)
         option = self._option("unisolate")
         result = game.perform_action(option, game.current_target())
@@ -268,9 +269,11 @@ class GameFlowTest(unittest.TestCase):
             game.events.spawn_schedule,
         )
         self.assertTrue(game.save_game())
+        self.assertTrue(game.events.events[0].eradicated)
         rng_before = game.rng.getstate()
         game.end_turn()
         self.assertTrue(game.load_game())
+        self.assertTrue(game.events.events[0].eradicated)
         self.assertEqual(
             (
                 game.turn,
@@ -400,11 +403,80 @@ class GameFlowTest(unittest.TestCase):
         second = SecurityEvent(config, game.turn)
         game.events.events.append(second)
         self.assertEqual(game.threat_level, 3)
-        game.contain_event(second, "测试处置")
+        game.contain_event(second, "测试控制")
+        self.assertEqual(game.combo, 0)
+        self.assertTrue(second.contained)
+        game.eradicate_event(second, "测试清除")
         self.assertEqual(game.combo, 1)
-        game.contain_event(game.events.events[0], "测试处置")
+        game.eradicate_event(game.events.events[0], "测试清除")
         self.assertEqual(game.combo, 2)
         self.assertGreaterEqual(game.player.action_points, settings.ACTION_POINTS_PER_TURN)
+
+    def test_services_income_and_sla(self) -> None:
+        game = self.game
+        views = game.services.views(game.devices)
+        self.assertEqual(len(views), 6)
+        self.assertEqual(game.services.income(game.devices), settings.TURN_INCOME)
+        self.assertEqual(game.services.availability(game.devices), 100)
+        self.assertEqual(game.services.critical_outages(game.devices), [])
+
+        game.devices["WEB-01"].isolate()
+        game.recompute_availability("测试隔离 Web 服务")
+        self.assertLess(game.player.availability, 100)
+        self.assertLess(game.services.income(game.devices), settings.TURN_INCOME)
+        self.assertTrue(game.services.critical_outages(game.devices))
+        before = game.player.reputation
+        game.end_turn()
+        self.assertLessEqual(game.player.reputation, before - 1)
+        self.assertGreaterEqual(game.turn, 2)
+
+    def test_control_then_eradicate_flow(self) -> None:
+        game = self.game
+        alert = self._real_alert()
+        event = game.events.events[0]
+        self._investigate(alert)
+        game.select_device("PC-01")
+        game.action_panel.sync(game)
+        isolate = self._option("isolate")
+        self.assertTrue(isolate.enabled, isolate.reason)
+        game.perform_action(isolate, game.current_target())
+        self.assertTrue(event.contained)
+        self.assertFalse(event.eradicated)
+        self.assertTrue(alert.controlled)
+        self.assertFalse(alert.resolved)
+
+        game.select_alert(alert)
+        game.action_panel.sync(game)
+        eradicate = self._option("eradicate")
+        self.assertTrue(eradicate.enabled, eradicate.reason)
+        result = game.perform_action(eradicate, game.current_target())
+        self.assertTrue(result.success)
+        self.assertTrue(event.eradicated)
+        self.assertTrue(alert.resolved)
+        self.assertFalse(alert.controlled)
+        self.assertEqual(game.combo, 1)
+
+    def test_preemptive_next_hop_block(self) -> None:
+        game = self.game
+        config = game.events.get_event_config("EVT-RANSOM-03")
+        assert config is not None
+        event = SecurityEvent(config, game.turn)
+        game.events.events = [event]
+        self.assertEqual(event.next_device_id, "FIN-01")
+        # 先推进到“共享目录扩散”，下一跳就是数据库
+        event.stage_index = 1
+        self.assertEqual(event.next_device_id, "DB-01")
+        game.devices["DB-01"].isolate()
+        game.events.advance_events(game)
+        self.assertEqual(event.stage_index, 1)
+        self.assertTrue(event.is_active)
+
+    def test_result_has_morning_news(self) -> None:
+        game = self.game
+        game.finish("time")
+        assert game.report is not None
+        self.assertTrue(game.report.news_headline)
+        self.assertTrue(game.report.news_detail)
 
     # ------------------------------------------------------------------
     # 界面/输入
@@ -444,6 +516,9 @@ class GameFlowTest(unittest.TestCase):
         game.draw()
         self._click(game.menu.buttons["start"].rect.center, game)
         self.assertEqual(game.state, GameState.PLAYING)
+        self.assertTrue(game.briefing.visible)
+        self._click(game.briefing.button.rect.center, game)
+        self.assertFalse(game.briefing.visible)
         game.update(0.016)
         self._click(game.bottom_buttons["advance"].rect.center, game)
         self.assertEqual(game.turn, 2)

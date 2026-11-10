@@ -53,8 +53,12 @@ class DecisionScreen:
         pygame.draw.rect(surface, settings.ORANGE, self.rect, 1, border_radius=12)
 
         tiny = draw_utils.get_font(11)
+        speaker = str(self.decision.get("speaker", "")).strip()
+        header = f"第 {game.turn} 回合 · 值班决策"
+        if speaker:
+            header += f" · {speaker}"
         surface.blit(
-            tiny.render(f"第 {game.turn} 回合 · 值班决策", True, settings.ORANGE),
+            tiny.render(header, True, settings.ORANGE),
             (self.rect.x + 42, self.rect.y + 22),
         )
         title_font = draw_utils.get_font(26, True)

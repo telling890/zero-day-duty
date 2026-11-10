@@ -19,6 +19,7 @@ ACTION_STYLES = {
     "block_source": "info",
     "isolate": "warning",
     "unisolate": "success",
+    "eradicate": "purple",
     "patch": "success",
     "shutdown": "danger",
     "startup": "info",

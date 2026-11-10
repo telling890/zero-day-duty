@@ -330,6 +330,32 @@ class EventManager:
                 continue
 
             old_name = event.stage_name
+            next_device_id = event.next_device_id
+            next_device = game.devices.get(next_device_id) if next_device_id else None
+            next_stage = (
+                event.stages[event.stage_index + 1]
+                if event.stage_index < event.max_stage_index
+                else {}
+            )
+            if (
+                next_device is not None
+                and not next_device.is_available
+                and bool(next_stage.get("spreading", False))
+            ):
+                reason = "已提前隔离" if next_device.isolated else "已提前关机"
+                game.logs.add(
+                    game.turn,
+                    settings.clock_text(game.turn),
+                    "网络",
+                    f"{next_device.name} {reason}，{event.name} 无法移动到下一跳，攻击链被拖住。",
+                    source=next_device.name,
+                )
+                game.push_message(
+                    f"预判生效：{next_device.name} {reason}，攻击暂时无法进入下一阶段。",
+                    settings.GREEN,
+                )
+                continue
+
             event.advance()
             event.last_advance_turn = game.turn
             self._apply_stage(game, event, old_name)

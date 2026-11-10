@@ -24,9 +24,11 @@ from systems.log_system import LogSystem
 from systems.risk_engine import RiskEngine
 from systems.save_manager import SaveManager
 from systems.score_system import ScoreReport, ScoreSystem
+from systems.service_manager import ServiceManager
 from ui import draw_utils
 from ui.action_panel import ActionPanel
 from ui.alert_panel import AlertPanel
+from ui.briefing_screen import BriefingScreen
 from ui.button import Button
 from ui.dashboard import Dashboard
 from ui.decision_screen import DecisionScreen
@@ -70,6 +72,10 @@ class Game:
             raise settings.DataError("devices.json 的根节点必须是 JSON 对象")
         self._device_configs = validate_device_configs(device_payload.get("devices"))
         self._event_payload = EventManager.load_payload(settings.EVENTS_FILE)
+        service_payload = settings.load_json(settings.SERVICES_FILE)
+        if not isinstance(service_payload, dict):
+            raise settings.DataError("services.json 的根节点必须是 JSON 对象")
+        self.services = ServiceManager(service_payload)
         upgrade_payload = settings.load_json(settings.UPGRADES_FILE)
         upgrades = upgrade_payload.get("upgrades", []) if isinstance(upgrade_payload, dict) else []
         if not isinstance(upgrades, list):
@@ -102,6 +108,7 @@ class Game:
         self.decision_screen = DecisionScreen()
         self.tutorial_screen = TutorialScreen()
         self.tutorial_guide = TutorialGuide()
+        self.briefing = BriefingScreen()
         self.effects = EffectsManager()
         self.audio = get_audio()
 
@@ -177,10 +184,11 @@ class Game:
         surface.blit(glow, (0, 0))
         return surface
 
-    def new_game(self, tutorial: bool = False) -> None:
+    def new_game(self, tutorial: bool = False, briefing: bool = False) -> None:
         self.rng = random.Random(self.seed)
         self.player = PlayerState()
         self.devices = {config["id"]: Device.from_config(config) for config in self._device_configs}
+        self.services.views(self.devices)  # 提前校验服务引用的设备是否存在
         self.logs = LogSystem()
         self.tutorial_mode = tutorial
         self.events = EventManager(self._event_payload, self.rng, self.logs, tutorial=tutorial)
@@ -203,6 +211,7 @@ class Game:
         self.decision_screen.close()
         self.tutorial_screen.close()
         self.tutorial_guide.reset()
+        self.briefing.close()
         self.help.hide()
         try:
             pygame.key.stop_text_input()
@@ -223,11 +232,16 @@ class Game:
             "系统",
             f"值班开始：{settings.COMPANY_NAME}，随机种子 {self.seed}。",
         )
+        self.audio.play_ambient()
         self.recompute_availability("开局网络状态")
         self.start_turn()
         self.push_message("提示：先看告警和日志，再决定隔离或删除邮件。", settings.ACCENT)
-        self.push_message("主管：今晚客户在催交付，任何停服都要先报备。", settings.TEXT_DIM)
+        self.push_message("主管·陈可：今晚客户在催交付，任何停服都要先报备。", settings.TEXT_DIM)
         self.push_message("安全平台：告警等级在调查前显示为“待评估”，先调查再处置更稳。", settings.TEXT_DIM)
+        self.push_message("公关·林岚：如果媒体来问，先别擅自回应，把情况同步给我。", settings.PURPLE)
+        self.push_message("IT 运维·阿哲：备份服务器在 BAK-01，别等数据库被加密才想起它。", settings.ORANGE)
+        if briefing:
+            self.briefing.open()
 
     # ==================================================================
     # 回合流程
@@ -245,7 +259,25 @@ class Game:
             f"第 {self.turn} 回合开始（{settings.clock_text(self.turn)}），行动点已重置。",
             settings.ACCENT,
         )
-        self.adjust_metric(MetricKey.FUNDS, settings.TURN_INCOME, "夜间服务合同收入到账", push=False)
+        service_income = self.services.income(self.devices)
+        self.adjust_metric(
+            MetricKey.FUNDS,
+            service_income,
+            f"服务收入（SLA 结算，满额 ¥{settings.TURN_INCOME}）",
+            push=False,
+        )
+        if service_income < settings.TURN_INCOME:
+            lost = settings.TURN_INCOME - service_income
+            self.logs.add(
+                self.turn,
+                settings.clock_text(self.turn),
+                "系统",
+                f"SLA 结算：部分服务降级/中断，本回合收入减少 ¥{lost}。",
+            )
+            self.push_message(
+                f"SLA 结算：服务未满负荷，收入 -¥{lost}。业务状态见左下角值班简报。",
+                settings.ORANGE,
+            )
         self.adjust_metric(MetricKey.FUNDS, -settings.TURN_UPKEEP, "值班运维成本", push=False)
         self.audio.play("turn")
         if self.player.funds <= settings.FUNDS_WARN:
@@ -286,6 +318,28 @@ class Game:
             device.tick_maintenance()
         self.recompute_availability("回合结算：设备状态更新")
 
+        outages = self.services.critical_outages(self.devices)
+        if outages:
+            names = "、".join(view.config.short_name for view in outages[:3])
+            penalty = min(3, len(outages))
+            self.adjust_metric(
+                MetricKey.REPUTATION,
+                -penalty,
+                f"SLA 违约：{names}",
+                push=False,
+            )
+            self.player.stats["sla_breaches"] = int(self.player.stats.get("sla_breaches", 0)) + 1
+            self.logs.add(
+                self.turn,
+                settings.clock_text(self.turn),
+                "系统",
+                f"SLA 违约：{names} 中断，声誉 -{penalty}。",
+            )
+            self.push_message(
+                f"SLA 违约：{names} 仍处于中断状态，声誉 -{penalty}。",
+                settings.RED,
+            )
+
         if self.player.availability <= settings.AVAILABILITY_FAIL:
             self.low_availability_turns += 1
             self.push_message(
@@ -314,13 +368,17 @@ class Game:
         self.tutorial_guide.reset()
         self.tutorial_mode = False
         self.tutorial_screen.close()
+        self.briefing.close()
         if start:
             self.new_game()
         else:
+            self.audio.stop_ambient()
             self.state = GameState.MENU
 
     def finish(self, reason: str) -> None:
         self.state = GameState.RESULT
+        self.briefing.close()
+        self.audio.stop_ambient()
         summary = self.build_summary(reason)
         self.report = self.score_system.evaluate(summary)
         if not self.tutorial_mode:
@@ -339,8 +397,9 @@ class Game:
 
     def build_summary(self, reason: str) -> dict[str, Any]:
         events = self.events.events
-        resolved = [event for event in events if event.contained]
-        missed = [event for event in events if not event.contained]
+        resolved = [event for event in events if event.eradicated]
+        controlled_only = [event for event in events if event.contained and not event.eradicated]
+        missed = [event for event in events if not event.contained and not event.eradicated]
         identified = [event for event in events if event.investigations > 0]
         response_turns = list(self.player.stats.get("response_turns", []))
         average = sum(response_turns) / len(response_turns) if response_turns else 0.0
@@ -355,6 +414,8 @@ class Game:
             "integrity": self.player.integrity,
             "total_events": len(events),
             "resolved": len(resolved),
+            "controlled_only": len(controlled_only),
+            "controlled_only_names": [event.name for event in controlled_only],
             "missed": len(missed),
             "missed_names": [event.name for event in missed],
             "identified": len(identified),
@@ -367,6 +428,9 @@ class Game:
             "ransomware_failed": self.ransomware_failed,
             "security_breach": self.security_breach,
             "best_combo": self.best_combo,
+            "service_availability": self.services.availability(self.devices),
+            "service_income": self.services.income(self.devices),
+            "sla_breaches": int(self.player.stats.get("sla_breaches", 0)),
         }
 
     # ==================================================================
@@ -494,25 +558,8 @@ class Game:
         return True
 
     def recompute_availability(self, reason: str) -> None:
-        """按设备在线/隔离/受损情况重算服务可用性。"""
-        total_weight = sum(max(1, device.importance) for device in self.devices.values())
-        if total_weight <= 0:
-            return
-        score = 0.0
-        for device in self.devices.values():
-            weight = max(1, device.importance)
-            if not device.is_available:
-                factor = 0.0
-            elif device.maintenance_turns > 0:
-                factor = 0.88
-            elif device.status == "感染":
-                factor = 0.5
-            elif device.status == "可疑":
-                factor = 0.85
-            else:
-                factor = 1.0
-            score += weight * factor
-        value = int(round(100 * score / total_weight))
+        """按业务服务健康度重算可用性，而不是简单数设备。"""
+        value = self.services.availability(self.devices)
         delta = value - self.player.availability
         if delta == 0:
             return
@@ -537,26 +584,77 @@ class Game:
         security_gain: int = 2,
         device_id: str = "",
     ) -> None:
+        """控制攻击：停止扩散，但事件仍处于“待清除”状态。"""
+        if event.eradicated or event.contained:
+            return
         event.mark_contained(method, self.turn, device_id=device_id)
         if event.response_turn is None:
             event.response_turn = max(1, self.turn - event.start_turn + 1)
             self.player.stats["response_turns"].append(event.response_turn)
         for alert in self.events.alerts:
             if alert.event_id == event.event_id and not alert.resolved:
-                alert.resolve(f"已通过「{method}」处置")
+                alert.mark_controlled(f"已通过「{method}」控制，等待清除")
         device = self.devices.get(event.active_device_id)
         if device is not None and not device.isolated and device.status in ("感染", "可疑"):
             device.set_status("正常")
-        self.recompute_availability("事件处置后业务恢复")
+        self.recompute_availability("事件控制后业务恢复")
+        self.logs.add(
+            self.turn,
+            settings.clock_text(self.turn),
+            "操作",
+            f"事件「{event.name}」已被控制，方式：{method}；根因尚未清除。",
+        )
+        self.push_message(
+            f"「{event.name}」已控制，但还没清除。选择相关设备执行「清除威胁」。",
+            settings.YELLOW,
+        )
+        self.audio.play("click")
+        self.effects.flash(settings.YELLOW, 24)
+        node_rect = self.network_view.node_rects.get(event.active_device_id)
+        position = node_rect.center if node_rect else None
+        self.effects.add_floater("已控制 · 待清除", settings.YELLOW, position)
+        self.effects.add_burst(
+            position or (settings.SCREEN_WIDTH // 2, settings.SCREEN_HEIGHT // 2 - 60),
+            settings.YELLOW,
+            10,
+        )
+
+    def eradicate_event(
+        self,
+        event: Any,
+        method: str,
+        *,
+        security_gain: int = 3,
+        device_id: str = "",
+    ) -> None:
+        """清除根因：事件真正解决，告警才会关闭，并结算连击。"""
+        if event.eradicated:
+            return
+        event.mark_eradicated(method, self.turn, device_id=device_id)
+        if event.response_turn is None:
+            event.response_turn = max(1, self.turn - event.start_turn + 1)
+            self.player.stats["response_turns"].append(event.response_turn)
+        for alert in self.events.alerts:
+            if alert.event_id == event.event_id and not alert.resolved:
+                alert.resolve(f"已通过「{method}」清除根因")
+        device = self.devices.get(event.active_device_id)
+        if device is not None:
+            if device.isolated:
+                device.status_before_isolation = "正常"
+            elif not device.online:
+                device.status_before_offline = "正常"
+            elif device.status in ("感染", "可疑"):
+                device.set_status("正常")
+        self.recompute_availability("事件清除后业务恢复")
         # 同一事件只奖励一次，避免“隔离→解除→再隔离”刷安全度
         if not event.rewarded:
             event.rewarded = True
-            self.adjust_metric(MetricKey.SECURITY, security_gain, f"阻止「{event.name}」（{method}）")
-            self.adjust_metric(MetricKey.REPUTATION, 2, "及时处置安全事件，客户信心回升")
+            self.adjust_metric(MetricKey.SECURITY, security_gain, f"清除「{event.name}」（{method}）")
+            self.adjust_metric(MetricKey.REPUTATION, 2, "彻底清除安全事件，客户信心回升")
             self.combo += 1
             self.best_combo = max(self.best_combo, self.combo)
             if self.combo > 1:
-                self.push_message(f"处置连击 ×{self.combo}！", settings.ACCENT)
+                self.push_message(f"干净处置连击 ×{self.combo}！", settings.ACCENT)
                 self.effects.add_combo(f"COMBO ×{self.combo}")
                 self.audio.play("combo")
             if self.combo % 2 == 0:
@@ -568,7 +666,7 @@ class Game:
             self.turn,
             settings.clock_text(self.turn),
             "操作",
-            f"事件「{event.name}」已被处置，方式：{method}。",
+            f"事件「{event.name}」根因已清除，方式：{method}。",
         )
         success_text = event.stage_text("success", "")
         if success_text:
@@ -576,14 +674,14 @@ class Game:
                 self.turn,
                 settings.clock_text(self.turn),
                 "操作",
-                f"处置结果：{success_text}",
+                f"清除结果：{success_text}",
             )
-        self.push_message(f"事件「{event.name}」已被「{method}」阻断。", settings.GREEN)
+        self.push_message(f"事件「{event.name}」已彻底清除。", settings.GREEN)
         self.audio.play("success")
         self.effects.flash(settings.GREEN, 30)
         node_rect = self.network_view.node_rects.get(event.active_device_id)
         position = node_rect.center if node_rect else None
-        self.effects.add_floater(f"阻断 +{security_gain}", settings.GREEN, position)
+        self.effects.add_floater(f"清除 +{security_gain}", settings.GREEN, position)
         self.effects.add_burst(
             position or (settings.SCREEN_WIDTH // 2, settings.SCREEN_HEIGHT // 2 - 60),
             settings.GREEN,
@@ -595,6 +693,7 @@ class Game:
         for event in self.events.events:
             if (
                 event.contained
+                and not event.eradicated
                 and event.containment_method == method
                 and event.containment_device == device_id
             ):
@@ -628,6 +727,22 @@ class Game:
             return None
         return self.events.get_event(getattr(alert, "event_id", None))
 
+    def related_alerts(self, alert: Any) -> list[Any]:
+        """按事件、来源 IP 或账号找出有关联的告警，用于情报关联提示。"""
+        if alert is None:
+            return []
+        related = []
+        for other in self.events.alerts:
+            if other.alert_id == alert.alert_id:
+                continue
+            if (
+                (alert.event_id and other.event_id == alert.event_id)
+                or (alert.source_ip and other.source_ip == alert.source_ip)
+                or (alert.account and other.account == alert.account)
+            ):
+                related.append(other)
+        return related
+
     def event_for_device(self, device_id: str) -> Any:
         events = self.events_for_device(device_id)
         return events[0] if events else None
@@ -637,6 +752,17 @@ class Game:
             event
             for event in self.events.active_events()
             if event.active_device_id == device_id
+        ]
+
+    def controlled_events_for_device(self, device_id: str) -> list[Any]:
+        """该设备上已控制但尚未清除的事件。"""
+        return [
+            event
+            for event in self.events.events
+            if event.contained
+            and not event.eradicated
+            and not event.failed
+            and event.active_device_id == device_id
         ]
 
     def has_event_relation(self, device_id: str) -> bool:
@@ -657,6 +783,12 @@ class Game:
         if device_id not in self.devices:
             return
         self.selected_device_id = device_id
+        self.selected_alert = None
+        self.action_panel._signature = None
+
+    def clear_selection(self) -> None:
+        """清空选择，回到业务总览。"""
+        self.selected_device_id = None
         self.selected_alert = None
         self.action_panel._signature = None
 
@@ -719,6 +851,10 @@ class Game:
     def handle_event(self, event: pygame.event.Event) -> None:
         if event.type == pygame.QUIT:
             self.running = False
+            return
+
+        if self.briefing.visible:
+            self.briefing.handle_event(event)
             return
 
         if self.tutorial_screen.visible:
@@ -793,11 +929,11 @@ class Game:
 
     def _handle_menu_event(self, event: pygame.event.Event) -> None:
         if event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-            self.new_game()
+            self.new_game(briefing=True)
             return
         action = self.menu.handle_event(event)
         if action == "start":
-            self.new_game()
+            self.new_game(briefing=True)
         elif action == "continue":
             self.load_game()
         elif action == "tutorial":
@@ -868,16 +1004,19 @@ class Game:
         elif self.pause_buttons["restart"].handle_event(event):
             self.new_game()
         elif self.pause_buttons["menu"].handle_event(event):
+            self.audio.stop_ambient()
             self.state = GameState.MENU
 
     def _handle_result_event(self, event: pygame.event.Event) -> None:
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            self.audio.stop_ambient()
             self.state = GameState.MENU
             return
         action = self.result_screen.handle_event(event)
         if action == "restart":
             self.new_game()
         elif action == "menu":
+            self.audio.stop_ambient()
             self.state = GameState.MENU
 
     # ==================================================================
@@ -907,6 +1046,8 @@ class Game:
         if self.tutorial_mode:
             self.tutorial_guide.update_step(self)
             self.tutorial_guide.update(dt)
+        if self.briefing.visible:
+            self.briefing.update(dt)
         self.effects.update(dt)
         self.help.update(dt)
 
@@ -936,6 +1077,8 @@ class Game:
             self.tutorial_screen.draw(self.screen, self)
         elif self.tutorial_mode:
             self.tutorial_guide.draw(self.screen, self)
+        if self.briefing.visible:
+            self.briefing.draw(self.screen)
         if draw_utils.FONT_FALLBACK:
             self._draw_font_warning()
         if self.help.visible:

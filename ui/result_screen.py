@@ -51,6 +51,18 @@ class ResultScreen:
             self.rect.width - 80,
             line_height=20,
         )
+        if report.news_headline:
+            news_label = tiny.render("早间新闻", True, settings.ORANGE)
+            surface.blit(news_label, (self.rect.x + 40, self.rect.y + 158))
+            headline = draw_utils.ellipsize(
+                report.news_headline,
+                draw_utils.get_font(12, True),
+                self.rect.width - 170,
+            )
+            surface.blit(
+                draw_utils.get_font(12, True).render(headline, True, settings.TEXT),
+                (self.rect.x + 108, self.rect.y + 156),
+            )
 
         # 分数区
         score_rect = pygame.Rect(self.rect.x + 40, self.rect.y + 186, 320, 220)
