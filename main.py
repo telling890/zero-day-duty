@@ -141,6 +141,9 @@ def main(argv: list[str] | None = None) -> int:
 
             game.tutorial_screen.open()
             game.draw()
+            # 自检也绘制一次正确反馈卡，防止发布包在真实操作时才暴露绘制异常
+            game.effects.show_feedback("自检", "反馈卡绘制正常", stage="调查")
+            game.draw()
             game.briefing.open()
             game.draw()
             _log(

@@ -492,6 +492,7 @@ class GameFlowTest(unittest.TestCase):
         game.perform_action(self._option("isolate"), game.current_target())
         assert game.effects.feedback is not None
         self.assertEqual(game.effects.feedback.stage, "控制")
+        game.draw()  # 反馈卡必须能实际绘制，不能只存在于状态里
 
     # ------------------------------------------------------------------
     # 界面/输入

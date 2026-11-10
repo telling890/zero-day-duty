@@ -212,7 +212,7 @@ class EffectsManager:
         width = 620
         height = 112
         x = 650
-        y = 388 - int(max(0.0, 0.12 - progress) * 120)
+        y = 388
         panel = pygame.Surface((width, height), pygame.SRCALPHA)
         pygame.draw.rect(panel, (8, 16, 23, alpha), panel.get_rect(), border_radius=10)
         pygame.draw.rect(panel, (*feedback.color, alpha), panel.get_rect(), 2, border_radius=10)
