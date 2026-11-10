@@ -206,12 +206,9 @@ class EffectsManager:
         feedback = self.feedback
         if feedback is None:
             return
-        progress = 1.0 - feedback.life / feedback.total
         alpha = 255
         if feedback.life < 0.45:
             alpha = int(255 * feedback.life / 0.45)
-        if progress < 0.12:
-            alpha = int(255 * progress / 0.12)
         width = 620
         height = 112
         x = 650
