@@ -34,7 +34,7 @@
 
 ![结算界面](assets/screenshots/result.png)
 
-> Windows 免安装版：[下载 v1.4.2 Release](https://github.com/telling890/zero-day-duty/releases/latest)（`ZeroDayDuty-Windows-x64.zip`），解压后双击 `零日值班.exe`，无需安装 Python。
+> Windows 免安装版：[下载 v1.4.3 Release](https://github.com/telling890/zero-day-duty/releases/latest)（`ZeroDayDuty-Windows-x64.zip`），解压后双击 `零日值班.exe`，无需安装 Python。
 > 源码仓库：[github.com/telling890/zero-day-duty](https://github.com/telling890/zero-day-duty)
 > 项目主页：[telling890.github.io/zero-day-duty](https://telling890.github.io/zero-day-duty/)
 
@@ -91,10 +91,10 @@ python main.py
 | 日志搜索 | 点击右上角搜索框输入关键词（英文、数字最稳定） |
 | 日志 / 告警滚动 | 鼠标悬停在对应区域，滚轮上下滚动 |
 
-## 四、v1.4.2 已实现内容
+## 四、v1.4.3 已实现内容
 
 - Pygame 窗口、主菜单、12 页新手教程 + 6 步实战演练、暂停、帮助手册、结算、安全加固商店、历史排行榜、剧情决策浮层
-- v1.4 正确反馈：操作后屏幕右下显示“调查完成/控制成功/清除成功/恢复完成”，并标出所处阶段
+- v1.4 正确反馈：操作后屏幕中央只显示“调查成功/控制成功/清除成功/恢复完成”，透明无框
 - 12 页新手教程 + 6 步完整演练：调查 → 控制 → 清除 → 恢复 → 推进回合
 - 夜班交接简报、角色留言、早间新闻、低频环境底噪、服务中断播报
 - 三段式响应：**控制 → 清除 → 恢复**；隔离/关停只完成控制，事件不会自动结束
@@ -335,7 +335,7 @@ py -3.10 tests\test_smoke.py
 
 ### 手工检查清单
 
-- [ ] 启动窗口标题为“零日值班：网络安全防御模拟器 v1.4.2”，尺寸 1280×720
+- [ ] 启动窗口标题为“零日值班：网络安全防御模拟器 v1.4.3”，尺寸 1280×720
 - [ ] 主菜单开始值班后出现夜班交接简报，点击“进入值班”关闭
 - [ ] 左下角服务面板显示 6 项业务服务；隔离关键设备后出现“中断”和收入损失
 - [ ] 隔离事件后告警显示“已控制·待清除”，设备面板出现“清除威胁”

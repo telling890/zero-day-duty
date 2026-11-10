@@ -837,12 +837,8 @@ class Game:
         stage = ""
         if action_id == "investigate":
             stage = "调查"
-            if "误报" in result.message:
-                title = "判断正确：误报"
-                detail = "确认是误报。关闭告警即可，不需要隔离设备。"
-            else:
-                title = "调查完成"
-                detail = "确认真实威胁，已获得新线索。下一步：控制或清除。"
+            title = "调查成功"
+            detail = result.message
         elif action_id in ("isolate", "shutdown", "block_source"):
             stage = "控制"
             title = "控制成功"
