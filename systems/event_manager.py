@@ -49,6 +49,10 @@ class EventManager:
         self.last_false_positive_turn = -99
         self.used_false_positive_titles: set[str] = set()
         self.spawn_schedule: dict[str, int] = {}
+        self.spawn_minutes: dict[str, float] = {}
+        self.next_attack_at = 60.0
+        self.next_false_positive_at = 60.0
+        self.next_noise_at = 20.0
         self._build_spawn_schedule()
 
     def _build_spawn_schedule(self) -> None:
@@ -63,6 +67,7 @@ class EventManager:
                     base_turn = 1
                 if base_turn <= 1:
                     self.spawn_schedule[str(config.get("id", ""))] = 1
+            self._build_spawn_minutes()
             return
         flexible: list[dict[str, Any]] = []
         for config in self.event_configs:
@@ -83,6 +88,22 @@ class EventManager:
             if index >= len(slots):
                 break
             self.spawn_schedule[str(config.get("id", ""))] = slots[index]
+        self._build_spawn_minutes()
+
+    def _build_spawn_minutes(self) -> None:
+        """把回合排期换算成真实时间轴上的分钟数，并加入少量随机偏移。"""
+        self.spawn_minutes = {}
+        for event_id, turn in self.spawn_schedule.items():
+            if self.tutorial:
+                self.spawn_minutes[event_id] = 0.0
+                continue
+            if turn <= 1:
+                minute = 0.0
+            elif turn >= 8:
+                minute = float((turn - 1) * 60)
+            else:
+                minute = float((turn - 1) * 60 + self.rng.randint(0, 35))
+            self.spawn_minutes[event_id] = minute
 
     # ------------------------------------------------------------------
     # 加载与校验
@@ -141,7 +162,30 @@ class EventManager:
         self._maybe_false_positive(game)
         self._background_noise(game)
 
-    def _spawn_due_events(self, game: "Game") -> None:
+    def start_shift(self, game: "Game") -> None:
+        """实时模式：初始化随机事件计时器，不在这里直接推进阶段。"""
+        self.next_attack_at = 60.0
+        self.next_false_positive_at = 55.0
+        self.next_noise_at = 18.0
+        self._spawn_due_events(game, now=0.0)
+
+    def update(self, game: "Game", now_minutes: float) -> None:
+        """每帧调用：到点刷新随机事件、误报、背景日志和攻击阶段。"""
+        self._spawn_due_events(game, now=now_minutes)
+
+        if now_minutes >= self.next_false_positive_at:
+            self._maybe_false_positive(game, force=True)
+            self.next_false_positive_at = now_minutes + self.rng.uniform(75, 125)
+
+        if now_minutes >= self.next_noise_at:
+            self._background_noise(game)
+            self.next_noise_at = now_minutes + self.rng.uniform(28, 48)
+
+        if now_minutes >= self.next_attack_at:
+            self.advance_random_event(game)
+            self.next_attack_at = now_minutes + self.rng.uniform(55, 85)
+
+    def _spawn_due_events(self, game: "Game", now: float | None = None) -> None:
         for config in self.event_configs:
             if not config.get("enabled", False):
                 continue
@@ -154,14 +198,19 @@ class EventManager:
                 spawn_turn = int(self.spawn_schedule.get(event_id, config.get("spawn_turn", 1)))
             except (TypeError, ValueError):
                 spawn_turn = 1
-            if game.turn != spawn_turn:
-                continue
+            if now is None:
+                if game.turn != spawn_turn:
+                    continue
+            else:
+                due_at = self.spawn_minutes.get(event_id, float((spawn_turn - 1) * 60))
+                if now + 0.001 < due_at:
+                    continue
 
             event = SecurityEvent(config, spawn_turn=game.turn)
             if event.target_id not in game.devices:
                 game.logs.add(
                     game.turn,
-                    settings.clock_text(game.turn),
+                    settings.clock_from_minutes(game.shift_minutes),
                     "系统",
                     f"事件 {event.event_id} 的目标设备 {event.target_id} 不存在，已跳过。",
                 )
@@ -173,7 +222,7 @@ class EventManager:
 
     def _announce_stage(self, game: "Game", event: SecurityEvent, first: bool = False) -> None:
         """记录日志、生成告警、推送消息。"""
-        clock = settings.clock_text(game.turn)
+        clock = settings.clock_from_minutes(game.shift_minutes)
         stage = event.stage
         device = game.devices.get(event.active_device_id)
         source_name = device.name if device else event.target_id
@@ -222,7 +271,7 @@ class EventManager:
             level=level,
             target_id=target_id,
             turn=game.turn,
-            clock=settings.clock_text(game.turn),
+            clock=settings.clock_from_minutes(game.shift_minutes),
             event_id=event_id,
             source_ip=source_ip,
             account=account,
@@ -238,14 +287,14 @@ class EventManager:
     # ------------------------------------------------------------------
     # 误报与背景噪音
     # ------------------------------------------------------------------
-    def _maybe_false_positive(self, game: "Game") -> None:
+    def _maybe_false_positive(self, game: "Game", force: bool = False) -> None:
         if self.tutorial:
             return
         pool = [item for item in self.payload.get("false_positive_alerts", []) if isinstance(item, dict)]
         if not pool:
             return
         turn = game.turn
-        should_spawn = turn == 1
+        should_spawn = force or turn == 1
         if not should_spawn:
             should_spawn = (turn - self.last_false_positive_turn >= 2) and self.rng.random() < 0.5
         if not should_spawn:
@@ -274,7 +323,7 @@ class EventManager:
         game.player.stats["false_positives_seen"] = game.player.stats.get("false_positives_seen", 0) + 1
         game.logs.add(
             game.turn,
-            settings.clock_text(game.turn),
+            settings.clock_from_minutes(game.shift_minutes),
             "告警",
             f"监控平台产生告警：{alert.title}（{alert.level}），来源 {target_id}。",
             source=target_id,
@@ -296,7 +345,7 @@ class EventManager:
                 pass
             game.logs.add(
                 game.turn,
-                settings.clock_text(game.turn),
+                settings.clock_from_minutes(game.shift_minutes),
                 str(template.get("category", "系统")),
                 text,
             )
@@ -305,60 +354,73 @@ class EventManager:
     # 回合结束：事件推进
     # ------------------------------------------------------------------
     def advance_events(self, game: "Game") -> None:
-        for event in self.events:
+        """兼容旧的整回合推进：推进所有活跃事件（主要供测试/旧存档）。"""
+        for event in list(self.events):
             if not event.is_active:
                 continue
-            device = game.devices.get(event.active_device_id)
-            stage = event.stage
-            # 隔离或关机都能阻断当前主链；事件本身仍然存在
-            if device is not None and not device.is_available and bool(stage.get("spreading", False)):
-                reason = "处于隔离状态" if device.isolated else "处于关机状态"
-                game.logs.add(
-                    game.turn,
-                    settings.clock_text(game.turn),
-                    "网络",
-                    f"{device.name} {reason}，{event.name} 的横向传播被阻断。",
-                    source=device.name,
-                )
-                game.push_message(f"阻断生效：{device.name} {reason}，攻击链暂时停止推进。", settings.GREEN)
-                continue
+            self._advance_event(game, event)
+            if game.state != "playing":
+                return
 
-            if event.stage_index >= event.max_stage_index:
-                self._trigger_final_loss(game, event)
-                if game.state != "playing":
-                    return
-                continue
+    def advance_random_event(self, game: "Game") -> None:
+        """实时模式：每隔一小段时间只推进一条随机攻击链。"""
+        active = [event for event in self.events if event.is_active]
+        if not active:
+            return
+        self._advance_event(game, self.rng.choice(active))
 
-            old_name = event.stage_name
-            next_device_id = event.next_device_id
-            next_device = game.devices.get(next_device_id) if next_device_id else None
-            next_stage = (
-                event.stages[event.stage_index + 1]
-                if event.stage_index < event.max_stage_index
-                else {}
+    def _advance_event(self, game: "Game", event: SecurityEvent) -> None:
+        if not event.is_active:
+            return
+        device = game.devices.get(event.active_device_id)
+        stage = event.stage
+        # 隔离或关机都能阻断当前主链；事件本身仍然存在
+        if device is not None and not device.is_available and bool(stage.get("spreading", False)):
+            reason = "处于隔离状态" if device.isolated else "处于关机状态"
+            game.logs.add(
+                game.turn,
+                settings.clock_from_minutes(game.shift_minutes),
+                "网络",
+                f"{device.name} {reason}，{event.name} 的横向传播被阻断。",
+                source=device.name,
             )
-            if (
-                next_device is not None
-                and not next_device.is_available
-                and bool(next_stage.get("spreading", False))
-            ):
-                reason = "已提前隔离" if next_device.isolated else "已提前关机"
-                game.logs.add(
-                    game.turn,
-                    settings.clock_text(game.turn),
-                    "网络",
-                    f"{next_device.name} {reason}，{event.name} 无法移动到下一跳，攻击链被拖住。",
-                    source=next_device.name,
-                )
-                game.push_message(
-                    f"预判生效：{next_device.name} {reason}，攻击暂时无法进入下一阶段。",
-                    settings.GREEN,
-                )
-                continue
+            game.push_message(f"阻断生效：{device.name} {reason}，攻击链暂时停止推进。", settings.GREEN)
+            return
 
-            event.advance()
-            event.last_advance_turn = game.turn
-            self._apply_stage(game, event, old_name)
+        if event.stage_index >= event.max_stage_index:
+            self._trigger_final_loss(game, event)
+            return
+
+        old_name = event.stage_name
+        next_device_id = event.next_device_id
+        next_device = game.devices.get(next_device_id) if next_device_id else None
+        next_stage = (
+            event.stages[event.stage_index + 1]
+            if event.stage_index < event.max_stage_index
+            else {}
+        )
+        if (
+            next_device is not None
+            and not next_device.is_available
+            and bool(next_stage.get("spreading", False))
+        ):
+            reason = "已提前隔离" if next_device.isolated else "已提前关机"
+            game.logs.add(
+                game.turn,
+                settings.clock_from_minutes(game.shift_minutes),
+                "网络",
+                f"{next_device.name} {reason}，{event.name} 无法移动到下一跳，攻击链被拖住。",
+                source=next_device.name,
+            )
+            game.push_message(
+                f"预判生效：{next_device.name} {reason}，攻击暂时无法进入下一阶段。",
+                settings.GREEN,
+            )
+            return
+
+        event.advance()
+        event.last_advance_turn = game.turn
+        self._apply_stage(game, event, old_name)
 
     def _apply_stage(self, game: "Game", event: SecurityEvent, old_stage_name: str) -> None:
         device = game.devices.get(event.active_device_id)
@@ -387,7 +449,7 @@ class EventManager:
                 target.set_status(str(status))
                 game.logs.add(
                     game.turn,
-                    settings.clock_text(game.turn),
+                    settings.clock_from_minutes(game.shift_minutes),
                     "网络",
                     f"{target.name} 状态变更为「{target.status_label}」。",
                     source=target.name,
@@ -396,7 +458,7 @@ class EventManager:
         # 日志 + 告警
         game.logs.add(
             game.turn,
-            settings.clock_text(game.turn),
+            settings.clock_from_minutes(game.shift_minutes),
             "告警",
             event.stage_text("log", event.name),
             source=device_name,
@@ -475,7 +537,7 @@ class EventManager:
         )
         game.logs.add(
             game.turn,
-            settings.clock_text(game.turn),
+            settings.clock_from_minutes(game.shift_minutes),
             "告警",
             f"最终损失：{title}，{device_name} 未能保住。",
             source=device_name,
@@ -510,6 +572,10 @@ class EventManager:
             "last_false_positive_turn": self.last_false_positive_turn,
             "used_false_positive_titles": sorted(self.used_false_positive_titles),
             "spawn_schedule": dict(self.spawn_schedule),
+            "spawn_minutes": dict(self.spawn_minutes),
+            "next_attack_at": self.next_attack_at,
+            "next_false_positive_at": self.next_false_positive_at,
+            "next_noise_at": self.next_noise_at,
             "events": [event.to_state() for event in self.events],
             "alerts": [alert.to_dict() for alert in self.alerts],
         }
@@ -528,6 +594,18 @@ class EventManager:
                 for key, value in schedule.items()
                 if isinstance(value, (int, float))
             }
+        minutes = state.get("spawn_minutes", {})
+        if isinstance(minutes, dict):
+            self.spawn_minutes = {
+                str(key): float(value)
+                for key, value in minutes.items()
+                if isinstance(value, (int, float))
+            }
+        else:
+            self._build_spawn_minutes()
+        self.next_attack_at = float(state.get("next_attack_at", 35.0))
+        self.next_false_positive_at = float(state.get("next_false_positive_at", 60.0))
+        self.next_noise_at = float(state.get("next_noise_at", 20.0))
 
         self.events = []
         for event_state in state.get("events", []):

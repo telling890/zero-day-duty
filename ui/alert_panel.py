@@ -98,7 +98,7 @@ class AlertPanel:
 
         target = game.devices.get(alert.target_id)
         target_name = target.short_name if target else alert.target_id
-        info = f"目标 {alert.target_id} {target_name} · 第{alert.turn}回合 {alert.clock}"
+        info = f"目标 {alert.target_id} {target_name} · {alert.clock}"
         if alert.source_ip:
             info += f" · 来源 {alert.source_ip}"
         related = game.related_alerts(alert)
