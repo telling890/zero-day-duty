@@ -1,4 +1,4 @@
-﻿# 将《零日值班》打包为 Windows 单文件应用，并生成可直接分发的文件夹与 zip。
+# 将《零日值班》打包为 Windows 单文件应用，并生成可直接分发的文件夹与 zip。
 #
 # 用法（在项目根目录或任意目录）：
 #   powershell -ExecutionPolicy Bypass -File .\build_exe.ps1
@@ -62,6 +62,11 @@ $iconArg = "$iconPng;assets"
     --add-data $dataArg `
     --add-data $iconArg `
     --version-file $versionFile `
+    --exclude-module numpy `
+    --exclude-module scipy `
+    --exclude-module pandas `
+    --exclude-module matplotlib `
+    --exclude-module tkinter `
     --distpath $distRoot `
     --workpath $workDir `
     --specpath $specDir `
