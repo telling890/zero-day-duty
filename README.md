@@ -26,6 +26,7 @@
 
 ![新手教程](assets/screenshots/tutorial.png)
 ![正确操作反馈](assets/screenshots/feedback.png)
+![实战演练提示框](assets/screenshots/tutorial_guide.png)
 
 ![安全加固商店](assets/screenshots/upgrades.png)
 
