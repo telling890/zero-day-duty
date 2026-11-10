@@ -59,7 +59,7 @@ ENDINGS = {
 
 STYLE_COMMENTS = {
     "激进隔离型": "你倾向于先隔离再调查，响应果断，但误封会伤害正常业务与声誉。",
-    "反应迟缓型": "你花了较长时间才处理真实威胁，攻击链因此进入了更深的阶段。",
+    "反应迟缓型": "你花了较多回合才处理真实威胁，攻击链因此进入了更深的阶段。",
     "精准快速型": "你几乎在第一时间锁定并阻断了威胁，调查与处置的节奏非常干净。",
     "资源透支型": "你有效控制了风险，但资金消耗过大，后续运营压力明显。",
     "稳健均衡型": "你在安全、业务与成本之间保持了相对均衡，属于可持续的值班风格。",
@@ -243,7 +243,7 @@ class ScoreSystem:
         resolved = int(summary.get("resolved", 0))
         controlled_only = int(summary.get("controlled_only", 0))
         average = float(summary.get("average_response", 0.0))
-        avg_text = f"{average:.1f} 小时" if average > 0 else "—"
+        avg_text = f"{average:.1f} 回合" if average > 0 else "—"
         checked = int(summary.get("false_positives_checked", 0))
         seen = int(summary.get("false_positives_seen", 0))
         return [
@@ -253,7 +253,7 @@ class ScoreSystem:
             ("漏掉的真实威胁", f"{int(summary.get('missed', 0))} 个"),
             ("误报告警处理", f"{checked} / {seen}"),
             ("误封次数", f"{int(summary.get('false_isolations', 0))} 次"),
-            ("平均响应（小时）", avg_text),
+            ("平均响应回合", avg_text),
             ("最终资金", settings.format_money(int(summary.get("funds", 0)))),
             ("最终可用性", f"{int(summary.get('availability', 0))}%"),
             ("最终数据完整度", f"{int(summary.get('integrity', 0))}%"),

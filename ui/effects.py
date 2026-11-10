@@ -37,6 +37,17 @@ class Banner:
 
 
 @dataclass
+class Feedback:
+    title: str
+    detail: str
+    color: tuple[int, int, int]
+    stage: str
+    correct: bool
+    life: float
+    total: float
+
+
+@dataclass
 class Particle:
     x: float
     y: float
@@ -60,6 +71,29 @@ class EffectsManager:
         self.flash_color = settings.RED
         self.flash_alpha = 0.0
         self._floater_serial = 0
+        self.feedback: Feedback | None = None
+
+    # ------------------------------------------------------------------
+    def show_feedback(
+        self,
+        title: str,
+        detail: str,
+        *,
+        color: tuple[int, int, int] = settings.GREEN,
+        stage: str = "",
+        correct: bool = True,
+        duration: float = 3.2,
+    ) -> None:
+        """操作面板上方“正确/注意”反馈卡：让玩家清楚知道刚才为什么对。"""
+        self.feedback = Feedback(
+            title=title,
+            detail=detail,
+            color=color,
+            stage=stage,
+            correct=correct,
+            life=duration,
+            total=duration,
+        )
 
     # ------------------------------------------------------------------
     def add_floater(
@@ -148,6 +182,10 @@ class EffectsManager:
 
         if self.combo_life > 0:
             self.combo_life = max(0.0, self.combo_life - dt)
+        if self.feedback is not None:
+            self.feedback.life -= dt
+            if self.feedback.life <= 0:
+                self.feedback = None
         if self.flash_alpha > 0:
             self.flash_alpha = max(0.0, self.flash_alpha - dt * 180)
 
@@ -162,6 +200,56 @@ class EffectsManager:
         self._draw_particles(surface)
         self._draw_floaters(surface)
         self._draw_combo(surface)
+        self._draw_feedback(surface)
+
+    def _draw_feedback(self, surface: pygame.Surface) -> None:
+        feedback = self.feedback
+        if feedback is None:
+            return
+        progress = 1.0 - feedback.life / feedback.total
+        alpha = 255
+        if feedback.life < 0.45:
+            alpha = int(255 * feedback.life / 0.45)
+        if progress < 0.12:
+            alpha = int(255 * progress / 0.12)
+        width = 620
+        height = 112
+        x = 650
+        y = 388 - int(max(0.0, 0.12 - progress) * 120)
+        panel = pygame.Surface((width, height), pygame.SRCALPHA)
+        pygame.draw.rect(panel, (8, 16, 23, alpha), panel.get_rect(), border_radius=10)
+        pygame.draw.rect(panel, (*feedback.color, alpha), panel.get_rect(), 2, border_radius=10)
+        pygame.draw.rect(panel, (*feedback.color, alpha), (0, 0, 7, height), border_radius=3)
+        tag_font = draw_utils.get_font(11, True)
+        tag_text = "正确" if feedback.correct else "注意"
+        tag = tag_font.render(tag_text, True, (8, 16, 23))
+        tag_bg = pygame.Rect(20, 14, tag.get_width() + 18, 22)
+        pygame.draw.rect(panel, (*feedback.color, alpha), tag_bg, border_radius=5)
+        panel.blit(tag, (tag_bg.x + 9, tag_bg.y + 3))
+        title_font = draw_utils.get_font(16, True)
+        panel.blit(title_font.render(feedback.title, True, settings.TEXT), (20 + tag_bg.width + 12, 11))
+        draw_utils.draw_text_block(
+            panel,
+            feedback.detail,
+            draw_utils.get_font(11),
+            settings.TEXT_DIM,
+            (20 + tag_bg.width + 12, 40),
+            width - tag_bg.width - 52,
+            line_height=16,
+            max_lines=2,
+        )
+        if feedback.stage:
+            stages = ("调查", "控制", "清除", "恢复")
+            stage_font = draw_utils.get_font(10, True)
+            x_stage = width - 226
+            for index, name in enumerate(stages):
+                active = name == feedback.stage
+                color = feedback.color if active else (60, 78, 92)
+                chip = pygame.Rect(x_stage + index * 54, height - 26, 50, 17)
+                pygame.draw.rect(panel, (*color, alpha), chip, border_radius=4, width=2 if active else 1)
+                image = stage_font.render(name, True, color)
+                panel.blit(image, (chip.centerx - image.get_width() // 2, chip.y + 2))
+        surface.blit(panel, (x, y))
 
     def _draw_particles(self, surface: pygame.Surface) -> None:
         for particle in self.particles:
@@ -192,7 +280,7 @@ class EffectsManager:
             pygame.draw.rect(panel, (*banner.color, alpha), panel.get_rect(), 1, border_radius=8)
             pygame.draw.rect(panel, (*banner.color, alpha), (0, 0, 5, height), border_radius=3)
             title_surface = font.render(banner.title, True, (*banner.color, alpha))
-            detail_surface = detail_font.render(banner.detail, True, (*settings.TEXT_DIM, alpha))
+            detail_surface = detail_font.render(banner.detail, True, settings.TEXT_DIM)
             panel.blit(title_surface, (18, 3))
             panel.blit(detail_surface, (18, 21))
             surface.blit(panel, (x, y))

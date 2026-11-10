@@ -37,11 +37,7 @@ class ResultScreen:
 
         color = ENDING_COLORS.get(report.ending_key, settings.ACCENT)
         tiny = draw_utils.get_font(11)
-        header = tiny.render(
-            f"值班结算 · {settings.clock_from_minutes(game.shift_minutes)} 结束 · 随机种子 {game.seed}",
-            True,
-            settings.TEXT_FAINT,
-        )
+        header = tiny.render(f"值班结算 · 第 {game.turn} 回合结束 · 随机种子 {game.seed}", True, settings.TEXT_FAINT)
         surface.blit(header, (self.rect.x + 40, self.rect.y + 22))
 
         title_font = draw_utils.get_font(32, True)

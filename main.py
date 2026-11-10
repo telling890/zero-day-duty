@@ -137,6 +137,8 @@ def main(argv: list[str] | None = None) -> int:
             game.new_game()
             game.update(0.016)
             game.draw()
+            from ui.tutorial_screen import PAGES as TUTORIAL_PAGES
+
             game.tutorial_screen.open()
             game.draw()
             game.briefing.open()
@@ -146,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"回合={game.turn}，设备={len(game.devices)}，"
                 f"服务={len(game.services.views(game.devices))}，"
                 f"事件={len(game.events.events)}，告警={len(game.events.alerts)}，"
-                f"日志={len(game.logs.entries)}，教程页={len(game.tutorial_screen.buttons)}"
+                f"日志={len(game.logs.entries)}，教程页={len(TUTORIAL_PAGES)}"
             )
             return 0
         game.run()

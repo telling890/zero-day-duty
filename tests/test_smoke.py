@@ -270,11 +270,9 @@ class GameFlowTest(unittest.TestCase):
         )
         self.assertTrue(game.save_game())
         self.assertTrue(game.events.events[0].eradicated)
-        saved_clock = game.shift_minutes
         rng_before = game.rng.getstate()
         game.end_turn()
         self.assertTrue(game.load_game())
-        self.assertEqual(game.shift_minutes, saved_clock)
         self.assertTrue(game.events.events[0].eradicated)
         self.assertEqual(
             (
@@ -480,51 +478,20 @@ class GameFlowTest(unittest.TestCase):
         self.assertTrue(game.report.news_headline)
         self.assertTrue(game.report.news_detail)
 
-    def test_real_time_clock_and_action_points(self) -> None:
+    def test_correct_action_feedback(self) -> None:
         game = self.game
-        for config in game.events.event_configs:
-            game.events.spawned_event_ids.add(str(config.get("id", "")))
-        game.events.events.clear()
-        game.events.alerts.clear()
-        game.events.next_false_positive_at = 9999.0
-        game.events.next_attack_at = 9999.0
-        game.events.next_noise_at = 9999.0
-        game.player.action_points = 2
-        game.advance_time(31)
-        self.assertGreaterEqual(game.shift_minutes, 31)
-        self.assertEqual(game.player.action_points, 3)
-        game.advance_time(30)
-        self.assertGreaterEqual(game.turn, 2)
-        self.assertGreaterEqual(game.player.action_points, 3)
-        self.assertGreaterEqual(game.player.funds, settings.INITIAL_FUNDS)
+        alert = self._real_alert()
+        game.select_alert(alert)
+        game.perform_action(self._option("investigate"), game.current_target())
+        self.assertIsNotNone(game.effects.feedback)
+        assert game.effects.feedback is not None
+        self.assertTrue(game.effects.feedback.correct)
+        self.assertEqual(game.effects.feedback.stage, "调查")
 
-    def test_shift_ends_at_eight(self) -> None:
-        game = self.game
-        for config in game.events.event_configs:
-            game.events.spawned_event_ids.add(str(config.get("id", "")))
-        game.events.events.clear()
-        game.events.alerts.clear()
-        game.events.next_false_positive_at = 9999.0
-        game.events.next_attack_at = 9999.0
-        game.events.next_noise_at = 9999.0
-        for _ in range(12):
-            if game.state != GameState.PLAYING:
-                break
-            game.advance_time(60)
-            if game.decision_screen.visible:
-                game.choose_decision(0)
-        self.assertEqual(game.state, GameState.RESULT)
-        self.assertGreaterEqual(game.shift_minutes, settings.SHIFT_MINUTES)
-        assert game.report is not None
-        self.assertIn(game.report.ending_key, {"perfect", "costly", "over_defense", "security_breach", "data_leak", "ransomware"})
-
-    def test_briefing_pauses_clock(self) -> None:
-        game = self.game
-        game.new_game(briefing=True)
-        self.assertTrue(game.briefing.visible)
-        before = game.shift_minutes
-        game.update(2.0)
-        self.assertEqual(game.shift_minutes, before)
+        game.select_device("PC-01")
+        game.perform_action(self._option("isolate"), game.current_target())
+        assert game.effects.feedback is not None
+        self.assertEqual(game.effects.feedback.stage, "控制")
 
     # ------------------------------------------------------------------
     # 界面/输入
@@ -555,8 +522,7 @@ class GameFlowTest(unittest.TestCase):
         self._click(game.log_panel.search_rect.center)
         self.assertTrue(game.log_panel.input_active)
         game.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_SPACE, mod=0, unicode=" "))
-        self.assertEqual(game.state, GameState.PLAYING)
-        self.assertEqual(game.shift_minutes, 0.0)
+        self.assertEqual(game.turn, 1)
 
     def test_menu_start_pause_and_continue(self) -> None:
         assert SCREEN is not None
@@ -569,9 +535,8 @@ class GameFlowTest(unittest.TestCase):
         self._click(game.briefing.button.rect.center, game)
         self.assertFalse(game.briefing.visible)
         game.update(0.016)
-        game.advance_time(60)
-        self.assertGreaterEqual(game.shift_minutes, 60)
-        self.assertGreaterEqual(game.turn, 2)
+        self._click(game.bottom_buttons["advance"].rect.center, game)
+        self.assertEqual(game.turn, 2)
         game.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE, mod=0, unicode=""))
         self.assertEqual(game.state, GameState.PAUSED)
         game.update(0.016)
@@ -623,7 +588,7 @@ class GameFlowTest(unittest.TestCase):
         self.assertEqual(len(game.events.events), 1)
         self.assertEqual(len(game.events.alerts), 1)
 
-        for _ in range(8):
+        for _ in range(12):
             if not game.tutorial_screen.visible:
                 break
             button = game.tutorial_screen.buttons[-1][0]
@@ -650,12 +615,29 @@ class GameFlowTest(unittest.TestCase):
         game.update(0.016)
         self.assertEqual(game.tutorial_guide.step, 2)
 
-        delete = action_button("delete_mail")
-        self.assertIsNotNone(delete)
-        assert delete is not None
-        self._click(delete.rect.center, game)
+        isolate = action_button("isolate")
+        self.assertIsNotNone(isolate)
+        assert isolate is not None
+        self._click(isolate.rect.center, game)
         game.update(0.016)
         self.assertEqual(game.tutorial_guide.step, 3)
+
+        eradicate = action_button("eradicate")
+        self.assertIsNotNone(eradicate)
+        assert eradicate is not None
+        self._click(eradicate.rect.center, game)
+        game.update(0.016)
+        self.assertEqual(game.tutorial_guide.step, 4)
+
+        unisolate = action_button("unisolate")
+        self.assertIsNotNone(unisolate)
+        assert unisolate is not None
+        self._click(unisolate.rect.center, game)
+        game.update(0.016)
+        self.assertEqual(game.tutorial_guide.step, 5)
+
+        self._click(game.bottom_buttons["advance"].rect.center, game)
+        game.update(0.016)
         self.assertTrue(game.tutorial_guide.completed)
         self._click(game.tutorial_guide.start_button.rect.center, game)
         self.assertFalse(game.tutorial_mode)

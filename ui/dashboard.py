@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""顶部状态栏：夜班时间与所有全局指标。"""
+"""顶部状态栏：回合、时间与所有全局指标。"""
 
 from __future__ import annotations
 
@@ -52,11 +52,11 @@ class Dashboard:
         player = game.player
         stats = [
             {
-                "label": "夜班时间",
-                "value": settings.clock_from_minutes(game.shift_minutes),
-                "sub": f"· ×{int(game.speed)}",
+                "label": "回合 / 时间",
+                "value": f"{game.turn} / {player.total_turns}",
+                "sub": f"· {settings.clock_text(game.turn)}",
                 "color": settings.ACCENT,
-                "ratio": game.shift_minutes / max(1, settings.SHIFT_MINUTES),
+                "ratio": game.turn / max(1, player.total_turns),
             },
             {
                 "label": "威胁等级",

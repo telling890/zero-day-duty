@@ -53,7 +53,7 @@ class HistoryScreen:
                 (self.rect.x + 30, self.rect.y + 110),
             )
         else:
-            header = ("#", "得分", "等级", "结局", "小时", "种子", "时间")
+            header = ("#", "得分", "等级", "结局", "回合", "种子", "时间")
             x_positions = (30, 100, 190, 330, 600, 690, 780)
             header_font = draw_utils.get_font(11, True)
             for text, x in zip(header, x_positions):

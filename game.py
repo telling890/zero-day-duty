@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""游戏主控制器：状态机、实时时钟、指标结算与界面调度。
+"""游戏主控制器：状态机、回合流程、指标结算与界面调度。
 
 界面绘制委托给 ui/ 下的各个面板，游戏规则委托给 systems/ 下的管理器，
 本模块只负责“把它们连起来”，避免逻辑与绘制混在一起。
@@ -113,12 +113,12 @@ class Game:
         self.audio = get_audio()
 
         self.bottom_buttons = {
-            "speed": Button(
+            "advance": Button(
                 (406, 618, 186, 40),
-                "时间流速 ×1",
+                "推进回合 →",
                 style="primary",
                 font_size=14,
-                tag="speed",
+                tag="advance",
             ),
             "pause": Button(
                 (406, 666, 186, 30),
@@ -153,10 +153,6 @@ class Game:
         self.save_manager = SaveManager(save_path=save_path, history_path=history_path)
 
         self.turn = 0
-        self.shift_minutes = 0.0
-        self.speed = 1.0
-        self.next_ap_minute = float(settings.AP_REGEN_MINUTES)
-        self.next_hour_minute = 60.0
         self.selected_device_id: str | None = None
         self.selected_alert: Any = None
         self.messages: deque[dict[str, Any]] = deque(maxlen=120)
@@ -197,10 +193,6 @@ class Game:
         self.tutorial_mode = tutorial
         self.events = EventManager(self._event_payload, self.rng, self.logs, tutorial=tutorial)
         self.turn = 0
-        self.shift_minutes = 0.0
-        self.speed = 1.0
-        self.next_ap_minute = float(settings.AP_REGEN_MINUTES)
-        self.next_hour_minute = 60.0
         self.selected_device_id = None
         self.selected_alert = None
         self.messages.clear()
@@ -243,7 +235,6 @@ class Game:
         self.audio.play_ambient()
         self.recompute_availability("开局网络状态")
         self.start_turn()
-        self.events.start_shift(self)
         self.push_message("提示：先看告警和日志，再决定隔离或删除邮件。", settings.ACCENT)
         self.push_message("主管·陈可：今晚客户在催交付，任何停服都要先报备。", settings.TEXT_DIM)
         self.push_message("安全平台：告警等级在调查前显示为“待评估”，先调查再处置更稳。", settings.TEXT_DIM)
@@ -253,21 +244,19 @@ class Game:
             self.briefing.open()
 
     # ==================================================================
-    # 值班开始与实时时钟
+    # 回合流程
     # ==================================================================
     def start_turn(self) -> None:
         self.turn += 1
         self.player.refresh_turn(self.turn)
-        first = self.turn <= 1
         self.logs.add(
             self.turn,
-            settings.clock_from_minutes(self.shift_minutes),
+            settings.clock_text(self.turn),
             "系统",
-            ("夜班开始，行动点已就绪。" if first else f"第 {self.turn} 小时开始。"),
+            f"第 {self.turn} 回合开始，行动点重置为 {self.player.action_points}。",
         )
         self.push_message(
-            (f"夜班开始（{settings.clock_from_minutes(self.shift_minutes)}），行动点 {self.player.action_points}。"
-             if first else f"时间进入 {settings.clock_from_minutes(self.shift_minutes)}。"),
+            f"第 {self.turn} 回合开始（{settings.clock_text(self.turn)}），行动点已重置。",
             settings.ACCENT,
         )
         service_income = self.services.income(self.devices)
@@ -281,9 +270,9 @@ class Game:
             lost = settings.TURN_INCOME - service_income
             self.logs.add(
                 self.turn,
-                settings.clock_from_minutes(self.shift_minutes),
+                settings.clock_text(self.turn),
                 "系统",
-                f"SLA 结算：部分服务降级/中断，本小时收入减少 ¥{lost}。",
+                f"SLA 结算：部分服务降级/中断，本回合收入减少 ¥{lost}。",
             )
             self.push_message(
                 f"SLA 结算：服务未满负荷，收入 -¥{lost}。业务状态见左下角值班简报。",
@@ -297,102 +286,6 @@ class Game:
         self._maybe_trigger_decision()
         self.action_panel._signature = None
         self.log_panel._cache_key = None
-
-    # ------------------------------------------------------------------
-    # 实时夜班时钟
-    # ------------------------------------------------------------------
-    def toggle_speed(self) -> None:
-        self.speed = 2.0 if self.speed < 1.5 else 1.0
-        button = self.bottom_buttons.get("speed")
-        if button is not None:
-            button.text = f"时间流速 ×{int(self.speed)}"
-        self.push_message(f"时间流速切换为 ×{int(self.speed)}。", settings.ACCENT)
-
-    def _clock_running(self) -> bool:
-        if self.state != GameState.PLAYING:
-            return False
-        blocked = (
-            self.briefing.visible
-            or self.tutorial_screen.visible
-            or self.shop.visible
-            or self.history_screen.visible
-            or self.decision_screen.visible
-            or self.help.visible
-        )
-        return not blocked
-
-    def _regen_action_points(self) -> None:
-        while self.shift_minutes + 1e-6 >= self.next_ap_minute:
-            self.next_ap_minute += settings.AP_REGEN_MINUTES
-            if self.player.action_points < self.player.max_action_points:
-                self.player.action_points += 1
-                self.push_message("行动点恢复 +1（值班室自动调度）。", settings.GREEN)
-
-    def advance_time(self, minutes: float) -> None:
-        """推进游戏分钟；实时模式每帧调用，测试也可直接调用。"""
-        if self.state != GameState.PLAYING or minutes <= 0:
-            return
-        target = min(float(settings.SHIFT_MINUTES), self.shift_minutes + minutes)
-        while self.shift_minutes + 1e-6 < target and self.state == GameState.PLAYING:
-            step = min(0.5, target - self.shift_minutes)
-            self.shift_minutes += step
-            self.events.update(self, self.shift_minutes)
-            self._regen_action_points()
-            if self.decision_screen.visible or self.state != GameState.PLAYING:
-                break
-            if self.player.security_failed():
-                self.finish("security")
-                break
-            if self.player.integrity_failed():
-                self.finish("integrity")
-                break
-            while (
-                self.shift_minutes + 1e-6 >= self.next_hour_minute
-                and self.next_hour_minute < settings.SHIFT_MINUTES
-            ):
-                self._settle_hour()
-                if self.decision_screen.visible or self.state != GameState.PLAYING:
-                    break
-            if self.shift_minutes + 1e-6 >= settings.SHIFT_MINUTES:
-                self.finish("time")
-                break
-
-    def _settle_hour(self) -> None:
-        """每到整点结算收入、SLA 与剧情决策；不重置行动点。"""
-        self.turn += 1
-        self.player.turn = self.turn
-        self.player.total_turns = max(self.player.total_turns, self.turn)
-        self.next_hour_minute += 60.0
-        clock = settings.clock_from_minutes(self.shift_minutes)
-        self.logs.add(self.turn, clock, "系统", f"{clock} 整点结算：服务收入与 SLA 检查。")
-        service_income = self.services.income(self.devices)
-        self.adjust_metric(
-            MetricKey.FUNDS,
-            service_income,
-            f"整点服务收入（SLA 结算，满额 ¥{settings.TURN_INCOME}）",
-            push=False,
-        )
-        if service_income < settings.TURN_INCOME:
-            lost = settings.TURN_INCOME - service_income
-            self.push_message(f"{clock} SLA 结算：服务降级，收入 -¥{lost}。", settings.ORANGE)
-        self.adjust_metric(MetricKey.FUNDS, -settings.TURN_UPKEEP, "整点值班运维成本", push=False)
-        for device in self.devices.values():
-            device.tick_maintenance()
-        self.recompute_availability("整点设备维护状态更新")
-        self._apply_sla_penalty()
-        if self.player.availability <= settings.AVAILABILITY_FAIL:
-            self.low_availability_turns += 1
-            self.push_message(
-                f"警告：服务可用性 {self.player.availability}% 低于 {settings.AVAILABILITY_FAIL}%"
-                f"（连续 {self.low_availability_turns} 小时）。",
-                settings.ORANGE,
-            )
-        else:
-            self.low_availability_turns = 0
-        if self.low_availability_turns >= settings.AVAILABILITY_FAIL_TURNS:
-            self.finish("availability")
-            return
-        self._maybe_trigger_decision()
 
     def _maybe_trigger_decision(self) -> None:
         if self.tutorial_mode:
@@ -415,48 +308,43 @@ class Game:
             self.push_message(f"紧急决策：{decision.get('title', '')}", settings.ORANGE)
             return
 
-    def _apply_sla_penalty(self) -> None:
-        outages = self.services.critical_outages(self.devices)
-        if not outages:
-            return
-        names = "、".join(view.config.short_name for view in outages[:3])
-        penalty = min(3, len(outages))
-        self.adjust_metric(
-            MetricKey.REPUTATION,
-            -penalty,
-            f"SLA 违约：{names}",
-            push=False,
-        )
-        self.player.stats["sla_breaches"] = int(self.player.stats.get("sla_breaches", 0)) + 1
-        self.logs.add(
-            self.turn,
-            settings.clock_from_minutes(self.shift_minutes),
-            "系统",
-            f"SLA 违约：{names} 中断，声誉 -{penalty}。",
-        )
-        self.push_message(
-            f"SLA 违约：{names} 仍处于中断状态，声誉 -{penalty}。",
-            settings.RED,
-        )
-
     def end_turn(self) -> None:
         if self.state != GameState.PLAYING:
             return
-        self.shift_minutes = min(settings.SHIFT_MINUTES, self.shift_minutes + 60.0)
-        self.next_hour_minute += 60.0
         self.events.advance_events(self)
         if self.state != GameState.PLAYING:
             return
         for device in self.devices.values():
             device.tick_maintenance()
-        self.recompute_availability("整点结算：设备状态更新")
-        self._apply_sla_penalty()
+        self.recompute_availability("回合结算：设备状态更新")
+
+        outages = self.services.critical_outages(self.devices)
+        if outages:
+            names = "、".join(view.config.short_name for view in outages[:3])
+            penalty = min(3, len(outages))
+            self.adjust_metric(
+                MetricKey.REPUTATION,
+                -penalty,
+                f"SLA 违约：{names}",
+                push=False,
+            )
+            self.player.stats["sla_breaches"] = int(self.player.stats.get("sla_breaches", 0)) + 1
+            self.logs.add(
+                self.turn,
+                settings.clock_text(self.turn),
+                "系统",
+                f"SLA 违约：{names} 中断，声誉 -{penalty}。",
+            )
+            self.push_message(
+                f"SLA 违约：{names} 仍处于中断状态，声誉 -{penalty}。",
+                settings.RED,
+            )
 
         if self.player.availability <= settings.AVAILABILITY_FAIL:
             self.low_availability_turns += 1
             self.push_message(
                 f"警告：服务可用性 {self.player.availability}% 低于 {settings.AVAILABILITY_FAIL}%"
-                f"（连续 {self.low_availability_turns} 小时）。",
+                f"（连续 {self.low_availability_turns} 回合）。",
                 settings.ORANGE,
             )
         else:
@@ -499,7 +387,7 @@ class Game:
         self.effects.flash(settings.GREEN if self.report.ending_key == "perfect" else settings.RED, 55)
         self.logs.add(
             self.turn,
-            settings.clock_from_minutes(self.shift_minutes),
+            settings.clock_text(self.turn),
             "系统",
             f"值班结束，结局：{self.report.ending_title}，得分 {self.report.score}（{self.report.grade}）。",
         )
@@ -632,7 +520,7 @@ class Game:
         if ok:
             self.audio.play("success")
             self.effects.flash(settings.ACCENT, 36)
-            self.effects.add_banner("读取存档", f"{settings.clock_from_minutes(self.shift_minutes)}，继续值班", settings.ACCENT)
+            self.effects.add_banner("读取存档", f"第 {self.turn} 回合，继续值班", settings.ACCENT)
         else:
             self.audio.play("fail")
             self.push_message(("读取失败：" if message else "读取失败"), settings.RED)
@@ -650,7 +538,7 @@ class Game:
         label = METRIC_LABELS.get(key, key)
         self.logs.add(
             self.turn,
-            settings.clock_from_minutes(self.shift_minutes),
+            settings.clock_text(self.turn),
             "系统",
             f"{label} {actual:+d}（{reason}）",
         )
@@ -678,7 +566,7 @@ class Game:
         self.player.adjust(MetricKey.AVAILABILITY, delta, reason)
         self.logs.add(
             self.turn,
-            settings.clock_from_minutes(self.shift_minutes),
+            settings.clock_text(self.turn),
             "系统",
             f"{METRIC_LABELS[MetricKey.AVAILABILITY]} {delta:+d}（{reason}）",
         )
@@ -712,7 +600,7 @@ class Game:
         self.recompute_availability("事件控制后业务恢复")
         self.logs.add(
             self.turn,
-            settings.clock_from_minutes(self.shift_minutes),
+            settings.clock_text(self.turn),
             "操作",
             f"事件「{event.name}」已被控制，方式：{method}；根因尚未清除。",
         )
@@ -776,7 +664,7 @@ class Game:
                     self.push_message(f"连击奖励：行动点 +{gained}", settings.GREEN)
         self.logs.add(
             self.turn,
-            settings.clock_from_minutes(self.shift_minutes),
+            settings.clock_text(self.turn),
             "操作",
             f"事件「{event.name}」根因已清除，方式：{method}。",
         )
@@ -784,7 +672,7 @@ class Game:
         if success_text:
             self.logs.add(
                 self.turn,
-                settings.clock_from_minutes(self.shift_minutes),
+                settings.clock_text(self.turn),
                 "操作",
                 f"清除结果：{success_text}",
             )
@@ -826,7 +714,7 @@ class Game:
                 )
                 self.logs.add(
                     self.turn,
-                    settings.clock_from_minutes(self.shift_minutes),
+                    settings.clock_text(self.turn),
                     "告警",
                     f"{device_name} {action_name}，事件「{event.name}」重新活跃。",
                     source=device_name,
@@ -929,7 +817,51 @@ class Game:
         result = self.actions.execute(self, option, target)
         self.action_panel.sync(self)
         self.log_panel._cache_key = None
+        self._show_action_feedback(option, result)
         return result
+
+    def _show_action_feedback(self, option: ActionOption, result: ActionResult) -> None:
+        """把“这一步为什么对/为什么无效”直接显示在画面顶部，而不只写进日志。"""
+        if not result.executed:
+            return
+        action_id = option.action_id
+        if not result.success:
+            self.effects.show_feedback(
+                "操作未生效",
+                result.message,
+                color=settings.ORANGE,
+                correct=False,
+            )
+            return
+
+        stage = ""
+        if action_id == "investigate":
+            stage = "调查"
+            if "误报" in result.message:
+                title = "判断正确：误报"
+                detail = "确认是误报。关闭告警即可，不需要隔离设备。"
+            else:
+                title = "调查完成"
+                detail = "确认真实威胁，已获得新线索。下一步：控制或清除。"
+        elif action_id in ("isolate", "shutdown", "block_source"):
+            stage = "控制"
+            title = "控制成功"
+            detail = "攻击已停止扩散，但根因还在。下一步：执行“清除威胁”，再恢复业务。"
+        elif action_id in ("delete_mail", "reset_password", "patch", "eradicate"):
+            stage = "清除"
+            title = "清除成功"
+            detail = "根因已移除，告警关闭。别忘了解除隔离或启动服务，让业务恢复。"
+        elif action_id in ("unisolate", "startup", "restore_backup"):
+            stage = "恢复"
+            title = "恢复完成"
+            detail = "业务已恢复；已经清除的事件不会因为恢复操作重新活跃。"
+        elif action_id == "protect_backup":
+            title = "加固完成"
+            detail = "备份服务器已进入离线保护，勒索损失会明显降低。"
+        else:
+            title = "操作完成"
+            detail = result.message
+        self.effects.show_feedback(title, detail, color=settings.GREEN, stage=stage)
 
     def push_message(self, text: str, color: tuple[int, int, int] | None = None) -> None:
         self.messages.append(
@@ -1068,7 +1000,7 @@ class Game:
         if self.log_panel.handle_event(event, self):
             return
         if self.log_panel.input_active and event.type == pygame.KEYDOWN:
-            # 输入状态下的其他按键交给 TEXTINPUT 处理，不能触发暂停
+            # 输入状态下的其他按键交给 TEXTINPUT 处理，不能触发暂停/推进回合
             return
 
         if event.type == pygame.KEYDOWN:
@@ -1084,11 +1016,11 @@ class Game:
                 self.state = GameState.PAUSED
                 return
             if event.key == pygame.K_SPACE:
-                self.state = GameState.PAUSED
+                self.end_turn()
                 return
 
-        if self.bottom_buttons["speed"].handle_event(event):
-            self.toggle_speed()
+        if self.bottom_buttons["advance"].handle_event(event):
+            self.end_turn()
             return
         if self.bottom_buttons["pause"].handle_event(event):
             self.state = GameState.PAUSED
@@ -1102,7 +1034,7 @@ class Game:
             return
 
     def _handle_paused_event(self, event: pygame.event.Event) -> None:
-        if event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_SPACE):
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             self.state = GameState.PLAYING
             return
         if self.pause_buttons["resume"].handle_event(event):
@@ -1162,8 +1094,6 @@ class Game:
             self.briefing.update(dt)
         self.effects.update(dt)
         self.help.update(dt)
-        if self._clock_running():
-            self.advance_time(dt * settings.GAME_MINUTES_PER_SECOND * self.speed)
 
     # ==================================================================
     # 绘制
@@ -1261,8 +1191,8 @@ class Game:
 
         info_font = draw_utils.get_font(13)
         lines = (
-            f"当前时间：{settings.clock_from_minutes(self.shift_minutes)}  ·  夜班进度 {int(self.shift_minutes / settings.SHIFT_MINUTES * 100)}%",
-            f"随机种子：{self.seed}   ·   时间流速 ×{int(self.speed)}",
+            f"当前回合：第 {self.turn} / {settings.TOTAL_TURNS} 回合（{settings.clock_text(self.turn)}）",
+            f"随机种子：{self.seed}",
             f"安全度 {self.player.security}%   ·   资金 {settings.format_money(self.player.funds)}",
             f"可用性 {self.player.availability}%   ·   数据完整度 {self.player.integrity}%",
             f"{self.audio.state_text}（按 M 切换）   ·   连击 ×{self.combo}",

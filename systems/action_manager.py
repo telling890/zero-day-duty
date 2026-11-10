@@ -314,7 +314,7 @@ class ActionManager:
         game.player.stats["actions_used"] = game.player.stats.get("actions_used", 0) + 1
         game.logs.add(
             game.turn,
-            settings.clock_from_minutes(game.shift_minutes),
+            settings.clock_text(game.turn),
             "操作",
             f"执行「{option.name}」，目标：{target.label}（行动点 -{option.ap_cost}，资金 -¥{option.money_cost}）",
             source=target.device.name if target.device else "",
@@ -338,7 +338,7 @@ class ActionManager:
             stats["false_positives_checked"] = stats.get("false_positives_checked", 0) + 1
             game.logs.add(
                 game.turn,
-                settings.clock_from_minutes(game.shift_minutes),
+                settings.clock_text(game.turn),
                 "告警",
                 f"调查结论：{alert.title} 为误报。{alert.conclusion}",
                 source=alert.target_id,
@@ -362,7 +362,7 @@ class ActionManager:
         )
         game.logs.add(
             game.turn,
-            settings.clock_from_minutes(game.shift_minutes),
+            settings.clock_text(game.turn),
             "告警",
             f"调查确认「{event.name}」为真实威胁。新线索：{clue}",
             source=device.name if device else event.target_id,
@@ -373,7 +373,7 @@ class ActionManager:
         if recommended:
             game.logs.add(
                 game.turn,
-                settings.clock_from_minutes(game.shift_minutes),
+                settings.clock_text(game.turn),
                 "告警",
                 f"建议处置：{recommended}。",
                 source=device.name if device else event.target_id,
@@ -382,7 +382,7 @@ class ActionManager:
         if warning:
             game.logs.add(
                 game.turn,
-                settings.clock_from_minutes(game.shift_minutes),
+                settings.clock_text(game.turn),
                 "告警",
                 f"风险提示：{warning}",
                 source=device.name if device else event.target_id,
@@ -392,7 +392,7 @@ class ActionManager:
             next_name = next_device.name if next_device else event.next_device_id
             game.logs.add(
                 game.turn,
-                settings.clock_from_minutes(game.shift_minutes),
+                settings.clock_text(game.turn),
                 "告警",
                 f"预测下一跳：{next_name}（{event.next_stage_name}）。提前隔离可拖住攻击。",
                 source=device.name if device else event.target_id,
@@ -401,7 +401,7 @@ class ActionManager:
         if related:
             game.logs.add(
                 game.turn,
-                settings.clock_from_minutes(game.shift_minutes),
+                settings.clock_text(game.turn),
                 "告警",
                 f"情报关联：发现 {len(related)} 条同源/同账号告警，可能属于同一攻击活动。",
                 source=device.name if device else event.target_id,
@@ -410,7 +410,7 @@ class ActionManager:
         if spread_condition:
             game.logs.add(
                 game.turn,
-                settings.clock_from_minutes(game.shift_minutes),
+                settings.clock_text(game.turn),
                 "告警",
                 f"传播条件：{spread_condition}",
                 source=device.name if device else event.target_id,
