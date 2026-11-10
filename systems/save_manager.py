@@ -73,6 +73,10 @@ class SaveManager:
             "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "seed": game.seed,
             "turn": game.turn,
+            "shift_minutes": game.shift_minutes,
+            "speed": game.speed,
+            "next_ap_minute": game.next_ap_minute,
+            "next_hour_minute": game.next_hour_minute,
             "rng_state": _encode_rng(game.rng.getstate()),
             "player": game.player.to_dict(),
             "devices": {device_id: device.to_state() for device_id, device in game.devices.items()},
@@ -189,6 +193,14 @@ class SaveManager:
             game.player = player
             game.player.turn = turn
             game.turn = turn
+            game.shift_minutes = float(data.get("shift_minutes", (turn - 1) * 60))
+            game.speed = max(1.0, min(2.0, float(data.get("speed", 1.0))))
+            game.next_ap_minute = float(
+                data.get("next_ap_minute", max(settings.AP_REGEN_MINUTES, game.shift_minutes + 1))
+            )
+            game.next_hour_minute = float(
+                data.get("next_hour_minute", min(settings.SHIFT_MINUTES, (turn) * 60))
+            )
             game.logs = logs
             game.events = events
             game.messages.clear()
@@ -214,8 +226,15 @@ class SaveManager:
             game.log_panel._cache_key = None
             game.log_panel.scroll = 0
             game.alert_panel.scroll = 0
-            game.push_message(f"已读取存档：第 {turn} 回合，继续值班。", settings.ACCENT)
-            return True, f"已读取存档（第 {turn} 回合）"
+            game.briefing.close()
+            game.tutorial_screen.close()
+            game.tutorial_guide.reset()
+            game.tutorial_mode = False
+            game.push_message(
+                f"已读取存档：{settings.clock_from_minutes(game.shift_minutes)}，继续值班。",
+                settings.ACCENT,
+            )
+            return True, f"已读取存档（{settings.clock_from_minutes(game.shift_minutes)}）"
         except (KeyError, TypeError, ValueError, IndexError) as exc:
             return False, f"存档内容损坏：{exc}"
 

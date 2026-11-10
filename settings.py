@@ -52,7 +52,7 @@ HISTORY_FILE = SAVE_DIR / "history.json"
 # 基本信息
 # ---------------------------------------------------------------------------
 GAME_TITLE = "零日值班：网络安全防御模拟器"
-GAME_VERSION = "v1.2.0"
+GAME_VERSION = "v1.3.0"
 COMPANY_NAME = "云栖示例科技（虚构）"
 
 SCREEN_WIDTH = 1280
@@ -63,11 +63,14 @@ FPS = 60
 # ---------------------------------------------------------------------------
 # 回合与资源
 # ---------------------------------------------------------------------------
-TOTAL_TURNS = 10            # 一局持续的小时数（回合数）
-START_HOUR = 22             # 夜班从 22:00 开始，每回合推进 1 小时
-ACTION_POINTS_PER_TURN = 6  # 每回合行动点（第二阶段起提高到 6）
-TURN_INCOME = 120           # 每回合到账的服务合同收入
-TURN_UPKEEP = 40            # 每回合的值班运维成本
+TOTAL_TURNS = 10            # 一局持续时间（小时数）
+START_HOUR = 22             # 夜班从 22:00 开始
+SHIFT_MINUTES = 600         # 22:00 → 08:00，共 600 游戏分钟
+GAME_MINUTES_PER_SECOND = 1.0  # 1 秒真实时间 = 1 分钟游戏时间（约 10 分钟一局）
+AP_REGEN_MINUTES = 30       # 每 30 游戏分钟恢复 1 行动点
+ACTION_POINTS_PER_TURN = 6  # 初始/上限行动点
+TURN_INCOME = 120           # 每游戏小时的服务收入上限
+TURN_UPKEEP = 40            # 每游戏小时的值班运维成本
 
 INITIAL_SECURITY = 74
 INITIAL_FUNDS = 1200
@@ -291,6 +294,13 @@ def clock_text(turn: int) -> str:
     """把回合号换算成夜班时间，例如第 1 回合 -> 22:00。"""
     hour = (START_HOUR + max(0, turn - 1)) % 24
     return f"{hour:02d}:00"
+
+
+def clock_from_minutes(minutes: float) -> str:
+    """把夜班经过的分钟数格式化为 HH:MM。"""
+    total = (START_HOUR * 60 + max(0, int(minutes))) % (24 * 60)
+    hour, minute = divmod(total, 60)
+    return f"{hour:02d}:{minute:02d}"
 
 
 def format_money(value: int) -> str:

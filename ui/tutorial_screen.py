@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""新手教程：分页讲解 + 一回合实战演练。"""
+"""新手教程：分页讲解 + 一次实战演练。"""
 
 from __future__ import annotations
 
@@ -27,7 +27,8 @@ PAGES: tuple[TutorialPage, ...] = (
         body="你是云栖示例科技的夜班安全管理员。从现在到早上 8 点，公司会遭遇 6 条攻击链。",
         bullets=(
             "目标：阻止事件造成重大损失，同时别把业务全部关停。",
-            "每回合 = 1 小时，共 10 回合，行动点每回合重置。",
+            "一个夜班约 10 分钟（1 秒 ≈ 1 分钟游戏时间），事件会随机出现。",
+            "行动点也会随时间恢复，不需要手动推进时间。",
             "安全度归零、数据被偷光或业务崩溃都会失败。",
         ),
         target=(0, 0, 1280, 56),
@@ -37,7 +38,7 @@ PAGES: tuple[TutorialPage, ...] = (
         title="先认识界面",
         body="屏幕分成六块，所有操作都围绕它们展开。",
         bullets=(
-            "顶部：回合、威胁等级、安全度、资金、行动点、声誉、可用性、数据完整度。",
+            "顶部：夜班时间、威胁等级、安全度、资金、行动点、声誉、可用性、数据完整度。",
             "左侧：网络拓扑，点击节点查看设备。",
             "右侧：安全告警，点击一条告警开始调查。",
             "下方：日志终端、操作面板、消息/指标变化。",
@@ -87,7 +88,7 @@ PAGES: tuple[TutorialPage, ...] = (
             "拓扑节点显示正常、可疑、感染、隔离等状态。",
             "威胁等级随活跃攻击链上升，等级越高伤害越大。",
             "连续阻断会积累连击，连击奖励额外行动点。",
-            "第 8 回合会出现零日 BOSS，提前留好行动点。",
+            "深夜会出现零日 BOSS，提前留好行动点。",
         ),
         target=(8, 62, 600, 324),
         card=(620, 340, 620, 300),
@@ -97,7 +98,7 @@ PAGES: tuple[TutorialPage, ...] = (
         body="一局之内还有安全加固、剧情决策和多种结局。",
         bullets=(
             "按 U 打开安全加固，用资金购买本局永久能力。",
-            "第 4/7 回合会弹出剧情决策，每个选项都有代价。",
+            "凌晨会弹出剧情决策，每个选项都有代价。",
             "F5/F9 存读档，F1 打开完整值班手册，M 开关音效。",
             "结算会给出得分、等级、统计、连击与成就。",
         ),
@@ -106,11 +107,11 @@ PAGES: tuple[TutorialPage, ...] = (
     ),
     TutorialPage(
         title="准备实战",
-        body="接下来是一个 4 步演练：选择告警 → 调查 → 删除钓鱼邮件 → 推进回合。",
+        body="接下来是一个 3 步演练：选择告警 → 调查 → 删除钓鱼邮件。时间会自动流逝。",
         bullets=(
             "教程中只有一条钓鱼事件，不会出现其他攻击。",
             "删除邮件会直接清除根因；隔离则只完成“控制”，还需要“清除威胁”。",
-            "完成后可以开始真正的 10 回合值班。",
+            "完成后可以开始真正的随机事件值班。",
         ),
         target=None,
         card=(300, 170, 680, 330),
@@ -273,7 +274,6 @@ class TutorialGuide:
         "第 1 步：点击右侧第一条告警。",
         "第 2 步：在操作面板点击“调查告警”。",
         "第 3 步：点击“删除可疑邮件”；如果已隔离，则点击“清除威胁”。",
-        "第 4 步：点击“推进回合 →”，进入下一个小时。",
     )
 
     def __init__(self) -> None:
@@ -298,16 +298,14 @@ class TutorialGuide:
             self._advance(game)
         elif self.step == 2 and any(event.eradicated for event in game.events.events):
             self._advance(game)
-        elif self.step == 3 and game.turn >= 2:
-            self._advance(game)
 
     def _advance(self, game: "object") -> None:
         self.step += 1
-        if self.step >= 4:
+        if self.step >= 3:
             self.completed = True
             game.audio.play("upgrade")
             game.effects.flash(settings.GREEN, 50)
-            game.effects.add_banner("教程完成", "你已经掌握调查、处置、推进的循环", settings.GREEN)
+            game.effects.add_banner("教程完成", "你已经掌握调查、控制与清除的循环", settings.GREEN)
             return
         game.audio.play("success")
         game.push_message(self.STEP_TEXT[self.step], settings.ACCENT)
@@ -324,14 +322,14 @@ class TutorialGuide:
         pygame.draw.rect(surface, settings.ORANGE, self.card, 1, border_radius=8)
         tiny = draw_utils.get_font(10)
         surface.blit(
-            tiny.render(f"实战演练  {self.step + 1} / 4", True, settings.ORANGE),
+            tiny.render(f"实战演练  {self.step + 1} / 3", True, settings.ORANGE),
             (self.card.x + 18, self.card.y + 12),
         )
         title_font = draw_utils.get_font(14, True)
-        surface.blit(title_font.render("跟着提示完成第一回合", True, settings.TEXT), (self.card.x + 18, self.card.y + 32))
+        surface.blit(title_font.render("跟着提示完成一次处置", True, settings.TEXT), (self.card.x + 18, self.card.y + 32))
         draw_utils.draw_text_block(
             surface,
-            self.STEP_TEXT[self.step] if self.step < 4 else "教程完成。",
+            self.STEP_TEXT[self.step] if self.step < 3 else "教程完成。",
             draw_utils.get_font(12),
             settings.TEXT,
             (self.card.x + 18, self.card.y + 60),
@@ -354,8 +352,8 @@ class TutorialGuide:
         surface.blit(title, (panel.centerx - title.get_width() // 2, panel.y + 28))
         body = (
             "你已经完成一次完整的处置循环：\n"
-            "调查告警 → 确认威胁 → 删除钓鱼邮件 → 推进回合。\n\n"
-            "正式值班中会有 6 条攻击链、随机事件顺序、误报、剧情决策和零日 BOSS。\n"
+            "调查告警 → 确认威胁 → 删除钓鱼邮件。\n\n"
+            "正式值班中事件会随机出现，时间持续流逝；控制之后还要清除，最后恢复业务。\n"
             "记住：先调查、再处置，别为了安全把业务全部关停。"
         )
         draw_utils.draw_text_block(
@@ -381,8 +379,6 @@ class TutorialGuide:
                 or self._action_button_rect(game, "eradicate")
                 or pygame.Rect(624, 580, 200, 50)
             )
-        elif self.step == 3:
-            target = game.bottom_buttons["advance"].rect
         pulse = (pygame.time.get_ticks() // 200) % 2
         color = settings.YELLOW if pulse else settings.ACCENT
         pygame.draw.rect(surface, color, target.inflate(4, 4), 2, border_radius=6)

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""回合间的剧情决策浮层：两个互斥选择，各自有指标代价。"""
+"""值班过程中的剧情决策浮层：两个互斥选择，各自有指标代价。"""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ class DecisionScreen:
 
         tiny = draw_utils.get_font(11)
         speaker = str(self.decision.get("speaker", "")).strip()
-        header = f"第 {game.turn} 回合 · 值班决策"
+        header = f"{settings.clock_from_minutes(game.shift_minutes)} · 值班决策"
         if speaker:
             header += f" · {speaker}"
         surface.blit(
