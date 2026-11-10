@@ -209,7 +209,7 @@ class TutorialScreen:
                 Button(
                     (card.right - 174, y, 154, 34),
                     "进入实战演练" if self.page == len(PAGES) - 1 else "下一步",
-                    style="primary",
+                    style="purple",
                     font_size=13,
                 ),
                 "next",
@@ -225,12 +225,13 @@ class TutorialScreen:
         card = pygame.Rect(page.card)
         shadow = card.inflate(12, 12)
         pygame.draw.rect(surface, (4, 8, 14), shadow, border_radius=16)
-        pygame.draw.rect(surface, settings.PANEL_BG, card, border_radius=12)
-        pygame.draw.rect(surface, settings.ACCENT_DARK, card, 1, border_radius=12)
+        pygame.draw.rect(surface, (17, 13, 32), card, border_radius=12)
+        pygame.draw.rect(surface, settings.TUTORIAL_DARK, card.inflate(4, 4), 1, border_radius=15)
+        pygame.draw.rect(surface, settings.TUTORIAL, card, 2, border_radius=12)
 
         tiny = draw_utils.get_font(11)
         surface.blit(
-            tiny.render(f"新手教程  {self.page + 1} / {len(PAGES)}", True, settings.ACCENT),
+            tiny.render(f"新手教程  {self.page + 1} / {len(PAGES)}", True, settings.TUTORIAL_LIGHT),
             (card.x + 24, card.y + 18),
         )
         title_font = draw_utils.get_font(24, True)
@@ -283,7 +284,7 @@ class TutorialScreen:
         if target is not None:
             rect = pygame.Rect(target).clip(surface.get_rect())
             pulse = (pygame.time.get_ticks() // 220) % 2
-            color = settings.YELLOW if pulse else settings.ACCENT
+            color = settings.TUTORIAL_LIGHT if pulse else settings.TUTORIAL
             pygame.draw.rect(surface, color, rect.inflate(4, 4), 2, border_radius=6)
 
     # ------------------------------------------------------------------
@@ -376,7 +377,7 @@ class TutorialGuide:
             style="ghost",
             font_size=11,
         )
-        self.start_button = Button((380, 420, 220, 44), "开始正式值班", style="primary")
+        self.start_button = Button((380, 420, 220, 44), "开始正式值班", style="purple")
         self.menu_button = Button((620, 420, 200, 44), "返回主菜单", style="ghost")
 
     def reset(self) -> None:
@@ -415,7 +416,7 @@ class TutorialGuide:
             return
         game.audio.play("success")
         step = self.STEPS[self.step]
-        game.push_message(f"{step['title']}：{step['instruction']}", settings.ACCENT)
+        game.push_message(f"{step['title']}：{step['instruction']}", settings.TUTORIAL_LIGHT)
 
     # ------------------------------------------------------------------
     def draw(self, surface: pygame.Surface, game: "object") -> None:
@@ -426,9 +427,11 @@ class TutorialGuide:
             return
         self._draw_pointer(surface, game)
         step = self.STEPS[self.step]
-        color = step["color"]
-        pygame.draw.rect(surface, (10, 18, 27), self.card, border_radius=9)
+        color = settings.TUTORIAL
+        pygame.draw.rect(surface, (15, 12, 30), self.card, border_radius=9)
+        pygame.draw.rect(surface, settings.TUTORIAL_DARK, self.card.inflate(4, 4), 1, border_radius=12)
         pygame.draw.rect(surface, color, self.card, 2, border_radius=9)
+        pygame.draw.rect(surface, color, (self.card.x, self.card.y + 12, 4, self.card.height - 24), border_radius=2)
         tiny = draw_utils.get_font(10)
         surface.blit(
             tiny.render(f"实战演练  {self.step + 1} / {len(self.STEPS)}", True, color),
@@ -477,7 +480,7 @@ class TutorialGuide:
                 fill = (38, 52, 66)
             pygame.draw.rect(surface, fill, rect, border_radius=3)
         surface.blit(
-            tiny.render("提示：先调查，再控制；清除后记得恢复业务。", True, settings.TEXT_FAINT),
+            tiny.render("提示：先调查，再控制；清除后记得恢复业务。", True, (186, 172, 214)),
             (self.card.x + 18, self.card.y + 154),
         )
         self.exit_button.draw(surface, pygame.mouse.get_pos())
@@ -487,7 +490,7 @@ class TutorialGuide:
         if target is None:
             return
         pulse = (pygame.time.get_ticks() // 200) % 2
-        color = settings.YELLOW if pulse else settings.ACCENT
+        color = settings.TUTORIAL_LIGHT if pulse else settings.TUTORIAL
         pygame.draw.rect(surface, color, target.inflate(4, 4), 2, border_radius=6)
         start = (self.card.right + 2, self.card.centery)
         end = (target.left - 4, target.centery)

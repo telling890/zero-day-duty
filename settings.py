@@ -52,7 +52,7 @@ HISTORY_FILE = SAVE_DIR / "history.json"
 # 基本信息
 # ---------------------------------------------------------------------------
 GAME_TITLE = "零日值班：网络安全防御模拟器"
-GAME_VERSION = "v1.4.0"
+GAME_VERSION = "v1.4.1"
 COMPANY_NAME = "云栖示例科技（虚构）"
 
 SCREEN_WIDTH = 1280
@@ -127,6 +127,9 @@ YELLOW = (240, 196, 60)
 ORANGE = (240, 140, 50)
 RED = (236, 88, 84)
 PURPLE = (168, 120, 230)
+TUTORIAL = (174, 142, 255)
+TUTORIAL_LIGHT = (224, 214, 255)
+TUTORIAL_DARK = (104, 78, 180)
 BLUE = (84, 160, 240)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
