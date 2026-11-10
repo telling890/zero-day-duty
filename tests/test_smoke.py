@@ -1,0 +1,563 @@
+# -*- coding: utf-8 -*-
+"""无窗口冒烟测试（v1.0）。
+
+运行方式（在 cyber_defense_game 目录下）：
+    py -3.10 tests/test_smoke.py
+测试使用 SDL dummy 驱动，不会弹出窗口，也不会访问网络。
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import pygame  # noqa: E402
+
+import settings  # noqa: E402
+from game import Game, GameState  # noqa: E402
+from models.security_event import SecurityEvent  # noqa: E402
+from systems.score_system import ScoreSystem  # noqa: E402
+from ui import draw_utils  # noqa: E402
+
+SCREEN: pygame.Surface | None = None
+
+
+def setUpModule() -> None:
+    global SCREEN
+    pygame.init()
+    draw_utils.set_font_path(settings.find_chinese_font())
+    SCREEN = pygame.display.set_mode(settings.SCREEN_SIZE)
+
+
+def tearDownModule() -> None:
+    pygame.quit()
+
+
+class GameFlowTest(unittest.TestCase):
+    def setUp(self) -> None:
+        assert SCREEN is not None
+        self.temp = tempfile.TemporaryDirectory()
+        root = Path(self.temp.name)
+        self.save_path = root / "savegame.json"
+        self.history_path = root / "history.json"
+        self.game = Game(
+            SCREEN,
+            seed=2024,
+            save_path=self.save_path,
+            history_path=self.history_path,
+        )
+        self.game.new_game()
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    # ------------------------------------------------------------------
+    def _option(self, action_id: str):
+        options = self.game.actions.options_for(self.game, self.game.current_target())
+        return next(option for option in options if option.action_id == action_id)
+
+    def _investigate(self, alert) -> None:
+        self.game.select_alert(alert)
+        option = self._option("investigate")
+        self.assertTrue(option.enabled, option.reason)
+        self.game.perform_action(option, self.game.current_target())
+
+    def _real_alert(self):
+        return next(alert for alert in self.game.events.alerts if not alert.false_positive)
+
+    # ------------------------------------------------------------------
+    # 基础数据
+    # ------------------------------------------------------------------
+    def test_initial_state(self) -> None:
+        game = self.game
+        self.assertEqual(game.state, GameState.PLAYING)
+        self.assertEqual(game.turn, 1)
+        self.assertEqual(game.player.action_points, settings.ACTION_POINTS_PER_TURN)
+        self.assertEqual(game.player.security, settings.INITIAL_SECURITY)
+        self.assertEqual(len(game.devices), 8)
+        self.assertEqual(len(game.events.events), 1)
+        self.assertGreaterEqual(len(game.events.alerts), 1)
+        self.assertEqual(
+            game.player.funds,
+            settings.INITIAL_FUNDS + settings.TURN_INCOME - settings.TURN_UPKEEP,
+        )
+
+    def test_all_data_files_load(self) -> None:
+        self.assertEqual(len(self.game.upgrade_catalog), 4)
+        self.assertEqual(len(self.game.decisions), 2)
+        configs = self.game.events.event_configs
+        self.assertEqual(len(configs), 6)
+        self.assertTrue(all(config.get("enabled") for config in configs))
+        for device in self.game.devices.values():
+            for neighbor in device.neighbors:
+                self.assertIn(neighbor, self.game.devices)
+
+    def test_random_schedule_is_valid(self) -> None:
+        schedule = self.game.events.spawn_schedule
+        self.assertEqual(schedule["EVT-PHISH-01"], 1)
+        self.assertEqual(schedule["EVT-ZERODAY-06"], 8)
+        flexible = [turn for event_id, turn in schedule.items() if event_id not in ("EVT-PHISH-01", "EVT-ZERODAY-06")]
+        self.assertEqual(len(flexible), 4)
+        self.assertEqual(len(set(flexible)), 4)
+        self.assertTrue(all(3 <= turn <= 7 for turn in flexible))
+        # 同一种子必须复现同一排期
+        assert SCREEN is not None
+        other = Game(SCREEN, seed=2024, save_path=self.save_path, history_path=self.history_path)
+        other.new_game()
+        self.assertEqual(schedule, other.events.spawn_schedule)
+
+    # ------------------------------------------------------------------
+    # 调查与处置
+    # ------------------------------------------------------------------
+    def test_investigation_required_before_precise_action(self) -> None:
+        game = self.game
+        alert = self._real_alert()
+        game.select_alert(alert)
+        self.assertFalse(self._option("delete_mail").enabled)
+        self.assertFalse(self._option("reset_password").enabled)
+        self._investigate(alert)
+        self.assertTrue(alert.investigated)
+        self.assertEqual(alert.display_level, alert.level)
+        self.assertTrue(self._option("delete_mail").enabled)
+
+    def test_investigate_shrinks_risk(self) -> None:
+        game = self.game
+        alert = self._real_alert()
+        event = game.events.events[0]
+        device = game.devices[event.active_device_id]
+        before = game.risk.estimate(event, device, game.turn, game.confidence_bonus)
+        self._investigate(alert)
+        after = game.risk.estimate(event, device, game.turn, game.confidence_bonus)
+        self.assertGreaterEqual(after[2], before[2])
+        self.assertLessEqual(after[1] - after[0], before[1] - before[0])
+
+    def test_delete_mail_contains_event(self) -> None:
+        game = self.game
+        alert = self._real_alert()
+        self._investigate(alert)
+        option = self._option("delete_mail")
+        self.assertTrue(option.enabled, option.reason)
+        result = game.perform_action(option, game.current_target())
+        self.assertTrue(result.success)
+        self.assertTrue(game.events.events[0].contained)
+        self.assertTrue(alert.resolved)
+        self.assertEqual(game.combo, 1)
+
+    def test_isolate_and_unisolate(self) -> None:
+        game = self.game
+        game.select_device("PC-01")
+        option = self._option("isolate")
+        game.perform_action(option, game.current_target())
+        device = game.devices["PC-01"]
+        self.assertTrue(device.isolated)
+        self.assertLess(game.player.availability, 100)
+        self.assertTrue(game.events.events[0].contained)
+        game.action_panel.sync(game)
+        option = self._option("unisolate")
+        result = game.perform_action(option, game.current_target())
+        self.assertFalse(game.events.events[0].contained)
+        self.assertFalse(result.success)
+        self.assertEqual(game.player.availability, 100)
+
+    def test_patch_contains_web_event(self) -> None:
+        game = self.game
+        config = game.events.get_event_config("EVT-WEB-04")
+        assert config is not None
+        event = SecurityEvent(config, game.turn)
+        game.events.events.append(event)
+        game.select_device("WEB-01")
+        option = self._option("patch")
+        result = game.perform_action(option, game.current_target())
+        self.assertTrue(result.success)
+        self.assertTrue(event.contained)
+        self.assertTrue(game.devices["WEB-01"].patched)
+
+    def test_shutdown_and_startup(self) -> None:
+        game = self.game
+        config = game.events.get_event_config("EVT-LOGIN-02")
+        assert config is not None
+        event = SecurityEvent(config, game.turn)
+        game.events.events.append(event)
+        game.select_device("GW-01")
+        option = self._option("shutdown")
+        result = game.perform_action(option, game.current_target())
+        self.assertTrue(result.success)
+        self.assertFalse(game.devices["GW-01"].online)
+        self.assertTrue(event.contained)
+        game.action_panel.sync(game)
+        option = self._option("startup")
+        result = game.perform_action(option, game.current_target())
+        self.assertFalse(result.success)  # 事件重新活跃
+        self.assertTrue(game.devices["GW-01"].online)
+
+    def test_restore_and_protect_backup(self) -> None:
+        game = self.game
+        game.player.adjust("integrity", -20, "测试")
+        game.select_device("BAK-01")
+        option = self._option("restore_backup")
+        result = game.perform_action(option, game.current_target())
+        self.assertTrue(result.success)
+        self.assertFalse(game.devices["BAK-01"].backups)
+        self.assertGreaterEqual(game.player.integrity, 80)
+
+        game.select_device("BAK-01")
+        option = self._option("protect_backup")
+        result = game.perform_action(option, game.current_target())
+        self.assertTrue(result.success)
+        self.assertTrue(game.devices["BAK-01"].backup_protected)
+
+    # ------------------------------------------------------------------
+    # 升级与决策
+    # ------------------------------------------------------------------
+    def test_upgrade_purchase_and_effects(self) -> None:
+        game = self.game
+        self.assertTrue(game.buy_upgrade("log_plugin")[0])
+        self.assertLess(game.player.funds, 1280)
+        self.assertEqual(game.confidence_bonus, 0.15)
+        self.assertFalse(game.buy_upgrade("log_plugin")[0])
+
+        alert = self._real_alert()
+        game.select_alert(alert)
+        option = self._option("investigate")
+        self.assertEqual(option.money_cost, 10)
+        self.assertTrue(game.buy_upgrade("edr")[0])
+        game.select_device("PC-01")
+        self.assertEqual(self._option("isolate").ap_cost, 1)
+
+    def test_decision_opens_and_applies(self) -> None:
+        game = self.game
+        game.events.events.clear()
+        game.turn = 3
+        game.player.turn = 3
+        game.end_turn()
+        self.assertEqual(game.turn, 4)
+        self.assertTrue(game.decision_screen.visible)
+        before = game.player.availability
+        game.choose_decision(0)
+        self.assertFalse(game.decision_screen.visible)
+        self.assertEqual(game.player.availability, max(0, before - 8))
+        self.assertIn("customer_pressure", game.seen_decisions)
+
+    # ------------------------------------------------------------------
+    # 存档与历史
+    # ------------------------------------------------------------------
+    def test_save_and_load_roundtrip(self) -> None:
+        game = self.game
+        alert = self._real_alert()
+        self._investigate(alert)
+        game.perform_action(self._option("delete_mail"), game.current_target())
+        game.end_turn()
+        snapshot = (
+            game.turn,
+            game.player.security,
+            game.player.funds,
+            game.player.upgrades,
+            len(game.events.events),
+            len(game.events.alerts),
+            len(game.logs.entries),
+            game.events.spawn_schedule,
+        )
+        self.assertTrue(game.save_game())
+        rng_before = game.rng.getstate()
+        game.end_turn()
+        self.assertTrue(game.load_game())
+        self.assertEqual(
+            (
+                game.turn,
+                game.player.security,
+                game.player.funds,
+                game.player.upgrades,
+                len(game.events.events),
+                len(game.events.alerts),
+                len(game.logs.entries),
+                game.events.spawn_schedule,
+            ),
+            snapshot,
+        )
+        self.assertEqual(game.rng.getstate(), rng_before)
+        self.assertEqual(game.state, GameState.PLAYING)
+
+    def test_save_load_missing_file(self) -> None:
+        self.assertFalse(self.save_path.exists())
+        self.assertFalse(self.game.load_game())
+        self.assertEqual(self.game.state, GameState.PLAYING)
+
+    def test_history_is_written(self) -> None:
+        game = self.game
+        game.finish("time")
+        history = game.save_manager.load_history()
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["seed"], 2024)
+        self.assertIn("score", history[0])
+
+    def test_save_load_preserves_upgrades_and_decisions(self) -> None:
+        game = self.game
+        self.assertTrue(game.buy_upgrade("edr")[0])
+        game.events.events.clear()
+        game.turn = 3
+        game.player.turn = 3
+        game.end_turn()
+        self.assertTrue(game.decision_screen.visible)
+        game.choose_decision(1)
+        self.assertTrue(game.save_game())
+        schedule = dict(game.events.spawn_schedule)
+        game.player.funds = 0
+        game.seen_decisions.clear()
+        self.assertTrue(game.load_game())
+        self.assertIn("edr", game.player.upgrades)
+        self.assertIn("customer_pressure", game.seen_decisions)
+        self.assertEqual(game.events.spawn_schedule, schedule)
+        self.assertGreater(game.player.funds, 0)
+
+    def test_boss_event_spawns_at_turn8(self) -> None:
+        game = self.game
+        game.turn = 8
+        game.events.start_turn(game)
+        boss = game.events.get_event("EVT-ZERODAY-06")
+        self.assertIsNotNone(boss)
+        assert boss is not None
+        self.assertEqual(boss.active_device_id, "WEB-01")
+        self.assertEqual(game.threat_level, 3)
+
+    def test_history_overlay_from_menu(self) -> None:
+        game = self.game
+        game.finish("time")
+        self.assertTrue(game.save_manager.load_history())
+        game.state = GameState.MENU
+        game.update(0.016)
+        game.draw()
+        self._click(game.menu.buttons["history"].rect.center, game)
+        self.assertTrue(game.history_screen.visible)
+        game.draw()
+        game.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE, mod=0, unicode=""))
+        self.assertFalse(game.history_screen.visible)
+
+    # ------------------------------------------------------------------
+    # 结局判定
+    # ------------------------------------------------------------------
+    def test_over_defense_ending(self) -> None:
+        game = self.game
+        for device_id in ("DB-01", "BAK-01", "GW-01", "WEB-01"):
+            game.devices[device_id].isolate()
+        game.recompute_availability("测试：大面积隔离")
+        self.assertLessEqual(game.player.availability, settings.AVAILABILITY_FAIL)
+        for _ in range(settings.AVAILABILITY_FAIL_TURNS):
+            game.end_turn()
+        self.assertEqual(game.state, GameState.RESULT)
+        assert game.report is not None
+        self.assertEqual(game.report.ending_key, "over_defense")
+
+    def test_security_failure_ending(self) -> None:
+        game = self.game
+        game.player.security = 0
+        game.end_turn()
+        self.assertEqual(game.state, GameState.RESULT)
+        assert game.report is not None
+        self.assertEqual(game.report.ending_key, "security_breach")
+
+    def test_ransomware_ending_mapping(self) -> None:
+        report = ScoreSystem().evaluate(            {
+                "reason": "ransomware",
+                "turn": 8,
+                "total_turns": 10,
+                "security": 40,
+                "funds": 400,
+                "reputation": 40,
+                "availability": 30,
+                "integrity": 10,
+                "total_events": 6,
+                "resolved": 3,
+                "missed": 3,
+                "identified": 5,
+                "average_response": 2.0,
+                "false_positives_seen": 3,
+                "false_positives_checked": 2,
+                "false_isolations": 1,
+                "data_leak": False,
+                "ransomware_failed": True,
+                "security_breach": False,
+                "best_combo": 2,
+            }
+        )
+        self.assertEqual(report.ending_key, "ransomware")
+
+    def test_threat_level_and_combo(self) -> None:
+        game = self.game
+        self.assertEqual(game.threat_level, 2)
+        self.assertTrue(game.events.events[0].is_active)
+        config = game.events.get_event_config("EVT-LOGIN-02")
+        assert config is not None
+        second = SecurityEvent(config, game.turn)
+        game.events.events.append(second)
+        self.assertEqual(game.threat_level, 3)
+        game.contain_event(second, "测试处置")
+        self.assertEqual(game.combo, 1)
+        game.contain_event(game.events.events[0], "测试处置")
+        self.assertEqual(game.combo, 2)
+        self.assertGreaterEqual(game.player.action_points, settings.ACTION_POINTS_PER_TURN)
+
+    # ------------------------------------------------------------------
+    # 界面/输入
+    # ------------------------------------------------------------------
+    def test_log_search_and_filters(self) -> None:
+        game = self.game
+        results = game.logs.search("PC-01")
+        self.assertTrue(results)
+        self.assertTrue(all("pc-01" in entry.haystack() for entry in results))
+        alert_logs = game.logs.search("", "告警")
+        self.assertTrue(all(entry.category == "告警" for entry in alert_logs))
+
+    def test_click_alert_then_investigate(self) -> None:
+        game = self.game
+        game.draw()
+        content = (settings.LAYOUT["alerts"][0] + 112, settings.LAYOUT["alerts"][1] + 50)
+        self._click(content)
+        self.assertIsNotNone(game.selected_alert)
+        game.update(0.016)
+        button, option = game.action_panel.buttons[0]
+        self._click(button.rect.center)
+        self.assertEqual(option.action_id, "investigate")
+        self.assertEqual(game.player.action_points, settings.ACTION_POINTS_PER_TURN - 1)
+
+    def test_log_input_does_not_advance_turn(self) -> None:
+        game = self.game
+        game.draw()
+        self._click(game.log_panel.search_rect.center)
+        self.assertTrue(game.log_panel.input_active)
+        game.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_SPACE, mod=0, unicode=" "))
+        self.assertEqual(game.turn, 1)
+
+    def test_menu_start_pause_and_continue(self) -> None:
+        assert SCREEN is not None
+        game = Game(SCREEN, seed=99, save_path=self.save_path, history_path=self.history_path)
+        self.assertEqual(game.state, GameState.MENU)
+        game.draw()
+        self._click(game.menu.buttons["start"].rect.center, game)
+        self.assertEqual(game.state, GameState.PLAYING)
+        game.update(0.016)
+        self._click(game.bottom_buttons["advance"].rect.center, game)
+        self.assertEqual(game.turn, 2)
+        game.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE, mod=0, unicode=""))
+        self.assertEqual(game.state, GameState.PAUSED)
+        game.update(0.016)
+        self._click(game.pause_buttons["save"].rect.center, game)
+        self.assertTrue(self.save_path.exists())
+        game.update(0.016)
+        self._click(game.pause_buttons["resume"].rect.center, game)
+        self.assertEqual(game.state, GameState.PLAYING)
+
+        game.state = GameState.MENU
+        game.update(0.016)
+        game.draw()
+        self._click(game.menu.buttons["continue"].rect.center, game)
+        self.assertEqual(game.state, GameState.PLAYING)
+
+    def test_upgrade_shop_click(self) -> None:
+        game = self.game
+        game.shop.open()
+        game.update(0.016)
+        game.draw()
+        self.assertTrue(game.shop.buy_buttons)
+        button, upgrade_id = game.shop.buy_buttons[0]
+        self._click(button.rect.center, game)
+        self.assertIn(upgrade_id, game.player.upgrades)
+
+    def test_result_screen_buttons(self) -> None:
+        game = self.game
+        game.finish("time")
+        game.update(0.016)
+        game.draw()
+        self._click(game.result_screen.buttons["restart"].rect.center, game)
+        self.assertEqual(game.state, GameState.PLAYING)
+        game.finish("time")
+        game.update(0.016)
+        self._click(game.result_screen.buttons["menu"].rect.center, game)
+        self.assertEqual(game.state, GameState.MENU)
+
+    # ------------------------------------------------------------------
+    # 新手教程
+    # ------------------------------------------------------------------
+    def test_tutorial_pages_and_practice(self) -> None:
+        game = self.game
+        game.state = GameState.MENU
+        game.update(0.016)
+        game.draw()
+        self._click(game.menu.buttons["tutorial"].rect.center, game)
+        self.assertTrue(game.tutorial_screen.visible)
+        self.assertTrue(game.tutorial_mode)
+        self.assertEqual(len(game.events.events), 1)
+        self.assertEqual(len(game.events.alerts), 1)
+
+        for _ in range(8):
+            if not game.tutorial_screen.visible:
+                break
+            button = game.tutorial_screen.buttons[-1][0]
+            self._click(button.rect.center, game)
+        self.assertFalse(game.tutorial_screen.visible)
+        self.assertTrue(game.tutorial_mode)
+
+        game.update(0.016)
+        alert_rect = (720, 112)
+        self._click(alert_rect, game)
+        game.update(0.016)
+        self.assertEqual(game.tutorial_guide.step, 1)
+
+        def action_button(action_id: str):
+            for button, option in game.action_panel.buttons:
+                if option.action_id == action_id:
+                    return button
+            return None
+
+        investigate = action_button("investigate")
+        self.assertIsNotNone(investigate)
+        assert investigate is not None
+        self._click(investigate.rect.center, game)
+        game.update(0.016)
+        self.assertEqual(game.tutorial_guide.step, 2)
+
+        delete = action_button("delete_mail")
+        self.assertIsNotNone(delete)
+        assert delete is not None
+        self._click(delete.rect.center, game)
+        game.update(0.016)
+        self.assertEqual(game.tutorial_guide.step, 3)
+
+        self._click(game.bottom_buttons["advance"].rect.center, game)
+        game.update(0.016)
+        self.assertTrue(game.tutorial_guide.completed)
+        self._click(game.tutorial_guide.start_button.rect.center, game)
+        self.assertFalse(game.tutorial_mode)
+        self.assertEqual(game.state, GameState.PLAYING)
+        self.assertGreater(len(game.events.spawn_schedule), 1)
+
+    def test_tutorial_skip_returns_to_menu(self) -> None:
+        game = self.game
+        game.state = GameState.MENU
+        game.update(0.016)
+        game.draw()
+        self._click(game.menu.buttons["tutorial"].rect.center, game)
+        self.assertTrue(game.tutorial_screen.visible)
+        skip = game.tutorial_screen.buttons[1][0]
+        self._click(skip.rect.center, game)
+        self.assertFalse(game.tutorial_screen.visible)
+        self.assertFalse(game.tutorial_mode)
+        self.assertEqual(game.state, GameState.MENU)
+
+    def _click(self, pos: tuple[int, int], game: Game | None = None) -> None:
+        target = game or self.game
+        target.handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=pos))
+        target.handle_event(pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=pos))
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

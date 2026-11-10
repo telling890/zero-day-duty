@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+saves/*.json
+assets/screenshots/*.tmp
+build/
+dist/
+*.spec
+error.log
+exe_screen.png
