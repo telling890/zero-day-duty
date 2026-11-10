@@ -634,10 +634,10 @@ main { position: relative; z-index: 2; }
   font-family: var(--mono);
   font-size: 10.5px;
   letter-spacing: .14em;
-  color: rgba(122, 242, 255, .8);
+  color: rgba(122, 242, 255, .9);
 }
 .rail strong { display: block; font-size: 14.5px; margin-bottom: 4px; }
-.rail p { color: var(--faint); font-size: 12.5px; line-height: 1.7; }
+.rail p { color: rgba(159, 179, 199, .82); font-size: 12.5px; line-height: 1.7; }
 
 /* ------------------------------ 数字带 ------------------------------ */
 .stats {

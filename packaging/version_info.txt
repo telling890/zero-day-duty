@@ -2,8 +2,8 @@
 # PyInstaller Windows 版本资源（--version-file）
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 4, 2, 0),
-    prodvers=(1, 4, 2, 0),
+    filevers=(1, 4, 3, 0),
+    prodvers=(1, 4, 3, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -19,12 +19,12 @@ VSVersionInfo(
           [
             StringStruct('CompanyName', 'Python 课程作业示例（虚构公司）'),
             StringStruct('FileDescription', '零日值班：网络安全防御模拟器'),
-            StringStruct('FileVersion', '1.4.2.0'),
+            StringStruct('FileVersion', '1.4.3.0'),
             StringStruct('InternalName', 'ZeroDayDuty'),
             StringStruct('LegalCopyright', '仅用于课程演示；不连接真实网络；所有数据均为虚构'),
             StringStruct('OriginalFilename', '零日值班.exe'),
             StringStruct('ProductName', '零日值班：网络安全防御模拟器'),
-            StringStruct('ProductVersion', '1.4.2.0'),
+            StringStruct('ProductVersion', '1.4.3.0'),
             StringStruct('Comments', 'Python + Pygame 课程项目')
           ]
         )

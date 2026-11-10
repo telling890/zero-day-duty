@@ -486,11 +486,13 @@ class GameFlowTest(unittest.TestCase):
         self.assertIsNotNone(game.effects.feedback)
         assert game.effects.feedback is not None
         self.assertTrue(game.effects.feedback.correct)
+        self.assertEqual(game.effects.feedback.title, "调查成功")
         self.assertEqual(game.effects.feedback.stage, "调查")
 
         game.select_device("PC-01")
         game.perform_action(self._option("isolate"), game.current_target())
         assert game.effects.feedback is not None
+        self.assertEqual(game.effects.feedback.title, "控制成功")
         self.assertEqual(game.effects.feedback.stage, "控制")
         game.draw()  # 反馈卡必须能实际绘制，不能只存在于状态里
 
