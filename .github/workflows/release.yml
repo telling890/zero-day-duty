@@ -1,6 +1,9 @@
 name: release
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -61,8 +64,8 @@ jobs:
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag }}
-          name: 零日值班 ${{ inputs.tag }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: 零日值班 ${{ inputs.tag || github.ref_name }}
           files: |
             dist/ZeroDayDuty.exe
             dist/ZeroDayDuty-Windows-x64.zip

@@ -2,6 +2,7 @@
 
 [![tests](https://github.com/telling890/zero-day-duty/actions/workflows/tests.yml/badge.svg)](https://github.com/telling890/zero-day-duty/actions/workflows/tests.yml)
 [![release](https://img.shields.io/github/v/release/telling890/zero-day-duty)](https://github.com/telling890/zero-day-duty/releases)
+[![pages](https://img.shields.io/badge/pages-live-00e0ff)](https://telling890.github.io/zero-day-duty/)
 
 一个使用 **Python 3.10+ / Pygame** 编写的中文单机网络安全防御模拟游戏，适合 Python 课程作业与课堂展示。
 
