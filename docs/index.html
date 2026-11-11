@@ -101,6 +101,9 @@
           <li>1280 × 720 固定窗口</li>
           <li>35 项自动化测试</li>
         </ul>
+        <p class="dl-hint reveal" style="--i:5">
+          国内下载慢？<a href="#download">换加速镜像 ↓</a>（同一个文件，可校验 SHA256）
+        </p>
       </div>
 
       <div class="hero-visual reveal" style="--i:2">
@@ -525,6 +528,57 @@
           <li><span>存档</span><b>JSON · 手动 / 自动</b></li>
           <li><span>语言</span><b>简体中文</b></li>
         </ul>
+      </div>
+    </section>
+
+    <!-- ============================ 下载方式 ============================ -->
+    <section id="download" class="section">
+      <div class="section-head reveal">
+        <p class="section-kicker">DOWNLOAD</p>
+        <h2>GitHub 慢的话，走加速镜像</h2>
+        <p>下面三个链接指向同一个 14 MB 的包（v1.4.4）。镜像只是转发 GitHub 上的同一个文件，下载完可以按 SHA256 校验。</p>
+      </div>
+
+      <div class="dl-grid">
+        <a class="dl-card reveal" href="https://github.com/telling890/zero-day-duty/releases/latest/download/ZeroDayDuty-Windows-x64.zip">
+          <span class="dl-tag">官方</span>
+          <strong>GitHub Release</strong>
+          <span class="dl-meta">直连，速度看网络</span>
+          <span class="dl-go">下载 ↗</span>
+        </a>
+        <a class="dl-card reveal" style="--i:1" href="https://ghfast.top/https://github.com/telling890/zero-day-duty/releases/latest/download/ZeroDayDuty-Windows-x64.zip">
+          <span class="dl-tag dl-tag-fast">国内加速 ①</span>
+          <strong>ghfast.top</strong>
+          <span class="dl-meta">国内 CDN 转发，通常最快</span>
+          <span class="dl-go">下载 ↗</span>
+        </a>
+        <a class="dl-card reveal" style="--i:2" href="https://gh-proxy.com/https://github.com/telling890/zero-day-duty/releases/latest/download/ZeroDayDuty-Windows-x64.zip">
+          <span class="dl-tag dl-tag-fast">国内加速 ②</span>
+          <strong>gh-proxy.com</strong>
+          <span class="dl-meta">备用线路，① 不通时用</span>
+          <span class="dl-go">下载 ↗</span>
+        </a>
+      </div>
+
+      <div class="dl-verify reveal" style="--i:3">
+        <div class="terminal">
+          <div class="terminal-bar">
+            <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span>PowerShell · 校验下载完整性</span>
+            <button class="copy-btn" type="button" data-copy="#verify-cmds">复制</button>
+          </div>
+          <pre id="verify-cmds"><code><span class="c"># 1. 算出手上这个包的哈希</span>
+<span class="p">PS&gt;</span> Get-FileHash .\ZeroDayDuty-Windows-x64.zip -Algorithm SHA256 | Select Hash
+
+<span class="c"># 2. 官方发布记录里的哈希（换版本也会自动更新）</span>
+<span class="p">PS&gt;</span> (Invoke-RestMethod "https://api.github.com/repos/telling890/zero-day-duty/releases/latest").assets |
+      Select name, size, digest</code></pre>
+        </div>
+        <p class="dl-note">
+          v1.4.4 的 zip 应为 <b>14,453,714 字节</b>，digest 为
+          <code>sha256:5d3ddb21cae2566f943a222437caa5c6f1f5814f15b2401a444bf89653cbecbf</code>。
+          两者一致即可放心运行；不一致就换另一个镜像重下。
+        </p>
       </div>
     </section>
 
