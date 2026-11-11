@@ -50,7 +50,8 @@
   function initNav() {
     var nav = document.querySelector('.nav-wrap');
     var bar = document.querySelector('.progress i');
-    var links = Array.prototype.slice.call(document.querySelectorAll('.nav-links a'));
+    var links = Array.prototype.slice.call(document.querySelectorAll('.nav-links a'))
+      .filter(function (link) { return (link.getAttribute('href') || '').charAt(0) === '#'; });
     var sections = links
       .map(function (link) { return document.querySelector(link.getAttribute('href')); })
       .filter(Boolean);

@@ -74,6 +74,21 @@ python -m pip install pygame
 python main.py
 ```
 
+## 二·五、网页版（浏览器直接玩）
+
+`web/` 目录是同一套规则的浏览器版本，原生 HTML / CSS / JavaScript，无需 Python、无需构建：
+
+```powershell
+# 双击 web/index.html 即可；也可以在 web 目录下起一个静态服务器
+py -3.10 -m http.server 8000
+# 浏览器打开 http://localhost:8000/
+```
+
+- 复用同一份 `data/*.json`，规则与桌面版对齐（12 种操作、攻击战役、加固树、SLA、结算等）。
+- 12 页教程 + 6 步实战演练、存档与历史排行榜（浏览器 localStorage）、桌面 / 手机自适应。
+- 在线地址：`https://telling890.github.io/zero-day-duty/play/`（发布副本在 `docs/play/`，由 `web/` 同步生成）。
+- 详细说明、测试与部署见 [`web/README.md`](web/README.md)。
+
 ## 三、操作说明
 
 | 操作 | 方式 |
@@ -289,6 +304,14 @@ cyber_defense_game/
 │   ├── services.json           # 6 项业务服务与 SLA
 │   ├── upgrades.json           # 3 条加固线 × 2 层，共 7 项
 │   └── decisions.json          # 2 个剧情决策
+├── web/                        # 网页版（原生 HTML/CSS/JS，无构建）
+│   ├── index.html
+│   ├── css/style.css
+│   ├── js/core/                # 游戏逻辑（与 DOM 无关）
+│   ├── js/ui/                  # 拓扑、面板、浮层、特效、音效
+│   ├── js/data/game-data.js    # 由 data/*.json 生成
+│   ├── tools/                  # 数据生成与无头浏览器测试
+│   └── tests/logic.test.mjs    # 网页版逻辑测试
 ├── tests/
 │   └── test_smoke.py           # 48 项无窗口测试
 ├── packaging/
@@ -361,6 +384,18 @@ py -3.10 tests\test_smoke.py
 31. 加固前置与互斥（含同线二选一）、第二层效果（额外线索 / 清除降价 / 收入与 SLA 缓冲 / 勒索减免）
 32. 攻击战役：同源标记与揭示、压力累积后提前投放、成员全在场时加速推进、压力回落、到最终阶段收尾
 33. 战役节奏存档往返
+
+### 网页版测试
+
+```powershell
+cd web
+node tests/logic.test.mjs            # 15 项逻辑测试，不需要浏览器
+node tools/browser-smoke.mjs         # 29 项真实点击 + 截图，需要 Edge/Chrome
+node tools/browser-flow.mjs          # 25 项：教程 / 决策 / 结算 / 存档 / 移动端
+node tools/browser-extra.mjs         # 13 项：加固购买 / 排行榜 / HTTP 托管
+```
+
+浏览器测试通过 DevTools Protocol 驱动无头 Edge/Chrome，截图输出到 `web/tests/screenshots/`；也可以用 `CHROME_PATH` 指定浏览器。
 
 ### 手工检查清单
 

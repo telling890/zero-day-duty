@@ -9,3 +9,5 @@ dist/
 error.log
 exe_screen.png
 ~$*
+web/tests/screenshots/
+web/node_modules/

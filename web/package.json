@@ -1,0 +1,16 @@
+{
+  "name": "zero-day-duty-web",
+  "version": "1.5.0",
+  "private": true,
+  "type": "module",
+  "description": "零日值班网页版：无构建步骤的静态游戏，复用桌面版 data/*.json。",
+  "scripts": {
+    "build:data": "node tools/build-data.mjs",
+    "test": "node tests/logic.test.mjs && node tools/browser-smoke.mjs",
+    "test:logic": "node tests/logic.test.mjs",
+    "test:browser": "node tools/browser-smoke.mjs && node tools/browser-flow.mjs && node tools/browser-extra.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

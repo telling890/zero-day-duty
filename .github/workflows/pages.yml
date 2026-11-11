@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+      - "web/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -27,8 +28,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
+
+      # 主页在 docs/，网页版游戏发布到 docs/play/（由 web/ 同步生成）
+      - name: Sync web game into docs/play
+        run: node web/tools/sync-docs-play.mjs
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

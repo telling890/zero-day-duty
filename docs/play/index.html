@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="零日值班：网络安全防御模拟器 · 网页版。10 个小时、6 条攻击链，守住虚构公司云栖示例科技。全部数据均为虚构。" />
+  <title>零日值班 · 网络安全防御模拟器（网页版）</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23091018'/%3E%3Cpath d='M32 10 52 19v14c0 12-8.6 18.7-20 21-11.4-2.3-20-9-20-21V19z' fill='none' stroke='%2300e0ff' stroke-width='3'/%3E%3Cpath d='M23 32l6 6 12-13' fill='none' stroke='%2340d082' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app" class="app" data-state="menu">
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="scanline" aria-hidden="true"></div>
+
+    <!-- ============================ 主菜单 ============================ -->
+    <section id="menu-screen" class="screen screen-menu" aria-label="主菜单">
+      <div class="menu-inner">
+        <p class="menu-kicker">22:00 → 08:00 · 单人回合制 · 一局约 15 分钟</p>
+        <h1 class="menu-title">零日值班</h1>
+        <p class="menu-subtitle">网络安全防御模拟器<span class="dot">·</span>网页版</p>
+        <p class="menu-en">ZERO-DAY NIGHT SHIFT · NETWORK DEFENSE SIM</p>
+
+        <div class="menu-copy">
+          <p>你是<strong>云栖示例科技</strong>的夜班安全管理员。</p>
+          <p>6 条攻击链、10 个小时、有限的预算：调查告警、隔离设备、清除威胁、恢复业务，守住这家公司。</p>
+          <p class="menu-safe">所有数据均为虚构，本游戏不连接任何真实网络。</p>
+        </div>
+
+        <div class="menu-actions">
+          <button class="btn primary lg" id="menu-start">开始新值班</button>
+          <button class="btn lg" id="menu-continue" disabled title="还没有存档">继续上次值班</button>
+          <button class="btn lg" id="menu-tutorial">新手教程</button>
+          <button class="btn ghost" id="menu-history">历史排行榜</button>
+          <button class="btn ghost" id="menu-seed">更换随机种子</button>
+          <button class="btn ghost" id="menu-help">值班手册</button>
+        </div>
+
+        <p class="menu-meta">
+          <span id="menu-seed-text">随机种子 2024</span>
+          <span>同一随机种子可复现同一局</span>
+        </p>
+        <nav class="menu-links" aria-label="项目链接">
+          <a href="https://telling890.github.io/zero-day-duty/" target="_blank" rel="noreferrer">项目主页</a>
+          <a href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">GitHub 源码</a>
+          <a href="https://github.com/telling890/zero-day-duty/releases/latest" target="_blank" rel="noreferrer">下载 Windows 版</a>
+          <a href="README.md" target="_blank" rel="noreferrer">网页版说明</a>
+        </nav>
+        <p class="menu-foot">课程演示项目 · 不使用真实恶意代码 · IP 均为文档保留地址 <span id="version">v1.5.0-web</span></p>
+      </div>
+    </section>
+
+    <!-- ============================ 值班界面 ============================ -->
+    <main id="play-screen" class="play" hidden>
+      <header class="topbar" id="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">0</span>
+          <span class="brand-text">零日值班<small>NET DEFENSE SIM</small></span>
+        </div>
+        <div class="metrics" id="metrics" role="list" aria-label="全局指标"></div>
+        <div class="top-actions">
+          <button class="icon-btn" id="btn-help" title="值班手册（F1）" aria-label="值班手册">手册</button>
+          <button class="icon-btn" id="btn-mute" title="音效开关（M）" aria-label="音效开关" aria-pressed="false">音效</button>
+          <button class="icon-btn" id="btn-pause" title="暂停（Esc）" aria-label="暂停">暂停</button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <div class="col col-left">
+          <section class="panel panel-topology" aria-label="网络拓扑">
+            <header class="panel-head">
+              <h2>网络拓扑</h2>
+              <p class="legend" aria-label="状态图例">
+                <span class="lg normal">● 正常</span>
+                <span class="lg suspicious">▲ 可疑</span>
+                <span class="lg infected">× 感染</span>
+                <span class="lg isolated">■ 隔离</span>
+              </p>
+            </header>
+            <div class="topo-wrap" id="topo-wrap">
+              <svg class="topo-links" id="topo-links" aria-hidden="true"></svg>
+              <div class="topo-nodes" id="topo-nodes"></div>
+            </div>
+          </section>
+
+          <section class="panel panel-device" aria-label="设备详情与业务简报">
+            <header class="panel-head">
+              <h2 id="device-title">值班简报</h2>
+              <p class="panel-meta" id="device-meta"></p>
+            </header>
+            <div class="panel-body" id="device-panel"></div>
+          </section>
+        </div>
+
+        <div class="col col-right">
+          <section class="panel panel-alerts" aria-label="安全告警">
+            <header class="panel-head">
+              <h2>安全告警</h2>
+              <p class="panel-meta" id="alert-meta"></p>
+            </header>
+            <div class="panel-body scroll" id="alert-list"></div>
+          </section>
+
+          <section class="panel panel-log" aria-label="日志终端">
+            <header class="panel-head">
+              <h2>日志终端</h2>
+              <p class="panel-meta" id="log-meta"></p>
+            </header>
+            <div class="log-toolbar">
+              <div class="chips" id="log-chips" role="tablist" aria-label="日志分类"></div>
+              <label class="search">
+                <span aria-hidden="true">⌕</span>
+                <input id="log-search" type="search" autocomplete="off" spellcheck="false" placeholder="搜索：设备 / 账号 / IP / 关键词" aria-label="搜索日志" />
+              </label>
+            </div>
+            <div class="panel-body scroll" id="log-list" aria-live="polite"></div>
+          </section>
+
+          <section class="panel panel-actions" aria-label="操作面板">
+            <header class="panel-head">
+              <h2>操作面板</h2>
+              <p class="panel-meta" id="action-ap"></p>
+            </header>
+            <p class="action-target" id="action-target"></p>
+            <div class="action-grid" id="action-grid"></div>
+            <p class="action-hint" id="action-hint"></p>
+          </section>
+        </div>
+      </div>
+
+      <footer class="bottombar">
+        <div class="messages" id="messages" aria-live="polite"></div>
+        <div class="turn-controls">
+          <button class="btn primary" id="btn-advance">推进回合 <span aria-hidden="true">→</span></button>
+          <button class="btn ghost" id="btn-pause-2">暂停（Esc）</button>
+        </div>
+      </footer>
+    </main>
+
+    <!-- ============================ 浮层 ============================ -->
+    <div id="modal" class="modal" hidden>
+      <div class="modal-card" id="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1"></div>
+    </div>
+
+    <!-- 教程实战提示卡 -->
+    <aside id="guide" class="guide" hidden aria-live="polite"></aside>
+    <div id="guide-ring" class="guide-ring" hidden aria-hidden="true"></div>
+
+    <!-- 特效层 -->
+    <div id="effects" class="effects" aria-hidden="true">
+      <div class="flash" id="fx-flash"></div>
+      <div class="banners" id="fx-banners"></div>
+      <div class="floaters" id="fx-floaters"></div>
+      <div class="bursts" id="fx-bursts"></div>
+      <div class="combo" id="fx-combo"></div>
+      <div class="feedback" id="fx-feedback"></div>
+    </div>
+  </div>
+
+  <script src="js/data/game-data.js"></script>
+  <script src="js/core/rng.js"></script>
+  <script src="js/core/models.js"></script>
+  <script src="js/core/log.js"></script>
+  <script src="js/core/services.js"></script>
+  <script src="js/core/upgrades.js"></script>
+  <script src="js/core/risk.js"></script>
+  <script src="js/core/events.js"></script>
+  <script src="js/core/actions.js"></script>
+  <script src="js/core/score.js"></script>
+  <script src="js/core/save.js"></script>
+  <script src="js/core/game.js"></script>
+  <script src="js/ui/audio.js"></script>
+  <script src="js/ui/effects.js"></script>
+  <script src="js/ui/topology.js"></script>
+  <script src="js/ui/panels.js"></script>
+  <script src="js/ui/screens.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

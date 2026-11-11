@@ -254,6 +254,14 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .nav-links a:hover::after,
 .nav-links a.active::after { transform: scaleX(1); }
 
+.nav-links a.nav-play { color: var(--red); font-weight: 600; }
+.nav-links a.nav-play::before {
+  content: "●";
+  font-size: 8px;
+  margin-right: 5px;
+  vertical-align: 2px;
+}
+
 .nav-gh {
   display: inline-flex;
   align-items: center;
@@ -363,6 +371,15 @@ main { position: relative; z-index: 2; }
 
 .btn.ghost { background: transparent; }
 .btn.ghost:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+.play-online { margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+.play-online a {
+  color: var(--red);
+  border-bottom: 1px solid rgba(193, 54, 42, .45);
+  transition: border-color .2s, color .2s;
+}
+.play-online a:hover { color: #8E1F17; border-color: #8E1F17; }
+.play-online .arrow { font-size: 11px; margin-left: 2px; }
 
 .quick {
   display: flex;
