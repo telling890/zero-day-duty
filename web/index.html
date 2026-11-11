@@ -8,6 +8,15 @@
   <title>零日值班 · 网络安全防御模拟器（网页版）</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23091018'/%3E%3Cpath d='M32 10 52 19v14c0 12-8.6 18.7-20 21-11.4-2.3-20-9-20-21V19z' fill='none' stroke='%2300e0ff' stroke-width='3'/%3E%3Cpath d='M23 32l6 6 12-13' fill='none' stroke='%2340d082' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="css/style.css" />
+
+  <!-- 可安装到手机主屏：横屏全屏，离线也能进游戏 -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#090d14" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="零日值班" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
 </head>
 <body>
   <div id="app" class="app" data-state="menu">
@@ -176,5 +185,13 @@
   <script src="js/ui/panels.js"></script>
   <script src="js/ui/screens.js"></script>
   <script src="js/main.js"></script>
+  <script>
+    /* 注册 Service Worker：装到主屏后可离线进入游戏（http/https 下才启用） */
+    if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function () {});
+      });
+    }
+  </script>
 </body>
 </html>

@@ -1,8 +1,10 @@
-/* 网络拓扑：绝对定位节点 + SVG 连线 + 流动攻击虚线。 */
+/* 网络拓扑：绝对定位节点 + SVG 连线 + 流动攻击虚线。
+   互动：点击选中节点；双指缩放、放大后单指平移、双击还原。 */
 (function (global) {
   'use strict';
   const ZDD = (global.ZDD = global.ZDD || {});
   const SVG_NS = 'http://www.w3.org/2000/svg';
+  const MAX_SCALE = 2.6;
 
   class Topology {
     constructor(options) {
@@ -16,6 +18,13 @@
       this.built = false;
       this.resizeObserver = null;
       this.raf = null;
+
+      /* 视图状态：缩放 + 平移 */
+      this.view = { scale: 1, tx: 0, ty: 0 };
+      this.pointers = new Map();
+      this.pinch = null;
+      this.drag = null;
+      this.suppressClick = false;
     }
 
     build() {
@@ -47,7 +56,132 @@
         this.resizeObserver.observe(this.wrap);
       }
       global.addEventListener('resize', () => this.layout());
+      this.bindViewGestures();
       this.layout();
+    }
+
+    /* ------------------------------------------------------------------
+       缩放 / 平移手势
+       ------------------------------------------------------------------ */
+    bindViewGestures() {
+      const wrap = this.wrap;
+      if (!wrap || wrap.dataset.gestures === 'on') return;
+      wrap.dataset.gestures = 'on';
+      wrap.style.touchAction = 'none';
+
+      wrap.addEventListener('pointerdown', (event) => {
+        this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        this.suppressClick = false;
+        if (this.pointers.size === 2) {
+          this.pinch = this.snapshotPinch();
+          this.drag = null;
+        } else if (this.pointers.size === 1) {
+          this.pinch = null;
+          this.drag = { x: event.clientX, y: event.clientY, tx: this.view.tx, ty: this.view.ty };
+        }
+        try { wrap.setPointerCapture(event.pointerId); } catch (error) { /* 忽略 */ }
+      });
+
+      wrap.addEventListener('pointermove', (event) => {
+        const point = this.pointers.get(event.pointerId);
+        if (!point) return;
+        point.x = event.clientX;
+        point.y = event.clientY;
+
+        if (this.pointers.size >= 2 && this.pinch) {
+          const [a, b] = [...this.pointers.values()];
+          const distance = Math.hypot(a.x - b.x, a.y - b.y);
+          if (distance < 2) return;
+          const next = Math.min(MAX_SCALE, Math.max(1, this.pinch.scale * (distance / this.pinch.dist)));
+          const ratio = next / this.pinch.scale;
+          const box = wrap.getBoundingClientRect();
+          const midX = (a.x + b.x) / 2 - box.left;
+          const midY = (a.y + b.y) / 2 - box.top;
+          this.view.scale = next;
+          this.view.tx = midX - (midX - this.pinch.tx) * ratio;
+          this.view.ty = midY - (midY - this.pinch.ty) * ratio;
+          this.clampView();
+          this.applyView();
+          this.suppressClick = true;
+          if (event.cancelable) event.preventDefault();
+          return;
+        }
+
+        if (this.pointers.size === 1 && this.drag && this.view.scale > 1.01) {
+          const dx = event.clientX - this.drag.x;
+          const dy = event.clientY - this.drag.y;
+          if (Math.abs(dx) + Math.abs(dy) > 4) this.suppressClick = true;
+          this.view.tx = this.drag.tx + dx;
+          this.view.ty = this.drag.ty + dy;
+          this.clampView();
+          this.applyView();
+        }
+      }, { passive: false });
+
+      const finish = (event) => {
+        this.pointers.delete(event.pointerId);
+        if (this.pointers.size < 2) this.pinch = null;
+        if (this.pointers.size === 0) {
+          this.drag = null;
+          /* 拖拽/缩放结束后短暂抑制点击，随后恢复，避免吞掉下一次正常点击 */
+          if (this.suppressClick) {
+            global.setTimeout(() => { this.suppressClick = false; }, 350);
+          }
+        }
+      };
+      wrap.addEventListener('pointerup', finish);
+      wrap.addEventListener('pointercancel', finish);
+
+      /* 拖拽后吞掉那次 click，避免误选设备 */
+      wrap.addEventListener('click', (event) => {
+        if (!this.suppressClick) return;
+        this.suppressClick = false;
+        event.stopPropagation();
+        event.preventDefault();
+      }, true);
+
+      wrap.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        this.resetView();
+      });
+    }
+
+    snapshotPinch() {
+      const [a, b] = [...this.pointers.values()];
+      return {
+        dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+        scale: this.view.scale,
+        tx: this.view.tx,
+        ty: this.view.ty,
+      };
+    }
+
+    clampView() {
+      const width = this.wrap.clientWidth;
+      const height = this.wrap.clientHeight;
+      const scale = this.view.scale;
+      const minX = width * (1 - scale);
+      const minY = height * (1 - scale);
+      this.view.tx = Math.min(0, Math.max(minX, this.view.tx));
+      this.view.ty = Math.min(0, Math.max(minY, this.view.ty));
+    }
+
+    applyView() {
+      const transform = `translate(${this.view.tx.toFixed(2)}px, ${this.view.ty.toFixed(2)}px) scale(${this.view.scale.toFixed(3)})`;
+      for (const target of [this.layer, this.svg]) {
+        if (!target) continue;
+        target.style.transformOrigin = '0 0';
+        target.style.transform = this.view.scale === 1 ? '' : transform;
+      }
+      this.wrap.classList.toggle('is-zoomed', this.view.scale > 1.01);
+      this.wrap.dataset.scale = this.view.scale.toFixed(2);
+    }
+
+    resetView() {
+      this.view.scale = 1;
+      this.view.tx = 0;
+      this.view.ty = 0;
+      this.applyView();
     }
 
     layout() {
@@ -70,6 +204,8 @@
         el.style.top = `${y}px`;
         this.centers.set(deviceId, { x, y });
       }
+      this.clampView();
+      this.applyView();
       this.drawLinks();
     }
 

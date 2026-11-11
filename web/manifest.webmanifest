@@ -1,0 +1,33 @@
+{
+  "name": "零日值班 · 网络安全防御模拟器",
+  "short_name": "零日值班",
+  "description": "回合制网络安全防御模拟：10 个回合、6 条攻击链，守住虚构公司云栖示例科技。",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#090d14",
+  "theme_color": "#090d14",
+  "categories": ["games", "education"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
