@@ -28,8 +28,19 @@ class AlertPanel:
     def draw(self, surface: pygame.Surface, game: "object") -> None:
         alerts = self._ordered(game)
         unresolved = len([alert for alert in alerts if not alert.resolved])
-        header = f"未清除 {unresolved} / 共 {len(alerts)}   （滚轮滚动）"
-        content = draw_utils.draw_panel(surface, self.rect, "安全告警", header_right=header)
+        header = f"未清除 {unresolved} / 共 {len(alerts)}"
+        pressure = ""
+        try:
+            for campaign in game.events.campaign_status():
+                if campaign.get("revealed") and not campaign.get("settled") and campaign.get("active"):
+                    pressure = (
+                        f" · {campaign['actor']} 节奏 {campaign['momentum']}/{campaign['threshold']}"
+                    )
+                    break
+        except (AttributeError, KeyError, TypeError):
+            pressure = ""
+        header_right = f"{header}{pressure}  （滚轮滚动）"
+        content = draw_utils.draw_panel(surface, self.rect, "安全告警", header_right=header_right)
 
         if not alerts:
             font = draw_utils.get_font(settings.FONT_SMALL)
@@ -104,6 +115,9 @@ class AlertPanel:
         related = game.related_alerts(alert)
         if related:
             info += f" · 关联 {len(related)} 条"
+        campaign = game.campaign_for_alert(alert)
+        if campaign:
+            info += f" · 同源 {campaign.get('actor', campaign.get('name', ''))}"
         surface.blit(tiny.render(draw_utils.ellipsize(info, tiny, rect.width - 20), True, settings.TEXT_DIM), (rect.x + 10, rect.y + 25))
 
     # ------------------------------------------------------------------

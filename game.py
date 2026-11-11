@@ -25,6 +25,7 @@ from systems.risk_engine import RiskEngine
 from systems.save_manager import SaveManager
 from systems.score_system import ScoreReport, ScoreSystem
 from systems.service_manager import ServiceManager
+from systems.upgrade_system import Upgrade, UpgradeTree
 from ui import draw_utils
 from ui.action_panel import ActionPanel
 from ui.alert_panel import AlertPanel
@@ -77,12 +78,11 @@ class Game:
             raise settings.DataError("services.json 的根节点必须是 JSON 对象")
         self.services = ServiceManager(service_payload)
         upgrade_payload = settings.load_json(settings.UPGRADES_FILE)
-        upgrades = upgrade_payload.get("upgrades", []) if isinstance(upgrade_payload, dict) else []
-        if not isinstance(upgrades, list):
-            raise settings.DataError("upgrades.json 中的 upgrades 必须是列表")
-        self.upgrade_catalog: list[dict[str, Any]] = [
-            item for item in upgrades if isinstance(item, dict) and item.get("id")
-        ]
+        if not isinstance(upgrade_payload, dict):
+            raise settings.DataError("upgrades.json 的根节点必须是 JSON 对象")
+        self.upgrade_tree = UpgradeTree(upgrade_payload)
+        # 兼容旧接口：加固项目列表（顺序为 检测线 → 响应线 → 韧性线，每线按层排）
+        self.upgrade_catalog: list[Upgrade] = list(self.upgrade_tree.upgrades)
         decision_payload = settings.load_json(settings.DECISIONS_FILE)
         decisions = decision_payload.get("decisions", []) if isinstance(decision_payload, dict) else []
         if not isinstance(decisions, list):
@@ -260,10 +260,12 @@ class Game:
             settings.ACCENT,
         )
         service_income = self.services.income(self.devices)
+        income_bonus = int(self.modifiers.get("income_bonus", 0))
         self.adjust_metric(
             MetricKey.FUNDS,
-            service_income,
-            f"服务收入（SLA 结算，满额 ¥{settings.TURN_INCOME}）",
+            service_income + income_bonus,
+            f"服务收入（SLA 结算，满额 ¥{settings.TURN_INCOME}）"
+            + (f" + 多线路加固 ¥{income_bonus}" if income_bonus else ""),
             push=False,
         )
         if service_income < settings.TURN_INCOME:
@@ -314,6 +316,10 @@ class Game:
         self.events.advance_events(self)
         if self.state != GameState.PLAYING:
             return
+        # 攻击战役在事件推进之后结算：同一攻击者会因为你放着不管而加快节奏
+        self.events.advance_campaigns(self)
+        if self.state != GameState.PLAYING:
+            return
         for device in self.devices.values():
             device.tick_maintenance()
         self.recompute_availability("回合结算：设备状态更新")
@@ -322,22 +328,26 @@ class Game:
         if outages:
             names = "、".join(view.config.short_name for view in outages[:3])
             penalty = min(3, len(outages))
-            self.adjust_metric(
-                MetricKey.REPUTATION,
-                -penalty,
-                f"SLA 违约：{names}",
-                push=False,
-            )
+            mitigation = int(self.modifiers.get("sla_reputation_mitigation", 0))
+            effective = max(0, penalty - mitigation)
+            if effective:
+                self.adjust_metric(
+                    MetricKey.REPUTATION,
+                    -effective,
+                    f"SLA 违约：{names}",
+                    push=False,
+                )
             self.player.stats["sla_breaches"] = int(self.player.stats.get("sla_breaches", 0)) + 1
+            detail = f"声誉 -{effective}" if effective else "多线路缓冲生效，声誉未受影响"
             self.logs.add(
                 self.turn,
                 settings.clock_text(self.turn),
                 "系统",
-                f"SLA 违约：{names} 中断，声誉 -{penalty}。",
+                f"SLA 违约：{names} 中断，{detail}。",
             )
             self.push_message(
-                f"SLA 违约：{names} 仍处于中断状态，声誉 -{penalty}。",
-                settings.RED,
+                f"SLA 违约：{names} 仍处于中断状态，{detail}。",
+                settings.RED if effective else settings.ORANGE,
             )
 
         if self.player.availability <= settings.AVAILABILITY_FAIL:
@@ -403,6 +413,7 @@ class Game:
         identified = [event for event in events if event.investigations > 0]
         response_turns = list(self.player.stats.get("response_turns", []))
         average = sum(response_turns) / len(response_turns) if response_turns else 0.0
+        campaigns = self.events.campaign_status()
         return {
             "reason": reason,
             "turn": self.turn,
@@ -431,6 +442,14 @@ class Game:
             "service_availability": self.services.availability(self.devices),
             "service_income": self.services.income(self.devices),
             "sla_breaches": int(self.player.stats.get("sla_breaches", 0)),
+            "campaigns": campaigns,
+            "campaigns_cleared": len(
+                [
+                    item
+                    for item in campaigns
+                    if item.get("spawned") and item.get("resolved") == item.get("spawned")
+                ]
+            ),
         }
 
     # ==================================================================
@@ -447,37 +466,39 @@ class Game:
         return 1.0 + 0.08 * (self.threat_level - 1)
 
     @property
+    def modifiers(self) -> dict[str, float]:
+        """已启用加固的合并效果表，供各系统按需读取。"""
+        return self.upgrade_tree.modifiers(self.player.upgrades)
+
+    @property
     def confidence_bonus(self) -> float:
-        return 0.15 if self.player.has_upgrade("log_plugin") else 0.0
+        return float(self.modifiers.get("confidence_bonus", 0.0))
 
     def buy_upgrade(self, upgrade_id: str) -> tuple[bool, str]:
-        item = next(
-            (upgrade for upgrade in self.upgrade_catalog if str(upgrade.get("id")) == upgrade_id),
-            None,
-        )
+        item = self.upgrade_tree.get(upgrade_id)
         if item is None:
             return False, "没有找到该加固项目"
-        if upgrade_id in self.player.upgrades:
-            return False, "该加固项目已经启用"
-        name = str(item.get("name", upgrade_id))
-        try:
-            cost = int(item.get("cost", 0))
-        except (TypeError, ValueError):
-            cost = 0
+        allowed, reason = self.upgrade_tree.check(item, self.player.upgrades)
+        if not allowed:
+            return False, reason
+        cost = int(item.cost)
         if self.player.funds < cost:
             return False, f"资金不足（需要 ¥{cost}）"
         self.adjust_metric(
             MetricKey.FUNDS,
             -cost,
-            f"购买安全加固「{name}」",
+            f"购买安全加固「{item.name}」",
             push=False,
         )
         self.player.upgrades.add(upgrade_id)
         self.audio.play("upgrade")
         self.effects.flash(settings.GREEN, 36)
-        self.effects.add_floater(f"加固完成：{name}", settings.GREEN, (settings.SCREEN_WIDTH // 2, 96))
-        self.push_message(f"安全加固已启用：{name}（-¥{cost}）。", settings.GREEN)
-        return True, f"已启用「{name}」"
+        self.effects.add_floater(f"加固完成：{item.name}", settings.GREEN, (settings.SCREEN_WIDTH // 2, 96))
+        self.push_message(
+            f"安全加固已启用：{item.name}（{self.upgrade_tree.describe(item)}，-¥{cost}）。",
+            settings.GREEN,
+        )
+        return True, f"已启用「{item.name}」"
 
     def choose_decision(self, index: int) -> None:
         screen = self.decision_screen
@@ -726,6 +747,13 @@ class Game:
         if alert is None:
             return None
         return self.events.get_event(getattr(alert, "event_id", None))
+
+    def campaign_for_alert(self, alert: Any) -> dict[str, Any] | None:
+        """告警所属的攻击战役（同源情报）；独立事件返回 None。"""
+        event = self.event_for_alert(alert)
+        if event is None:
+            return None
+        return self.events.campaign_of(getattr(event, "event_id", ""))
 
     def related_alerts(self, alert: Any) -> list[Any]:
         """按事件、来源 IP 或账号找出有关联的告警，用于情报关联提示。"""

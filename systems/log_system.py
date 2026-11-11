@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-LOG_CATEGORIES = ("邮件", "登录", "网络", "告警", "操作", "系统")
+LOG_CATEGORIES = ("邮件", "登录", "网络", "告警", "操作", "情报", "系统")
 
 
 @dataclass(frozen=True)

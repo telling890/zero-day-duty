@@ -38,6 +38,8 @@ class SecurityEvent:
         self.source_ip = str(config.get("source_ip", ""))
         self.summary = str(config.get("summary", ""))
         self.failure_ending = str(config.get("failure_ending", "data_leak"))
+        # 所属攻击战役（事件链）由 EventManager 依据 campaigns 配置注入
+        self.campaign_id = str(config.get("campaign_id", ""))
         failure_costs = config.get("failure_costs", {})
         self.failure_costs: dict[str, int] = {}
         if isinstance(failure_costs, dict):
@@ -201,6 +203,7 @@ class SecurityEvent:
     def to_state(self) -> dict[str, Any]:
         return {
             "event_id": self.event_id,
+            "campaign_id": self.campaign_id,
             "stage_index": self.stage_index,
             "start_turn": self.start_turn,
             "last_advance_turn": self.last_advance_turn,
@@ -223,6 +226,7 @@ class SecurityEvent:
         }
 
     def apply_state(self, state: dict[str, Any]) -> None:
+        self.campaign_id = str(state.get("campaign_id", self.campaign_id))
         self.stage_index = max(0, min(self.max_stage_index, int(state.get("stage_index", 0))))
         self.start_turn = int(state.get("start_turn", self.start_turn))
         self.last_advance_turn = int(state.get("last_advance_turn", self.last_advance_turn))

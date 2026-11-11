@@ -138,14 +138,19 @@ class ActionManager:
 
     def _build(self, action_id: str, game: "Game", target: Target) -> ActionOption:
         name, ap_cost, money_cost, handler_name = self.ACTIONS[action_id]
-        # 安全升级会改变部分操作的成本
-        if action_id == "investigate" and game.player.has_upgrade("log_plugin"):
-            money_cost = max(0, money_cost - 10)
-        if action_id == "isolate" and game.player.has_upgrade("edr"):
-            ap_cost = max(1, ap_cost - 1)
-        if action_id == "block_source" and game.player.has_upgrade("auto_block"):
-            ap_cost = 0
-            money_cost = 15
+        # 安全加固会改变部分操作的成本（效果表定义见 data/upgrades.json）
+        mods = game.modifiers
+        if action_id == "investigate":
+            money_cost = max(0, money_cost + int(mods.get("investigate_money", 0)))
+        if action_id == "isolate":
+            ap_cost = max(1, ap_cost + int(mods.get("isolate_ap", 0)))
+        if action_id == "block_source":
+            ap_cost = max(0, ap_cost + int(mods.get("block_source_ap", 0)))
+            if "block_source_money" in mods:
+                money_cost = max(0, int(mods["block_source_money"]))
+        if action_id == "eradicate":
+            ap_cost = max(1, ap_cost + int(mods.get("eradicate_ap", 0)))
+            money_cost = max(0, money_cost + int(mods.get("eradicate_money", 0)))
         enabled, reason = self._check(action_id, game, target)
         if enabled and not game.player.can_pay(ap_cost, money_cost):
             if game.player.action_points < ap_cost:
@@ -355,7 +360,11 @@ class ActionManager:
         if event.response_turn is None:
             event.response_turn = max(1, game.turn - event.start_turn + 1)
             stats["response_turns"].append(event.response_turn)
-        clue = event.reveal_next_clue() or "暂未获得新的可观察线索。"
+        # 威胁情报订阅：一次调查可以多拿到线索，但仍受该阶段线索总数限制
+        extra_clues = max(0, int(game.modifiers.get("extra_clue", 0)))
+        revealed = [event.reveal_next_clue() for _ in range(1 + extra_clues)]
+        clues = [str(item) for item in revealed if item]
+        clue = "；".join(clues) if clues else "暂未获得新的可观察线索。"
         device = game.devices.get(event.active_device_id)
         low, high, confidence = game.risk.estimate(
             event, device, game.turn, game.confidence_bonus
@@ -587,7 +596,7 @@ class ActionManager:
         device.health = 100
         if device.status == "感染":
             device.set_status("可疑")
-        gain = 8 + (5 if game.player.has_upgrade("offline_backup") else 0)
+        gain = 8 + int(game.modifiers.get("restore_integrity", 0))
         game.adjust_metric(MetricKey.INTEGRITY, gain, f"从 {device.name} 的备份恢复数据")
         game.recompute_availability(f"{device.name} 从备份恢复，业务重新校验")
         return ActionResult(

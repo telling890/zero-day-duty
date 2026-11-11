@@ -1,30 +1,120 @@
 {
-  "version": 1,
-  "note": "安全加固项目。购买后在本局内永久生效，资金从公司账户扣除。",
+  "version": 2,
+  "note": "三条加固线 × 两层：第一层便宜、随时可补；第二层是专精，三选一（互斥）。购买后本局内永久生效，资金从公司账户扣除。",
+  "tracks": [
+    {
+      "id": "detect",
+      "name": "检测线 · 情报",
+      "tagline": "看得更清",
+      "description": "把噪音变线索，缩短“这条告警到底是什么”的时间。",
+      "color": "accent"
+    },
+    {
+      "id": "respond",
+      "name": "响应线 · 处置",
+      "tagline": "动得更快",
+      "description": "用更少行动点完成隔离、封禁与清除，撑住高压回合。",
+      "color": "green"
+    },
+    {
+      "id": "resilience",
+      "name": "韧性线 · 业务",
+      "tagline": "撑得更久",
+      "description": "把损失挡在业务之外：备份、收入与 SLA 缓冲。",
+      "color": "orange"
+    }
+  ],
   "upgrades": [
     {
       "id": "log_plugin",
+      "track": "detect",
+      "tier": 1,
       "name": "日志关联分析插件",
       "cost": 150,
-      "description": "调查置信度 +15%，每次调查资金消耗 -10。\n更快缩小风险估计范围。"
+      "description": "调查置信度 +15%，每次调查资金 -¥10。",
+      "effects": {
+        "confidence_bonus": 0.15,
+        "investigate_money": -10
+      }
+    },
+    {
+      "id": "threat_intel",
+      "track": "detect",
+      "tier": 2,
+      "name": "威胁情报订阅",
+      "cost": 300,
+      "description": "每次调查多揭示 1 条线索，置信度再 +10%。专精：情报深挖。",
+      "effects": {
+        "extra_clue": 1,
+        "confidence_bonus": 0.1
+      },
+      "requires": ["log_plugin"],
+      "excludes": ["playbook", "redundant_link"]
     },
     {
       "id": "edr",
+      "track": "respond",
+      "tier": 1,
       "name": "终端检测与响应",
       "cost": 210,
-      "description": "隔离设备行动点 -1（最低 1 点）。\n让快速隔离重要设备更划算。"
-    },
-    {
-      "id": "offline_backup",
-      "name": "离线备份策略",
-      "cost": 240,
-      "description": "备份恢复额外 +5 数据完整度；\n勒索软件最终损失减半。"
+      "description": "隔离设备行动点 -1（最低 1 点）。",
+      "effects": {
+        "isolate_ap": -1
+      },
+      "excludes": ["auto_block"]
     },
     {
       "id": "auto_block",
+      "track": "respond",
+      "tier": 1,
       "name": "自动封禁剧本",
       "cost": 180,
-      "description": "封禁来源 IP 不消耗行动点（资金消耗降为 ¥15）。\n适合高频处理外部扫描。"
+      "description": "封禁来源 IP 不消耗行动点（资金降为 ¥15）。",
+      "effects": {
+        "block_source_ap": -1,
+        "block_source_money": 15
+      },
+      "excludes": ["edr"]
+    },
+    {
+      "id": "playbook",
+      "track": "respond",
+      "tier": 2,
+      "name": "自动化处置剧本",
+      "cost": 320,
+      "description": "清除威胁行动点 -1、资金 -¥15。专精：快速清场。",
+      "effects": {
+        "eradicate_ap": -1,
+        "eradicate_money": -15
+      },
+      "requires_any": ["edr", "auto_block"],
+      "excludes": ["threat_intel", "redundant_link"]
+    },
+    {
+      "id": "offline_backup",
+      "track": "resilience",
+      "tier": 1,
+      "name": "离线备份策略",
+      "cost": 240,
+      "description": "备份恢复额外 +5 数据完整度；勒索软件最终损失减半。",
+      "effects": {
+        "restore_integrity": 5,
+        "ransom_mitigation": true
+      }
+    },
+    {
+      "id": "redundant_link",
+      "track": "resilience",
+      "tier": 2,
+      "name": "多线路与 SLA 缓冲",
+      "cost": 280,
+      "description": "每回合收入 +¥30；SLA 违约声誉惩罚 -1。专精：保业务。",
+      "effects": {
+        "income_bonus": 30,
+        "sla_reputation_mitigation": 1
+      },
+      "requires": ["offline_backup"],
+      "excludes": ["threat_intel", "playbook"]
     }
   ]
 }

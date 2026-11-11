@@ -93,7 +93,9 @@ class GameFlowTest(unittest.TestCase):
         )
 
     def test_all_data_files_load(self) -> None:
-        self.assertEqual(len(self.game.upgrade_catalog), 4)
+        tree = self.game.upgrade_tree
+        self.assertEqual(len(self.game.upgrade_catalog), 7)
+        self.assertEqual(len(tree.tracks), 3)
         self.assertEqual(len(self.game.decisions), 2)
         configs = self.game.events.event_configs
         self.assertEqual(len(configs), 6)
@@ -234,6 +236,106 @@ class GameFlowTest(unittest.TestCase):
         self.assertTrue(game.buy_upgrade("edr")[0])
         game.select_device("PC-01")
         self.assertEqual(self._option("isolate").ap_cost, 1)
+
+    # ------------------------------------------------------------------
+    # 加固树：三线两层、前置与互斥
+    # ------------------------------------------------------------------
+    def test_upgrade_tree_layout(self) -> None:
+        tree = self.game.upgrade_tree
+        self.assertEqual(len(tree.tracks), 3)
+        self.assertEqual(len(tree.upgrades), 7)
+        grouped = tree.by_track()
+        self.assertEqual([item.upgrade_id for item in grouped["detect"]], ["log_plugin", "threat_intel"])
+        self.assertEqual(
+            [item.upgrade_id for item in grouped["respond"]], ["edr", "auto_block", "playbook"]
+        )
+        self.assertEqual(
+            [item.upgrade_id for item in grouped["resilience"]],
+            ["offline_backup", "redundant_link"],
+        )
+        tier2 = sorted(item.upgrade_id for item in tree.upgrades if item.tier == 2)
+        self.assertEqual(tier2, ["playbook", "redundant_link", "threat_intel"])
+
+    def test_upgrade_requires_and_exclusive_specializations(self) -> None:
+        game = self.game
+        ok, reason = game.buy_upgrade("threat_intel")
+        self.assertFalse(ok)
+        self.assertIn("需要先启用", reason)
+
+        self.assertTrue(game.buy_upgrade("log_plugin")[0])
+        self.assertTrue(game.buy_upgrade("threat_intel")[0])
+        self.assertAlmostEqual(game.confidence_bonus, 0.25)
+
+        self.assertTrue(game.buy_upgrade("edr")[0])
+        # 第二层三条线互斥：已经选了情报深挖，就不能再选快速清场或保业务
+        for upgrade_id in ("playbook", "redundant_link"):
+            ok, reason = game.buy_upgrade(upgrade_id)
+            self.assertFalse(ok, upgrade_id)
+            self.assertIn("互斥", reason)
+
+        # 同层同线也是二选一
+        ok, reason = game.buy_upgrade("auto_block")
+        self.assertFalse(ok)
+        self.assertIn("互斥", reason)
+
+    def test_upgrade_income_and_sla_effects(self) -> None:
+        game = self.game
+        self.assertTrue(game.buy_upgrade("offline_backup")[0])
+        self.assertTrue(game.buy_upgrade("redundant_link")[0])
+        self.assertEqual(game.modifiers.get("income_bonus"), 30)
+        self.assertEqual(game.modifiers.get("sla_reputation_mitigation"), 1)
+
+        game.events.events.clear()
+        game.events.alerts.clear()
+        game.player.funds = 500
+        game.start_turn()
+        self.assertEqual(
+            game.player.funds,
+            500 + settings.TURN_INCOME + 30 - settings.TURN_UPKEEP,
+        )
+
+        # SLA 违约时，多线路缓冲抵掉声誉惩罚
+        game.events.events.clear()
+        game.devices["WEB-01"].isolate()
+        game.recompute_availability("测试隔离 Web 服务")
+        before = game.player.reputation
+        game.end_turn()
+        self.assertEqual(game.player.reputation, before)
+
+    def test_playbook_reduces_eradicate_cost(self) -> None:
+        game = self.game
+        self.assertTrue(game.buy_upgrade("edr")[0])
+        self.assertTrue(game.buy_upgrade("playbook")[0])
+        alert = self._real_alert()
+        self._investigate(alert)
+        game.select_device("PC-01")
+        game.perform_action(self._option("isolate"), game.current_target())
+        game.select_device("PC-01")
+        eradicate = self._option("eradicate")
+        self.assertEqual(eradicate.ap_cost, 1)
+        self.assertEqual(eradicate.money_cost, 45)
+
+    def test_threat_intel_reveals_extra_clue(self) -> None:
+        game = self.game
+        self.assertTrue(game.buy_upgrade("log_plugin")[0])
+        self.assertTrue(game.buy_upgrade("threat_intel")[0])
+        alert = self._real_alert()
+        event = game.event_for_alert(alert)
+        self.assertIsNotNone(event)
+        self._investigate(alert)
+        self.assertEqual(event.revealed_clues, 2)
+
+    def test_offline_backup_mitigates_ransomware(self) -> None:
+        game = self.game
+        self.assertTrue(game.buy_upgrade("offline_backup")[0])
+        config = game.events.get_event_config("EVT-RANSOM-03")
+        assert config is not None
+        event = SecurityEvent(config, game.turn)
+        event.stage_index = event.max_stage_index
+        game.events.events.append(event)
+        game.events._trigger_final_loss(game, event)
+        self.assertEqual(game.state, GameState.PLAYING)  # 有离线备份，不直接判负
+        self.assertFalse(game.ransomware_failed)
 
     def test_decision_opens_and_applies(self) -> None:
         game = self.game
@@ -470,6 +572,110 @@ class GameFlowTest(unittest.TestCase):
         game.events.advance_events(game)
         self.assertEqual(event.stage_index, 1)
         self.assertTrue(event.is_active)
+
+    # ------------------------------------------------------------------
+    # 攻击战役（事件链）
+    # ------------------------------------------------------------------
+    def test_campaigns_loaded_and_linked(self) -> None:
+        events = self.game.events
+        self.assertEqual(len(events.campaign_configs), 2)
+        self.assertEqual(events.campaign_id_of("EVT-PHISH-01"), "CAM-NIGHTJACK")
+        self.assertEqual(events.campaign_id_of("EVT-INSIDER-05"), "CAM-NIGHTJACK")
+        self.assertEqual(events.campaign_id_of("EVT-ZERODAY-06"), "CAM-CINDER")
+        # 勒索软件是机会主义事件，不属于任何战役
+        self.assertEqual(events.campaign_id_of("EVT-RANSOM-03"), "")
+        self.assertEqual(events.events[0].campaign_id, "CAM-NIGHTJACK")
+        alert = self._real_alert()
+        campaign = self.game.campaign_for_alert(alert)
+        self.assertIsNotNone(campaign)
+        assert campaign is not None
+        self.assertEqual(campaign.get("actor"), "APT-夜鸦")
+
+    def test_campaign_reveal_when_second_member_spawns(self) -> None:
+        game = self.game
+        events = game.events
+        events.spawn_schedule["EVT-LOGIN-02"] = game.turn + 1
+        game.end_turn()
+        self.assertIsNotNone(events.get_event("EVT-LOGIN-02"))
+        self.assertTrue(events.campaign_runtime["CAM-NIGHTJACK"]["revealed"])
+        self.assertEqual(events.campaign_status()[0]["active"] >= 1, True)
+
+    def test_campaign_escalation_pulls_next_event_earlier(self) -> None:
+        game = self.game
+        events = game.events
+        campaign = events.campaign_of("EVT-PHISH-01")
+        assert campaign is not None
+        original = events.spawn_schedule["EVT-LOGIN-02"]
+        for _ in range(events._threshold(campaign)):
+            events.advance_campaigns(game)
+        self.assertEqual(events.spawn_schedule["EVT-LOGIN-02"], game.turn + 1)
+        self.assertLess(events.spawn_schedule["EVT-LOGIN-02"], original)
+        runtime = events.campaign_runtime["CAM-NIGHTJACK"]
+        self.assertEqual(runtime["escalations"], 1)
+        self.assertEqual(runtime["momentum"], 0)
+
+    def test_campaign_escalation_accelerates_chain(self) -> None:
+        game = self.game
+        events = game.events
+        # 让战役的所有成员都已经出现
+        for event_id in ("EVT-LOGIN-02", "EVT-INSIDER-05"):
+            config = events.get_event_config(event_id)
+            assert config is not None
+            event = SecurityEvent(config, game.turn)
+            event.campaign_id = events.campaign_id_of(event_id)
+            events.events.append(event)
+            events.spawned_event_ids.add(event_id)
+            events.spawn_schedule.pop(event_id, None)
+        phish = events.events[0]
+        before_stage = phish.stage_index
+        campaign = events.campaign_of("EVT-PHISH-01")
+        assert campaign is not None
+        for _ in range(events._threshold(campaign)):
+            events.advance_campaigns(game)
+        self.assertGreater(phish.stage_index, before_stage)
+        self.assertEqual(events.campaign_runtime["CAM-NIGHTJACK"]["escalations"], 1)
+
+    def test_campaign_escalation_can_finish_the_job(self) -> None:
+        game = self.game
+        events = game.events
+        phish = events.events[0]
+        phish.stage_index = phish.max_stage_index
+        for event_id in ("EVT-LOGIN-02", "EVT-INSIDER-05"):
+            config = events.get_event_config(event_id)
+            assert config is not None
+            event = SecurityEvent(config, game.turn)
+            event.campaign_id = events.campaign_id_of(event_id)
+            events.events.append(event)
+            events.spawned_event_ids.add(event_id)
+            events.spawn_schedule.pop(event_id, None)
+        campaign = events.campaign_of("EVT-PHISH-01")
+        assert campaign is not None
+        for _ in range(events._threshold(campaign)):
+            events.advance_campaigns(game)
+        # 放着不管到最后一阶段，攻击者会直接收尾而不是继续等
+        self.assertEqual(game.state, GameState.RESULT)
+        self.assertTrue(game.data_leak)
+
+    def test_campaign_pressure_drops_when_all_controlled(self) -> None:
+        game = self.game
+        events = game.events
+        for _ in range(2):
+            events.advance_campaigns(game)
+        self.assertEqual(events.campaign_runtime["CAM-NIGHTJACK"]["momentum"], 2)
+        game.contain_event(events.events[0], "测试控制")
+        events.advance_campaigns(game)
+        self.assertEqual(events.campaign_runtime["CAM-NIGHTJACK"]["momentum"], 1)
+
+    def test_campaign_state_survives_save_load(self) -> None:
+        game = self.game
+        for _ in range(2):
+            game.events.advance_campaigns(game)
+        self.assertEqual(game.events.campaign_runtime["CAM-NIGHTJACK"]["momentum"], 2)
+        self.assertTrue(game.save_game())
+        game.events.campaign_runtime["CAM-NIGHTJACK"]["momentum"] = 0
+        self.assertTrue(game.load_game())
+        self.assertEqual(game.events.campaign_runtime["CAM-NIGHTJACK"]["momentum"], 2)
+        self.assertEqual(game.events.events[0].campaign_id, "CAM-NIGHTJACK")
 
     def test_result_has_morning_news(self) -> None:
         game = self.game

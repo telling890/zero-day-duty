@@ -15,13 +15,14 @@ CATEGORY_COLORS = {
     "告警": settings.RED,
     "操作": settings.YELLOW,
     "系统": settings.TEXT_DIM,
+    "情报": settings.PURPLE,
 }
 
 
 class LogPanel:
     """终端风格日志视图，最新日志在底部，自动滚动。"""
 
-    CATEGORIES = ("全部", "邮件", "登录", "网络", "告警", "操作", "系统")
+    CATEGORIES = ("全部", "邮件", "登录", "网络", "告警", "操作", "情报", "系统")
 
     def __init__(self, rect: tuple[int, int, int, int] | pygame.Rect) -> None:
         self.rect = pygame.Rect(rect)

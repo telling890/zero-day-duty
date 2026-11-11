@@ -23,6 +23,9 @@ SAFE_ACCOUNTS = (
     "svc-web@example-corp.test",
 )
 
+CAMPAIGN_DEFAULT_THRESHOLD = 3
+INTEL_CATEGORY = "情报"
+
 
 class EventManager:
     """负责“世界”一侧的推进：事件、告警、背景日志。
@@ -49,6 +52,11 @@ class EventManager:
         self.last_false_positive_turn = -99
         self.used_false_positive_titles: set[str] = set()
         self.spawn_schedule: dict[str, int] = {}
+        # 攻击战役（事件链）的运行时状态：节奏压力、升级次数、是否已揭示
+        self.campaign_runtime: dict[str, dict[str, Any]] = {
+            str(campaign.get("id", "")): self._new_campaign_runtime()
+            for campaign in self.campaign_configs
+        }
         self._build_spawn_schedule()
 
     def _build_spawn_schedule(self) -> None:
@@ -108,7 +116,49 @@ class EventManager:
         background = raw.get("background_logs", [])
         if not isinstance(background, list):
             raise settings.DataError("background_logs 必须是列表")
+        EventManager._validate_campaigns(raw, events)
         return raw
+
+    @staticmethod
+    def _validate_campaigns(raw: dict[str, Any], events: list[Any]) -> None:
+        """战役把若干事件串成同一个攻击者的多步行动，因此必须引用真实事件。"""
+        campaigns = raw.get("campaigns", [])
+        if not isinstance(campaigns, list):
+            raise settings.DataError("events.json 中的 campaigns 必须是列表")
+        event_ids = {str(item.get("id", "")) for item in events if isinstance(item, dict)}
+        seen_campaigns: set[str] = set()
+        member_owner: dict[str, str] = {}
+        for item in campaigns:
+            if not isinstance(item, dict):
+                raise settings.DataError("campaigns 中的每个战役必须是 JSON 对象")
+            campaign_id = str(item.get("id", "")).strip()
+            if not campaign_id:
+                raise settings.DataError("攻击战役缺少 id")
+            if campaign_id in seen_campaigns:
+                raise settings.DataError(f"攻击战役 id 重复：{campaign_id}")
+            seen_campaigns.add(campaign_id)
+            members = item.get("members")
+            if not isinstance(members, list) or len(members) < 2:
+                raise settings.DataError(f"攻击战役 {campaign_id} 至少需要 2 个成员事件")
+            for member in members:
+                member_id = str(member)
+                if member_id not in event_ids:
+                    raise settings.DataError(
+                        f"攻击战役 {campaign_id} 引用了不存在的事件：{member_id}"
+                    )
+                if member_id in member_owner:
+                    raise settings.DataError(
+                        f"事件 {member_id} 同时属于战役 {member_owner[member_id]} 和 {campaign_id}"
+                    )
+                member_owner[member_id] = campaign_id
+            try:
+                threshold = int(item.get("momentum_threshold", CAMPAIGN_DEFAULT_THRESHOLD))
+            except (TypeError, ValueError) as exc:
+                raise settings.DataError(
+                    f"攻击战役 {campaign_id} 的 momentum_threshold 必须是整数"
+                ) from exc
+            if threshold < 1:
+                raise settings.DataError(f"攻击战役 {campaign_id} 的 momentum_threshold 必须 >= 1")
 
     @property
     def event_configs(self) -> list[dict[str, Any]]:
@@ -132,6 +182,213 @@ class EventManager:
 
     def active_events(self) -> list[SecurityEvent]:
         return [event for event in self.events if event.is_active]
+
+    # ------------------------------------------------------------------
+    # 攻击战役（事件链）
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _new_campaign_runtime() -> dict[str, Any]:
+        return {"momentum": 0, "escalations": 0, "revealed": False, "settled": False}
+
+    @property
+    def campaign_configs(self) -> list[dict[str, Any]]:
+        return [item for item in self.payload.get("campaigns", []) if isinstance(item, dict)]
+
+    def get_campaign(self, campaign_id: str | None) -> dict[str, Any] | None:
+        if not campaign_id:
+            return None
+        for campaign in self.campaign_configs:
+            if str(campaign.get("id", "")) == str(campaign_id):
+                return campaign
+        return None
+
+    def campaign_id_of(self, event_id: str | None) -> str:
+        if not event_id:
+            return ""
+        for campaign in self.campaign_configs:
+            members = [str(item) for item in campaign.get("members", [])]
+            if str(event_id) in members:
+                return str(campaign.get("id", ""))
+        return ""
+
+    def campaign_of(self, event_id: str | None) -> dict[str, Any] | None:
+        return self.get_campaign(self.campaign_id_of(event_id))
+
+    def campaign_members(self, campaign: dict[str, Any]) -> list[SecurityEvent]:
+        members = {str(item) for item in campaign.get("members", [])}
+        return [event for event in self.events if event.event_id in members]
+
+    def _runtime(self, campaign: dict[str, Any]) -> dict[str, Any]:
+        campaign_id = str(campaign.get("id", ""))
+        runtime = self.campaign_runtime.get(campaign_id)
+        if runtime is None:
+            runtime = self._new_campaign_runtime()
+            self.campaign_runtime[campaign_id] = runtime
+        return runtime
+
+    @staticmethod
+    def _threshold(campaign: dict[str, Any]) -> int:
+        try:
+            return max(1, int(campaign.get("momentum_threshold", CAMPAIGN_DEFAULT_THRESHOLD)))
+        except (TypeError, ValueError):
+            return CAMPAIGN_DEFAULT_THRESHOLD
+
+    def campaign_status(self) -> list[dict[str, Any]]:
+        """给结算与调试用的战役快照。"""
+        result: list[dict[str, Any]] = []
+        for campaign in self.campaign_configs:
+            runtime = self._runtime(campaign)
+            members = self.campaign_members(campaign)
+            result.append(
+                {
+                    "id": str(campaign.get("id", "")),
+                    "name": str(campaign.get("name", "")),
+                    "actor": str(campaign.get("actor", campaign.get("name", ""))),
+                    "spawned": len(members),
+                    "expected": len([str(item) for item in campaign.get("members", [])]),
+                    "resolved": len([event for event in members if event.eradicated]),
+                    "failed": len([event for event in members if event.failed]),
+                    "active": len([event for event in members if event.is_active]),
+                    "momentum": int(runtime["momentum"]),
+                    "threshold": self._threshold(campaign),
+                    "escalations": int(runtime["escalations"]),
+                    "revealed": bool(runtime["revealed"]),
+                    "settled": bool(runtime["settled"]),
+                }
+            )
+        return result
+
+    def _campaign_settled(self, campaign: dict[str, Any], members: list[SecurityEvent]) -> bool:
+        """所有成员都已出现，且每一个都被清除或已失守，战役才算结束。"""
+        pending = {str(item) for item in campaign.get("members", [])} - {
+            event.event_id for event in members
+        }
+        if pending:
+            return False
+        return all(event.eradicated or event.failed for event in members)
+
+    def advance_campaigns(self, game: "Game") -> None:
+        """回合结束时的战役节奏结算。
+
+        该战役只要还有“仍在推进”的事件，压力 +1；全部被控制/清除则 -1。
+        压力达到阈值就升级：让尚未出现的后续事件提前投放，
+        或者直接推进一步已经出现的攻击链。
+        """
+        if self.tutorial:
+            return
+        for campaign in self.campaign_configs:
+            runtime = self._runtime(campaign)
+            if runtime["settled"]:
+                continue
+            members = self.campaign_members(campaign)
+            if not members:
+                continue
+            active = [event for event in members if event.is_active]
+            if not active:
+                runtime["momentum"] = max(0, int(runtime["momentum"]) - 1)
+                if self._campaign_settled(campaign, members):
+                    runtime["settled"] = True
+                    game.logs.add(
+                        game.turn,
+                        settings.clock_text(game.turn),
+                        INTEL_CATEGORY,
+                        f"情报：「{campaign.get('name', '')}」的已知行动已全部处置，节奏压力解除。",
+                    )
+                continue
+            runtime["momentum"] = int(runtime["momentum"]) + 1
+            if runtime["momentum"] < self._threshold(campaign):
+                continue
+            runtime["momentum"] = 0
+            runtime["escalations"] = int(runtime["escalations"]) + 1
+            self._escalate_campaign(game, campaign, active)
+            if game.state != "playing":
+                return
+
+    def _maybe_reveal_campaign(self, game: "Game", campaign: dict[str, Any]) -> bool:
+        """同一战役出现第二个事件时，向玩家点明“这些告警是同一个攻击者”。"""
+        runtime = self._runtime(campaign)
+        if runtime["revealed"]:
+            return False
+        if len(self.campaign_members(campaign)) < 2:
+            return False
+        runtime["revealed"] = True
+        name = str(campaign.get("name", ""))
+        actor = str(campaign.get("actor", name))
+        text = str(campaign.get("reveal", "")) or (
+            f"情报：多起告警来自同一攻击者「{actor}」，已归入战役「{name}」。"
+            "控制住任意一处，对方的整体节奏就会被拖慢。"
+        )
+        game.logs.add(game.turn, settings.clock_text(game.turn), INTEL_CATEGORY, text)
+        game.push_message(f"情报确认：多起告警同源于「{actor}」（战役「{name}」）。", settings.PURPLE)
+        game.effects.add_banner(f"情报 · {actor}", f"战役「{name}」已被识别", settings.PURPLE)
+        return True
+
+    def _escalate_campaign(
+        self,
+        game: "Game",
+        campaign: dict[str, Any],
+        active: list[SecurityEvent],
+    ) -> None:
+        name = str(campaign.get("name", ""))
+        actor = str(campaign.get("actor", name))
+        clock = settings.clock_text(game.turn)
+        pending = [
+            str(item)
+            for item in campaign.get("members", [])
+            if str(item) not in self.spawned_event_ids
+        ]
+        # 1) 还有没登场的成员：把它的排期提前到下一回合
+        for event_id in pending:
+            next_turn = game.turn + 1
+            scheduled = self.spawn_schedule.get(event_id)
+            if scheduled is not None and scheduled <= next_turn:
+                continue
+            self.spawn_schedule[event_id] = next_turn
+            config = self.get_event_config(event_id) or {}
+            event_name = str(config.get("name", event_id))
+            plan = f"，原计划第 {scheduled} 回合" if scheduled is not None else ""
+            self._maybe_reveal_campaign(game, campaign)
+            game.logs.add(
+                game.turn,
+                clock,
+                INTEL_CATEGORY,
+                f"情报：{actor} 正在加快节奏，「{event_name}」提前到第 {next_turn} 回合{plan}。",
+            )
+            game.push_message(
+                f"情报：{actor} 提前投放「{event_name}」，下一回合就会落地。",
+                settings.PURPLE,
+            )
+            game.effects.add_banner(
+                f"情报 · {actor}", f"「{event_name}」提前到第 {next_turn} 回合", settings.PURPLE
+            )
+            return
+
+        # 2) 成员都已出现：直接推进一步最靠前的攻击链
+        target = max(active, key=lambda event: (event.stage_index, -event.start_turn))
+        self._maybe_reveal_campaign(game, campaign)
+        if target.stage_index >= target.max_stage_index:
+            game.logs.add(
+                game.turn,
+                clock,
+                INTEL_CATEGORY,
+                f"情报：{actor} 不再等待，对「{target.name}」完成最后一击。",
+            )
+            game.push_message(f"情报：{actor} 对「{target.name}」完成了最后一击！", settings.RED)
+            self._trigger_final_loss(game, target)
+            return
+        old_name = target.stage_name
+        target.advance()
+        target.last_advance_turn = game.turn
+        game.logs.add(
+            game.turn,
+            clock,
+            INTEL_CATEGORY,
+            f"情报：{actor} 绕过轮询节奏，把「{target.name}」从“{old_name}”推进到“{target.stage_name}”。",
+        )
+        game.push_message(
+            f"情报：{actor} 加速推进「{target.name}」到“{target.stage_name}”！", settings.RED
+        )
+        self._apply_stage(game, target, old_name)
 
     # ------------------------------------------------------------------
     # 回合开始
@@ -167,9 +424,15 @@ class EventManager:
                 )
                 self.spawned_event_ids.add(event_id)
                 continue
+            campaign = self.campaign_of(event_id)
+            if campaign is not None:
+                event.campaign_id = str(campaign.get("id", ""))
             self.events.append(event)
             self.spawned_event_ids.add(event_id)
             self._announce_stage(game, event, first=True)
+            if campaign is not None:
+                # 第二个同源事件出现时，玩家才真正看清“这是一场战役”
+                self._maybe_reveal_campaign(game, campaign)
 
     def _announce_stage(self, game: "Game", event: SecurityEvent, first: bool = False) -> None:
         """记录日志、生成告警、推送消息。"""
@@ -437,7 +700,7 @@ class EventManager:
         if event.failure_ending == "ransomware":
             backup_server = game.devices.get("BAK-01")
             protected = bool(backup_server and backup_server.backup_protected)
-            protected = protected or game.player.has_upgrade("offline_backup")
+            protected = protected or bool(game.modifiers.get("ransom_mitigation", 0))
             if protected:
                 mitigated = True
                 security_cost = max(1, security_cost // 2)
@@ -510,6 +773,9 @@ class EventManager:
             "last_false_positive_turn": self.last_false_positive_turn,
             "used_false_positive_titles": sorted(self.used_false_positive_titles),
             "spawn_schedule": dict(self.spawn_schedule),
+            "campaign_runtime": {
+                campaign_id: dict(runtime) for campaign_id, runtime in self.campaign_runtime.items()
+            },
             "events": [event.to_state() for event in self.events],
             "alerts": [alert.to_dict() for alert in self.alerts],
         }
@@ -538,7 +804,27 @@ class EventManager:
                 continue
             event = SecurityEvent(config, spawn_turn=int(event_state.get("start_turn", 1)))
             event.apply_state(event_state)
+            event.campaign_id = self.campaign_id_of(event.event_id) or str(
+                event_state.get("campaign_id", "")
+            )
             self.events.append(event)
+
+        # 战役节奏状态：旧存档没有这段，按默认值重建
+        self.campaign_runtime = {
+            str(campaign.get("id", "")): self._new_campaign_runtime()
+            for campaign in self.campaign_configs
+        }
+        saved_runtime = state.get("campaign_runtime", {})
+        if isinstance(saved_runtime, dict):
+            for campaign_id, runtime in saved_runtime.items():
+                if campaign_id not in self.campaign_runtime or not isinstance(runtime, dict):
+                    continue
+                restored = self._new_campaign_runtime()
+                restored["momentum"] = max(0, int(runtime.get("momentum", 0) or 0))
+                restored["escalations"] = max(0, int(runtime.get("escalations", 0) or 0))
+                restored["revealed"] = bool(runtime.get("revealed", False))
+                restored["settled"] = bool(runtime.get("settled", False))
+                self.campaign_runtime[campaign_id] = restored
 
         self.alerts = []
         for alert_state in state.get("alerts", []):
