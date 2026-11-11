@@ -10,6 +10,15 @@
     return map[name] || map.green || '#40d082';
   }
 
+  // 把颜色名解析成 "r, g, b"，交给 CSS 的 --flash-rgb，让边缘红光跟着事件颜色走
+  function rgbTriplet(name) {
+    const hex = String(colorValue(name)).replace('#', '');
+    const full = hex.length === 3 ? hex.split('').map((ch) => ch + ch).join('') : hex;
+    const value = Number.parseInt(full, 16);
+    if (full.length !== 6 || !Number.isFinite(value)) return '236, 88, 84';
+    return `${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}`;
+  }
+
   class Effects {
     constructor(els) {
       this.flashEl = els.flash;
@@ -49,7 +58,8 @@
 
     flash(color, strength) {
       if (!this.flashEl) return;
-      this.flashEl.style.background = colorValue(color);
+      // 只传颜色，形状（边缘红光渐变）交给 CSS，避免整屏泛红发脏
+      this.flashEl.style.setProperty('--flash-rgb', rgbTriplet(color));
       this.flashEl.style.transition = 'none';
       this.flashEl.style.opacity = String(Math.min(0.55, ((strength || 40) / 255) * 2.2));
       // 强制回流后再淡出

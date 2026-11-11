@@ -2155,11 +2155,11 @@ ol {
   position: absolute;
   inset: 0;
   opacity: 0;
-  /* 受击反馈改成边缘红光，避免整屏泛红发脏 */
+  /* 受击反馈走边缘红光，避免整屏泛红发脏；具体颜色由 effects.js 写入 --flash-rgb */
   background: radial-gradient(ellipse at 50% 50%,
-    rgba(236, 88, 84, 0) 42%,
-    rgba(236, 88, 84, 0.55) 78%,
-    rgba(236, 88, 84, 0.95) 100%);
+    rgba(var(--flash-rgb, 236, 88, 84), 0) 42%,
+    rgba(var(--flash-rgb, 236, 88, 84), 0.55) 78%,
+    rgba(var(--flash-rgb, 236, 88, 84), 0.95) 100%);
   transition: opacity 700ms ease;
 }
 
