@@ -8,7 +8,8 @@
     "build:data": "node tools/build-data.mjs",
     "test": "node tests/logic.test.mjs && node tools/browser-smoke.mjs",
     "test:logic": "node tests/logic.test.mjs",
-    "test:browser": "node tools/browser-smoke.mjs && node tools/browser-flow.mjs && node tools/browser-extra.mjs"
+    "test:browser": "node tools/browser-smoke.mjs && node tools/browser-flow.mjs && node tools/browser-extra.mjs && node tools/browser-audio.mjs",
+    "test:audio": "node tools/browser-audio.mjs"
   },
   "engines": {
     "node": ">=18"

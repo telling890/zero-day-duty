@@ -50,6 +50,7 @@
           <span id="menu-seed-text">随机种子 2024</span>
           <span>同一随机种子可复现同一局</span>
         </p>
+        <button class="menu-audio" id="menu-mute" type="button" aria-pressed="false" title="音效开关（M）">音效：开（M）</button>
         <nav class="menu-links" aria-label="项目链接">
           <a href="https://telling890.github.io/zero-day-duty/" target="_blank" rel="noreferrer">项目主页</a>
           <a href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">GitHub 源码</a>
@@ -186,10 +187,11 @@
   <script src="js/ui/screens.js"></script>
   <script src="js/main.js"></script>
   <script>
-    /* 注册 Service Worker：装到主屏后可离线进入游戏（http/https 下才启用） */
+    /* 注册 Service Worker：装到主屏后可离线进入游戏（http/https 下才启用）
+       updateViaCache: 'none' 确保 sw.js 本身不走 HTTP 缓存，更新能及时生效 */
     if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function () {});
+        navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' }).catch(function () {});
       });
     }
   </script>

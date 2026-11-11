@@ -132,6 +132,10 @@
       this.pushMessage('安全平台：告警等级在调查前显示为“待评估”，先调查再处置更稳。', 'dim');
       this.pushMessage('公关·林岚：如果媒体来问，先别擅自回应，把情况同步给我。', 'purple');
       this.pushMessage('IT 运维·阿哲：备份服务器在 BAK-01，别等数据库被加密才想起它。', 'orange');
+      this.pushMessage(
+        `音效${this.audio.muted ? '已关闭' : '已开启'}：按 M 切换，F1 手册里可以播放测试音。`,
+        'dim',
+      );
       this.touch();
     }
 
@@ -637,7 +641,6 @@
       if (!this.devices[deviceId]) return;
       this.selectedDeviceId = deviceId;
       this.selectedAlert = null;
-      this.audio.play('click');
       this.touch();
     }
 
@@ -651,7 +654,6 @@
       if (!alert) return;
       this.selectedAlert = alert;
       this.selectedDeviceId = alert.targetId;
-      this.audio.play('click');
       this.touch();
     }
 
@@ -710,6 +712,7 @@
         title = '操作完成';
         detail = result.message;
       }
+      if (color === 'orange') this.audio.play('warn');
       if (this.onActionFeedback) {
         this.onActionFeedback({ title, detail, color, stage, correct: result.success && color === 'green' });
       }

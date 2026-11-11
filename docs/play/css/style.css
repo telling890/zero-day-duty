@@ -345,6 +345,44 @@ ol {
   color: var(--faint);
 }
 
+.menu-audio {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(22, 32, 46, 0.6);
+  color: var(--dim);
+  font-size: 11px;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.menu-audio::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px rgba(64, 208, 130, 0.7);
+}
+
+.menu-audio[aria-pressed="true"] {
+  color: var(--faint);
+  border-color: var(--border);
+}
+
+.menu-audio[aria-pressed="true"]::before {
+  background: var(--faint);
+  box-shadow: none;
+}
+
+.menu-audio:hover {
+  color: var(--text);
+  border-color: var(--border-light);
+}
+
 .menu-links {
   margin-top: 14px;
   display: flex;
@@ -2657,3 +2695,113 @@ ol {
     animation: none;
   }
 }
+
+/* ==========================================================================
+   手机横屏（≤1024 宽 × ≤560 高）：三栏工作区，桌面级信息密度
+   ========================================================================== */
+@media (orientation: landscape) and (max-width: 1024px) and (max-height: 560px) {
+  body { overflow: hidden; }
+
+  .play {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .topbar {
+    position: static;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 4px 8px;
+  }
+
+  .brand-mark { width: 24px; height: 24px; font-size: 13px; border-radius: 6px; }
+  .brand-text { font-size: 12px; }
+
+  .metrics {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(58px, 1fr);
+    grid-template-columns: none;
+    gap: 0;
+    overflow-x: auto;
+  }
+  .metric { padding: 0 6px 1px; }
+  .metric-label { font-size: 8px; letter-spacing: .04em; }
+  .metric-value { font-size: 12px; }
+  .metric-sub, .metric-delta { display: none; }
+  .metric-bar { display: none; }
+  .icon-btn { padding: 4px 7px; font-size: 10.5px; }
+
+  .workspace {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    padding: 6px;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .col { display: contents; }
+
+  .panel-topology { grid-column: 1; grid-row: 1 / span 2; order: 1; height: auto; min-height: 0; }
+  .panel-device { grid-column: 2; grid-row: 1; order: 2; height: auto; min-height: 0; }
+  .panel-alerts { grid-column: 2; grid-row: 2; order: 3; height: auto; min-height: 0; }
+  .panel-actions { grid-column: 3; grid-row: 1; order: 4; height: auto; min-height: 0; }
+  .panel-log { grid-column: 3; grid-row: 2; order: 5; height: auto; min-height: 0; }
+
+  .panel-alerts .panel-body,
+  .panel-device .panel-body,
+  .panel-log .panel-body { max-height: none; }
+
+  .panel-head { padding: 4px 8px; gap: 6px; }
+  .panel-head h2 { font-size: 11px; letter-spacing: .04em; }
+  .panel-head h2::before { height: 9px; width: 2px; }
+  .panel-meta { font-size: 8px; }
+  .legend { display: none; }
+
+  .panel-body { padding: 6px 8px; }
+
+  .topo-wrap { margin: 4px; }
+  .topo-node { width: 88px; height: 38px; padding: 3px 6px; border-radius: 6px; }
+  .node-top b { font-size: 9.5px; }
+  .node-name { font-size: 9.5px; }
+  .node-bottom { font-size: 8px; }
+  .node-glyph { font-size: 9px; }
+
+  .action-target, .action-hint { padding: 4px 8px; font-size: 9.5px; }
+  .action-grid { gap: 4px; padding: 4px 8px 6px; }
+  .act { min-height: 34px; padding: 4px 8px; }
+  .act-name { font-size: 10.5px; }
+  .act-cost { font-size: 8px; }
+
+  .bottombar { padding: 4px 8px calc(4px + env(safe-area-inset-bottom)); gap: 6px; }
+  .messages { max-height: 28px; }
+  .msg { font-size: 10px; }
+  .turn-controls .btn { min-height: 34px; font-size: 12px; }
+}
+
+/* ------------------------------ 拓扑缩放 ------------------------------ */
+.topo-wrap { touch-action: none; }
+.topo-nodes, .topo-links { will-change: transform; }
+.topo-wrap.is-zoomed { cursor: grab; }
+.topo-wrap.is-zoomed:active { cursor: grabbing; }
+
+@media (hover: none) {
+  .topo-wrap::after {
+    content: "双指缩放 · 双击还原";
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(9, 14, 22, .66);
+    color: var(--faint);
+    font-size: 9px;
+    letter-spacing: .02em;
+    pointer-events: none;
+    opacity: .85;
+  }
+}
+

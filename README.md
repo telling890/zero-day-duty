@@ -394,6 +394,7 @@ node tests/logic.test.mjs            # 15 项逻辑测试，不需要浏览器
 node tools/browser-smoke.mjs         # 29 项真实点击 + 截图，需要 Edge/Chrome
 node tools/browser-flow.mjs          # 25 项：教程 / 决策 / 结算 / 存档 / 移动端
 node tools/browser-extra.mjs         # 13 项：加固购买 / 排行榜 / HTTP 托管
+node tools/browser-audio.mjs         # 12 项：WebAudio 波形、静音、测试音
 ```
 
 浏览器测试通过 DevTools Protocol 驱动无头 Edge/Chrome，截图输出到 `web/tests/screenshots/`；也可以用 `CHROME_PATH` 指定浏览器。

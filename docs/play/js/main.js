@@ -131,8 +131,12 @@
     continueButton.title = hasSave ? '读取上次保存的进度' : '还没有存档';
     const muteButton = $('btn-mute');
     muteButton.setAttribute('aria-pressed', String(audio.muted));
-    muteButton.textContent = audio.muted ? '静音' : '音效';
+    muteButton.textContent = audio.muted ? '音效：关' : '音效：开';
     muteButton.title = audio.muted ? '音效已关闭（M）' : '音效开启（M）';
+    const menuMute = $('menu-mute');
+    menuMute.setAttribute('aria-pressed', String(audio.muted));
+    menuMute.textContent = audio.muted ? '音效：关（M）' : '音效：开（M）';
+    menuMute.title = audio.muted ? '点击开启音效（M）' : '点击关闭音效（M）';
 
     document.body.classList.toggle('is-menu', game.state === 'menu');
     pendingRender = false;
@@ -305,6 +309,9 @@
         game.finishTutorial(false);
         renderAll();
         break;
+      case 'test-sound':
+        playSoundTest();
+        break;
       default:
         break;
     }
@@ -340,12 +347,43 @@
     $('menu-seed').addEventListener('click', () => {
       game.seed = ZDD.randomSeed();
       $('menu-seed-text').textContent = `随机种子 ${game.seed}`;
-      audio.play('click');
     });
     $('menu-help').addEventListener('click', () => {
       ui.modal = 'help';
       renderAll();
     });
+    $('menu-mute').addEventListener('click', toggleAudio);
+  }
+
+  function toggleAudio() {
+    const muted = audio.toggleMute();
+    audio.ensure();
+    if (!muted) audio.play('click');
+    if (game.state === 'playing') game.pushMessage(`音效已${muted ? '关闭' : '开启'}。`, 'dim');
+    renderAll();
+    return muted;
+  }
+
+  function playSoundTest() {
+    if (audio.muted) audio.toggleMute();
+    const ctx = audio.ensure();
+    audio.play('success');
+    global.setTimeout(() => audio.play('alert'), 520);
+    const report = () => {
+      const blocked = !audio.ctx || audio.ctx.state !== 'running';
+      if (game.state === 'playing') {
+        game.pushMessage(
+          blocked
+            ? '浏览器仍阻止了声音：请检查站点静音、系统音量，或在新标签页直接打开本页。'
+            : '已播放测试音；如果仍然没有声音，请检查系统音量或浏览器对该站点的静音设置。',
+          blocked ? 'orange' : 'accent',
+        );
+      }
+      renderAll();
+    };
+    global.setTimeout(report, 250);
+    if (game.state !== 'playing') report();
+    return ctx;
   }
 
   function bindPlay() {
@@ -354,13 +392,7 @@
       else ui.modal = 'help';
       renderAll();
     });
-    $('btn-mute').addEventListener('click', () => {
-      const muted = audio.toggleMute();
-      if (game.state === 'playing') {
-        game.pushMessage(`音效已${muted ? '关闭' : '开启'}。`, 'dim');
-      }
-      renderAll();
-    });
+    $('btn-mute').addEventListener('click', toggleAudio);
     const pause = () => {
       if (game.state !== 'playing') return;
       game.state = 'paused';
@@ -570,11 +602,19 @@
     const unlock = () => {
       audio.ensure();
       if (game.state === 'playing') audio.playAmbient();
-      global.removeEventListener('pointerdown', unlock);
-      global.removeEventListener('keydown', unlock);
     };
-    global.addEventListener('pointerdown', unlock);
-    global.addEventListener('keydown', unlock);
+    // 不注销：iOS/Safari 在切后台后可能再次 suspend，每次手势都顺手恢复
+    for (const type of ['pointerdown', 'keydown', 'touchstart']) {
+      global.addEventListener(type, unlock, { passive: true });
+    }
+
+    // 所有按钮/可选行统一给一个轻点击音，避免“点了没反应”的感觉
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('button, .alert-row, .chip, .choice, .topo-node');
+      if (!target || target.disabled) return;
+      if (target.classList.contains('act')) return; // 操作按钮由 performAction 前统一播放
+      audio.play('click');
+    }, { capture: true });
   }
 
   // ------------------------------------------------------------------
@@ -601,7 +641,7 @@
       if (game.tutorialMode && !ui.guideCompleted) screens.updateRing(ui.guideStep);
     }, 350);
     // 调试与自动化测试用的只读句柄
-    global.__zdd = { game, ui, effects, screens, panels, topology, renderAll };
+    global.__zdd = { game, ui, effects, screens, panels, topology, audio, renderAll };
   }
 
   if (document.readyState === 'loading') {

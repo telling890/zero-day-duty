@@ -324,7 +324,8 @@
           `).join('')}
         </div>
         <p class="help-note">本游戏为课程演示，所有 IP、账号、域名与服务器均为虚构数据；
-不扫描网络、不连接服务器、不执行系统命令、不包含恶意代码。</p>
+不扫描网络、不连接服务器、不执行系统命令、不包含恶意代码。<br />
+音效需要先点击或按键一次才会解锁；如果听不到声音，先点「播放测试音」，再检查系统音量和浏览器对该站点的静音设置。</p>
         <nav class="menu-links help-links" aria-label="项目链接">
           <a href="https://telling890.github.io/zero-day-duty/" target="_blank" rel="noreferrer">项目主页</a>
           <a href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">GitHub 源码</a>
@@ -332,6 +333,7 @@
           <a href="README.md" target="_blank" rel="noreferrer">网页版说明</a>
         </nav>
         <div class="modal-actions">
+          <button class="btn" data-act="test-sound">播放测试音</button>
           <button class="btn primary" data-act="help-close">关闭手册</button>
         </div>
       `;
@@ -550,6 +552,7 @@
           <button class="btn" data-act="pause-load">读取进度（F9）</button>
           <button class="btn" data-act="pause-shop">安全加固（U）</button>
           <button class="btn" data-act="pause-restart">重新开始本局</button>
+          <button class="btn ghost" data-act="test-sound">播放测试音</button>
           <button class="btn ghost" data-act="pause-menu">返回主菜单</button>
         </div>
         <p class="modal-note">保存的进度只写在这台设备的浏览器里；关闭页面不会自动保存。</p>
