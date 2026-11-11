@@ -2155,7 +2155,11 @@ ol {
   position: absolute;
   inset: 0;
   opacity: 0;
-  background: #ff0000;
+  /* 受击反馈改成边缘红光，避免整屏泛红发脏 */
+  background: radial-gradient(ellipse at 50% 50%,
+    rgba(236, 88, 84, 0) 42%,
+    rgba(236, 88, 84, 0.55) 78%,
+    rgba(236, 88, 84, 0.95) 100%);
   transition: opacity 700ms ease;
 }
 
@@ -2578,27 +2582,6 @@ ol {
 }
 
 /* ==========================================================================
-   减少动效
-   ========================================================================== */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-  }
-
-  .scanline {
-    display: none;
-  }
-
-  .topo-links .attack {
-    animation: none;
-  }
-}
-
-/* ==========================================================================
    手机端（≤560px）布局重排：先拓扑 → 再操作 → 然后告警 / 简报 / 日志
    ========================================================================== */
 @media (max-width: 560px) {
@@ -2607,6 +2590,8 @@ ol {
     flex-direction: column;
     gap: 8px;
     padding: 8px;
+    /* 吸底操作条会盖住内容，给滚动区留出空间 */
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
   }
 
   /* 让两列容器透明，面板直接参与排序 */
@@ -2618,6 +2603,7 @@ ol {
   .panel-device { order: 4; height: auto; min-height: 0; }
   .panel-log { order: 5; height: auto; }
 
+  .panel-actions .panel-body { padding-bottom: 4px; }
   .panel-alerts .panel-body { max-height: 30dvh; }
   .panel-device .panel-body { max-height: 26dvh; }
   .panel-log .panel-body { max-height: 34dvh; }
@@ -2651,8 +2637,23 @@ ol {
   .turn-controls .btn { min-height: 44px; font-size: 13px; }
 }
 
-/* 手机端：吸底操作条会盖住内容，给滚动区留出空间 */
-@media (max-width: 560px) {
-  .workspace { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
-  .panel-actions .panel-body { padding-bottom: 4px; }
+/* ==========================================================================
+   减少动效
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .scanline {
+    display: none;
+  }
+
+  .topo-links .attack {
+    animation: none;
+  }
 }
