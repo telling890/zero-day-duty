@@ -2597,3 +2597,62 @@ ol {
     animation: none;
   }
 }
+
+/* ==========================================================================
+   手机端（≤560px）布局重排：先拓扑 → 再操作 → 然后告警 / 简报 / 日志
+   ========================================================================== */
+@media (max-width: 560px) {
+  .workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  /* 让两列容器透明，面板直接参与排序 */
+  .col { display: contents; }
+
+  .panel-topology { order: 1; height: 42dvh; min-height: 240px; }
+  .panel-actions { order: 2; }
+  .panel-alerts { order: 3; height: auto; }
+  .panel-device { order: 4; height: auto; min-height: 0; }
+  .panel-log { order: 5; height: auto; }
+
+  .panel-alerts .panel-body { max-height: 30dvh; }
+  .panel-device .panel-body { max-height: 26dvh; }
+  .panel-log .panel-body { max-height: 34dvh; }
+
+  .panel-head { padding: 7px 10px; gap: 8px; }
+  .panel-head h2 { font-size: 12px; letter-spacing: .06em; }
+  .panel-head h2::before { height: 10px; width: 2px; }
+  .panel-meta { font-size: 9px; }
+
+  .legend { flex-wrap: wrap; gap: 2px 8px; font-size: 9px; line-height: 1.3; }
+
+  .topo-node { width: 94px; padding: 6px 8px; }
+  .node-name { font-size: 11px; }
+  .node-bottom { font-size: 9.5px; }
+
+  .action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .act { min-height: 46px; padding: 8px 10px; }
+  .act-name { font-size: 12px; }
+  .act-cost { font-size: 9px; }
+  .action-target, .action-hint { font-size: 10.5px; padding: 6px 10px; }
+
+  .topbar { gap: 6px; padding: 6px 8px; }
+  .metric { padding: 1px 6px 2px; }
+  .metric-label { font-size: 8.5px; letter-spacing: .06em; }
+  .metric-value { font-size: 13px; }
+  .icon-btn { padding: 5px 8px; font-size: 11px; }
+
+  .bottombar { padding: 6px 8px calc(8px + env(safe-area-inset-bottom)); gap: 6px; }
+  .messages { max-height: 34px; }
+  .msg { font-size: 10.5px; }
+  .turn-controls .btn { min-height: 44px; font-size: 13px; }
+}
+
+/* 手机端：吸底操作条会盖住内容，给滚动区留出空间 */
+@media (max-width: 560px) {
+  .workspace { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .panel-actions .panel-body { padding-bottom: 4px; }
+}
