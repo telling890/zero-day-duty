@@ -34,8 +34,9 @@
 
 ![结算界面](assets/screenshots/result.png)
 
-> Windows 免安装版：[下载 v1.4.4 Release](https://github.com/telling890/zero-day-duty/releases/latest)（`ZeroDayDuty-Windows-x64.zip`），解压后双击 `零日值班.exe`，无需安装 Python。
+> Windows 免安装版：[下载最新 Release（v1.5.0）](https://github.com/telling890/zero-day-duty/releases/latest)（`ZeroDayDuty-Windows-x64.zip`），解压后双击 `零日值班.exe`，无需安装 Python。
 > 源码仓库：[github.com/telling890/zero-day-duty](https://github.com/telling890/zero-day-duty)
+> 国内镜像：[gitee.com/zero-day-duty/zero-day-duty](https://gitee.com/zero-day-duty/zero-day-duty)
 > 项目主页：[telling890.github.io/zero-day-duty](https://telling890.github.io/zero-day-duty/)
 
 ---

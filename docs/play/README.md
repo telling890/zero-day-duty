@@ -6,6 +6,7 @@
 - 在线试玩：<https://telling890.github.io/zero-day-duty/play/>
 - 项目主页：<https://telling890.github.io/zero-day-duty/>
 - 源码仓库：<https://github.com/telling890/zero-day-duty>
+- 国内镜像：<https://gitee.com/zero-day-duty/zero-day-duty>
 - Windows 桌面版：<https://github.com/telling890/zero-day-duty/releases/latest>
 
 ![主菜单](assets/screenshots/menu.png)
