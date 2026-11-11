@@ -556,6 +556,7 @@ main { position: relative; z-index: 2; }
 
 /* ------------------------------ 玩法卡片 ------------------------------ */
 .feature-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 20px; }
+.feature-grid > .card:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .card {
   position: relative;
   display: flex;

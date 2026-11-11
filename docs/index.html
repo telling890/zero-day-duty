@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>零日值班 · 网络安全防御模拟器</title>
-  <meta name="description" content="零日值班：一款回合制的网络安全防御模拟。你是公司今晚唯一的安全值班员，10 个回合、6 条攻击链、每回合 6 点行动点——先控制、再清除、最后恢复业务。Windows 免安装版可下载。">
+  <meta name="description" content="零日值班：一款回合制的网络安全防御模拟。你是公司今晚唯一的安全值班员，10 个回合、6 条攻击链（分属两个攻击者战役）、7 项三线两层加固、每回合 6 点行动点——先控制、再清除、最后恢复业务。Windows 免安装版可下载。">
   <meta name="theme-color" content="#F2EFE6">
   <meta property="og:title" content="零日值班 · 网络安全防御模拟器">
-  <meta property="og:description" content="10 个回合，6 条攻击链，每回合 6 点行动点。守到早上八点，别把公司业务一起关掉。">
+  <meta property="og:description" content="10 个回合，6 条攻击链，7 项加固，每回合 6 点行动点。两个攻击者会连着出手——守到早上八点，别把公司业务一起关掉。">
   <meta property="og:image" content="assets/gameplay.png">
   <link rel="icon" href="assets/icon.png">
   <link rel="preload" as="image" href="assets/gameplay.png">
@@ -78,18 +78,19 @@
           <span class="tag">回合制</span>
           <span class="tag">策略模拟</span>
           <span class="tag">一局约 15 分钟</span>
-          <span class="tag tag-ver">v1.4.4</span>
+          <span class="tag tag-ver">v1.5.0</span>
         </p>
         <h1 class="reveal" style="--i:1">守到<br><em>早上八点。</em></h1>
         <p class="lead reveal" style="--i:2">
           你是「云栖示例科技」今晚唯一的安全值班员。22:00 交接，08:00 早会，中间 10 个回合：
-          6 条攻击链会轮流推进，而你每回合只有 <strong>6 点行动点</strong>。
+          6 条攻击链会轮流推进，其中 5 条属于两个攻击者——同一家的两次告警会标成「同源」，
+          你放着不管，对方就提前投放下一环，而你每回合只有 <strong>6 点行动点</strong>。
           调查、控制、清除、恢复——顺序错了，公司要么被打穿，要么被你自己关停。
         </p>
         <div class="cta reveal" style="--i:3">
           <a class="btn primary" href="https://github.com/telling890/zero-day-duty/releases/latest/download/ZeroDayDuty-Windows-x64.zip">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-            下载 Windows 版 · 14 MB
+            下载 Windows 版 · 13.8 MB
           </a>
           <a class="btn ghost" href="#try">
             先试一回合<span class="arrow">↓</span>
@@ -99,7 +100,7 @@
           <li>Windows 10 / 11</li>
           <li>免安装 · 无需 Python</li>
           <li>1280 × 720 固定窗口</li>
-          <li>35 项自动化测试</li>
+          <li>48 项自动化测试</li>
         </ul>
         <p class="dl-hint reveal" style="--i:5">
           国内下载慢？<a href="#download">换加速镜像 ↓</a>（同一个文件，可校验 SHA256）
@@ -286,9 +287,22 @@
             </span>
             <span class="card-index">04</span>
           </header>
-          <h3>4 项安全加固</h3>
-          <p>¥150~240 的四张牌：日志插件、EDR、离线备份、自动封禁。花的是这局的预算，换的是后面的行动点。</p>
-          <div class="card-meta">¥150 · ¥180 · ¥210 · ¥240</div>
+          <h3>7 项加固，三线两层</h3>
+          <p>检测、响应、韧性三条线各两层。第二层是专精——情报深挖、快速清场、保业务，三选一，选完另外两条线就锁死。</p>
+          <div class="card-meta">¥150 ~ ¥320 · 第二层三选一</div>
+        </article>
+
+        <article class="card reveal" style="--i:4">
+          <span class="card-glow" aria-hidden="true"></span>
+          <header>
+            <span class="card-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12 18 6"/></svg>
+            </span>
+            <span class="card-index">05</span>
+          </header>
+          <h3>同一攻击者会连着出手</h3>
+          <p>钓鱼、异地登录、内部导出其实是同一个「夜鸦行动」。同源告警会标出攻击者，节奏压力攒满就提前投放下一环，或者直接加速推进。</p>
+          <div class="card-meta">2 个战役 · 3 回合压力</div>
         </article>
       </div>
     </section>
@@ -337,12 +351,12 @@
 
         <figure class="reveal" style="--i:3">
           <div class="shot">
-            <img src="assets/upgrades.png" alt="安全加固商店，四项加固项目与价格" width="1280" height="720" loading="lazy" decoding="async">
-            <button class="shot-zoom" type="button" data-src="assets/upgrades.png" data-cap="安全加固：日志插件 ¥150 / 自动封禁 ¥180 / EDR ¥210 / 离线备份 ¥240" aria-label="放大查看：安全加固"></button>
+            <img src="assets/upgrades.png" alt="安全加固商店：检测、响应、韧性三条线各两层，共七项加固，第二层三选一" width="1280" height="720" loading="lazy" decoding="async">
+            <button class="shot-zoom" type="button" data-src="assets/upgrades.png" data-cap="安全加固：三线两层，第二层三选一（情报深挖 / 快速清场 / 保业务）" aria-label="放大查看：安全加固"></button>
           </div>
           <figcaption>
             <strong>安全加固</strong>
-            <span>把预算换成置信度、行动点和一份离线备份。</span>
+            <span>七项三线两层；第二层是专精，选了就回不了头。</span>
           </figcaption>
         </figure>
 
@@ -536,7 +550,7 @@
       <div class="section-head reveal">
         <p class="section-kicker">DOWNLOAD</p>
         <h2>GitHub 慢的话，走加速镜像</h2>
-        <p>下面三个链接指向同一个 14 MB 的包（v1.4.4）。镜像只是转发 GitHub 上的同一个文件，下载完可以按 SHA256 校验。</p>
+        <p>下面三个链接指向同一个 13.8 MB 的包（当前发布版 <strong>v1.5.0</strong>，含加固树与攻击战役）。镜像只是转发 GitHub 上的同一个文件，下载完可以按 SHA256 校验。</p>
       </div>
 
       <div class="dl-grid">
@@ -575,8 +589,8 @@
       Select name, size, digest</code></pre>
         </div>
         <p class="dl-note">
-          v1.4.4 的 zip 应为 <b>14,453,714 字节</b>，digest 为
-          <code>sha256:5d3ddb21cae2566f943a222437caa5c6f1f5814f15b2401a444bf89653cbecbf</code>。
+          v1.5.0 的 zip 应为 <b>14,468,245 字节</b>，digest 为
+          <code>sha256:784f776cd4a7248a0788df5e27f8a99bdf62d4838061be7e1900d71cc10ced07</code>。
           两者一致即可放心运行；不一致就换另一个镜像重下。
         </p>
       </div>
