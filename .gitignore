@@ -8,3 +8,4 @@ dist/
 *.spec
 error.log
 exe_screen.png
+~$*
