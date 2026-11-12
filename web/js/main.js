@@ -82,7 +82,27 @@
     guideCompleted: false,
     logCategory: '全部',
     logKeyword: '',
+    terminalOpen: false,
   };
+
+  const terminal = new ZDD.Terminal({
+    root: $('terminal'),
+    screen: $('term-screen'),
+    form: $('term-form'),
+    input: $('term-input'),
+    hint: $('term-hint'),
+    status: $('term-status'),
+    closeButton: $('term-close'),
+    trigger: $('btn-terminal'),
+    game,
+    audio,
+    effects,
+    topology,
+    onChange: () => renderAll(),
+    onOpenChange: (open) => {
+      ui.terminalOpen = open;
+    },
+  });
 
   let lastRevision = -1;
   let lastState = null;
@@ -94,9 +114,10 @@
   function activeModalKind() {
     if (game.showBriefing) return 'briefing';
     if (ui.tutorialOpen) return 'tutorial';
+    if (game.pendingDecision) return 'decision';
+    if (ui.terminalOpen) return 'terminal';
     if (game.tutorialMode) return ui.guideCompleted ? 'tutorial-complete' : null;
     if (ui.modal === 'help') return 'help';
-    if (game.pendingDecision) return 'decision';
     if (ui.modal === 'shop') return 'shop';
     if (ui.modal === 'history') return 'history';
     if (game.state === 'result') return 'result';
@@ -107,8 +128,17 @@
   function renderAll() {
     if (game.state === 'result' && ui.modal) ui.modal = null;
     if (game.pendingDecision && ui.modal) ui.modal = null;
+    if (game.state !== 'playing' && terminal.isOpen) terminal.hide();
 
     panels.render(game, ui);
+    terminal.refresh();
+
+    const danger = game.state !== 'menu' && (
+      game.threatLevel >= 4
+      || game.player.security <= 30
+      || game.player.availability <= 40
+    );
+    refs.app.classList.toggle('is-danger', danger);
 
     if (game.state !== 'menu') {
       const topbar = document.getElementById('topbar');
@@ -133,6 +163,8 @@
     muteButton.setAttribute('aria-pressed', String(audio.muted));
     muteButton.textContent = audio.muted ? '音效：关' : '音效：开';
     muteButton.title = audio.muted ? '音效已关闭（M）' : '音效开启（M）';
+    const terminalButton = $('btn-terminal');
+    terminalButton.setAttribute('aria-pressed', String(ui.terminalOpen));
     const menuMute = $('menu-mute');
     menuMute.setAttribute('aria-pressed', String(audio.muted));
     menuMute.textContent = audio.muted ? '音效：关（M）' : '音效：开（M）';
@@ -152,6 +184,19 @@
     if (!global.matchMedia('(max-width: 980px)').matches) return;
     const panel = refs.actionGrid.closest('.panel-actions');
     if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  /** 执行操作面板里的第 index 个操作（鼠标点击与数字键共用）。 */
+  function activateAction(index) {
+    if (game.state !== 'playing' || activeModalKind()) return false;
+    const option = panels.lastOptions[index];
+    const target = game.currentTarget();
+    if (!option || !target || !option.enabled) return false;
+    effects.setFocusElement(target.device ? topology.nodeElement(target.device.deviceId) : null);
+    audio.play('click');
+    game.performAction(option, target);
+    renderAll();
+    return true;
   }
 
   // ------------------------------------------------------------------
@@ -324,6 +369,7 @@
     $('menu-start').addEventListener('click', () => {
       ui.modal = null;
       game.newGame({ briefing: true });
+      game.pushMessage('提示：按 ` 或点顶部「终端」，可以用命令处置目标。', 'accent');
       renderAll();
     });
     $('menu-continue').addEventListener('click', () => {
@@ -401,6 +447,10 @@
     };
     $('btn-pause').addEventListener('click', pause);
     $('btn-pause-2').addEventListener('click', pause);
+    $('btn-terminal').addEventListener('click', () => {
+      if (game.state !== 'playing' || activeModalKind()) return;
+      terminal.open();
+    });
     refs.advance.addEventListener('click', () => {
       if (game.state !== 'playing' || activeModalKind()) return;
       game.endTurn();
@@ -421,16 +471,9 @@
     refs.actionGrid.addEventListener('click', (event) => {
       const button = event.target.closest('[data-action-index]');
       if (!button || button.disabled) return;
-      const index = Number(button.dataset.actionIndex);
-      const option = panels.lastOptions[index];
-      const target = game.currentTarget();
-      if (!option || !target) return;
-      effects.setFocusElement(target.device ? topology.nodeElement(target.device.deviceId) : null);
-      audio.play('click');
-      game.performAction(option, target);
+      activateAction(Number(button.dataset.actionIndex));
       // 鼠标点完后把焦点还给页面，避免空格误触同一个操作
       if (event.detail > 0) button.blur();
-      renderAll();
     });
 
     refs.logChips.addEventListener('click', (event) => {
@@ -501,6 +544,20 @@
 
       if (typing) return;
 
+      // ` 或 ~：打开 / 关闭处置终端（只在不处于其他浮层时）
+      if (event.key === '`' || event.key === '~' || event.code === 'Backquote') {
+        if (ui.terminalOpen) {
+          event.preventDefault();
+          terminal.close();
+          return;
+        }
+        if (game.state === 'playing' && !activeModalKind()) {
+          event.preventDefault();
+          terminal.open();
+          return;
+        }
+      }
+
       if (event.key === 'F1') {
         event.preventDefault();
         const current = activeModalKind();
@@ -520,6 +577,7 @@
 
       if (event.key === 'u' || event.key === 'U') {
         if (!['playing', 'paused'].includes(game.state) || game.tutorialMode) return;
+        if (ui.terminalOpen) return;
         if (activeModalKind() === 'decision' || activeModalKind() === 'briefing') return;
         if (ui.modal === 'shop') ui.modal = null;
         else ui.modal = 'shop';
@@ -547,6 +605,10 @@
       if (event.key === 'Escape') {
         event.preventDefault();
         const kind = activeModalKind();
+        if (kind === 'terminal') {
+          terminal.close();
+          return;
+        }
         if (kind === 'briefing' || kind === 'decision') return;
         if (kind === 'help' || kind === 'shop' || kind === 'history') {
           ui.modal = null;
@@ -587,6 +649,15 @@
         game.endTurn();
         renderAll();
         return;
+      }
+
+      // 数字键 1–9：执行操作面板里对应按钮（与鼠标点击等价）
+      if (/^[1-9]$/.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (game.state === 'playing' && !activeModalKind()) {
+          event.preventDefault();
+          activateAction(Number(event.key) - 1);
+          return;
+        }
       }
 
       if ((event.key === 'Enter' || event.key === 'NumpadEnter') && game.state === 'menu') {
@@ -641,7 +712,7 @@
       if (game.tutorialMode && !ui.guideCompleted) screens.updateRing(ui.guideStep);
     }, 350);
     // 调试与自动化测试用的只读句柄
-    global.__zdd = { game, ui, effects, screens, panels, topology, audio, renderAll };
+    global.__zdd = { game, ui, effects, screens, panels, topology, audio, terminal, renderAll };
   }
 
   if (document.readyState === 'loading') {

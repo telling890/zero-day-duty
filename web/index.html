@@ -22,6 +22,7 @@
   <div id="app" class="app" data-state="menu">
     <div class="bg-grid" aria-hidden="true"></div>
     <div class="scanline" aria-hidden="true"></div>
+    <div class="alarm-vignette" id="alarm-vignette" aria-hidden="true"></div>
 
     <!-- ============================ 主菜单 ============================ -->
     <section id="menu-screen" class="screen screen-menu" aria-label="主菜单">
@@ -70,6 +71,7 @@
         </div>
         <div class="metrics" id="metrics" role="list" aria-label="全局指标"></div>
         <div class="top-actions">
+          <button class="icon-btn" id="btn-terminal" title="处置终端（`）" aria-label="打开处置终端">终端</button>
           <button class="icon-btn" id="btn-help" title="值班手册（F1）" aria-label="值班手册">手册</button>
           <button class="icon-btn" id="btn-mute" title="音效开关（M）" aria-label="音效开关" aria-pressed="false">音效</button>
           <button class="icon-btn" id="btn-pause" title="暂停（Esc）" aria-label="暂停">暂停</button>
@@ -148,6 +150,27 @@
       </footer>
     </main>
 
+    <!-- ============================ 处置终端 ============================ -->
+    <div id="terminal" class="terminal" hidden role="dialog" aria-modal="true" aria-label="处置终端">
+      <div class="term-window">
+        <header class="term-head">
+          <span class="term-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="term-title">zdd-soc · nightshift</span>
+          <span class="term-status" id="term-status"></span>
+          <button type="button" class="term-close" id="term-close" aria-label="关闭终端（Esc）">×</button>
+        </header>
+        <div class="term-screen" id="term-screen" role="log" aria-live="polite" aria-label="终端输出"></div>
+        <form class="term-form" id="term-form" autocomplete="off">
+          <span class="term-prompt-text" aria-hidden="true">nightshift@zdd:~$</span>
+          <input id="term-input" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="输入终端命令，回车执行" />
+        </form>
+        <div class="term-foot">
+          <span id="term-hint">Enter 执行 · Tab 补全 · ↑/↓ 历史 · Esc 关闭</span>
+          <span class="term-brand">本地模拟 · 不执行真实系统命令</span>
+        </div>
+      </div>
+    </div>
+
     <!-- ============================ 浮层 ============================ -->
     <div id="modal" class="modal" hidden>
       <div class="modal-card" id="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1"></div>
@@ -185,6 +208,7 @@
   <script src="js/ui/topology.js"></script>
   <script src="js/ui/panels.js"></script>
   <script src="js/ui/screens.js"></script>
+  <script src="js/ui/terminal.js"></script>
   <script src="js/main.js"></script>
   <script>
     /* 注册 Service Worker：装到主屏后可离线进入游戏（http/https 下才启用）

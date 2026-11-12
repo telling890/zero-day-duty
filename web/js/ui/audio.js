@@ -111,6 +111,16 @@
           this.tone(1320, 0.045, { type: 'triangle', gain: 0.18 });
           this.tone(880, 0.06, { type: 'triangle', gain: 0.1, delay: 0.02 });
           break;
+        case 'key':
+          // 终端按键：很短、很轻，避免连续输入时吵
+          this.tone(1900 + Math.random() * 600, 0.014, { type: 'square', gain: 0.035 });
+          break;
+        case 'boot':
+          // 终端接入：短促的低频上行，像老式终端通电
+          this.tone(180, 0.14, { type: 'sine', gain: 0.09 });
+          this.tone(540, 0.1, { type: 'triangle', gain: 0.06, delay: 0.05 });
+          this.tone(1080, 0.08, { type: 'sine', gain: 0.04, delay: 0.12 });
+          break;
         case 'alert':
           this.tone(880, 0.11, { type: 'square', gain: 0.2 });
           this.tone(660, 0.16, { type: 'square', gain: 0.18, delay: 0.14 });

@@ -408,6 +408,7 @@
           data-action-id="${esc(option.actionId)}" data-style="${esc(option.style)}"
           ${option.enabled ? '' : 'disabled aria-disabled="true"'}
           title="${esc(option.enabled ? `${option.name} · AP ${option.apCost} · ¥${option.moneyCost}` : `${option.name}：${option.reason}`)}">
+          ${index < 9 ? `<span class="act-key" aria-hidden="true">${index + 1}</span>` : ''}
           <span class="act-name">${esc(option.name)}</span>
           <span class="act-cost">${option.enabled ? `AP ${option.apCost} · ¥${option.moneyCost}` : '不可用'}</span>
         </button>
@@ -416,7 +417,7 @@
       const disabled = options.filter((option) => !option.enabled);
       this.refs.actionHint.textContent = disabled.length === options.length && disabled[0]
         ? `${disabled[0].name}：${disabled[0].reason}`
-        : '操作后只完成一步：调查 → 控制 → 清除 → 恢复。';
+        : '操作后只完成一步：调查 → 控制 → 清除 → 恢复。键盘 1–6 可直接执行对应按钮。';
     }
 
     renderMessages(game) {

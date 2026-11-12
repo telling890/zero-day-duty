@@ -2805,3 +2805,324 @@ ol {
   }
 }
 
+
+/* ==========================================================================
+   处置终端 · 命令行
+   ========================================================================== */
+body.terminal-open {
+  overflow: hidden;
+}
+
+.alarm-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 74;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(ellipse at center, transparent 50%, rgba(236, 88, 84, 0.22) 100%),
+    linear-gradient(180deg, rgba(236, 88, 84, 0.08), transparent 18%, transparent 82%, rgba(236, 88, 84, 0.08));
+  transition: opacity 600ms ease;
+}
+
+.app.is-danger .alarm-vignette {
+  opacity: 1;
+  animation: dangerBreathe 3.2s ease-in-out infinite;
+}
+
+@keyframes dangerBreathe {
+  0%, 100% { opacity: 0.32; }
+  50% { opacity: 0.86; }
+}
+
+.terminal {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(3, 7, 12, 0.72);
+  backdrop-filter: blur(6px);
+  animation: termFadeIn 160ms ease;
+}
+
+@keyframes termFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.term-window {
+  width: min(960px, 100%);
+  height: min(78dvh, 680px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--accent-dark);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #0a1319, #060c12 70%);
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.65),
+    0 0 48px rgba(0, 224, 255, 0.08),
+    inset 0 0 80px rgba(0, 224, 255, 0.025);
+  animation: termWindowIn 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes termWindowIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.988); }
+  to { opacity: 1; transform: none; }
+}
+
+.term-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #16303c;
+  background: linear-gradient(180deg, #101d27, #0b141c);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.term-dots {
+  display: flex;
+  gap: 5px;
+}
+
+.term-dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #1d3a47;
+}
+
+.term-dots i:first-child { background: rgba(236, 88, 84, 0.65); }
+.term-dots i:nth-child(2) { background: rgba(240, 196, 60, 0.55); }
+.term-dots i:nth-child(3) { background: rgba(64, 208, 130, 0.55); }
+
+.term-title {
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.term-status {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dim);
+}
+
+.term-close {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dim);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.term-close:hover {
+  color: var(--red);
+  border-color: rgba(236, 88, 84, 0.55);
+}
+
+.term-screen {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 14px 16px 10px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.62;
+  color: #b9d7d2;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 224, 255, 0.025) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 50% 0%, rgba(0, 224, 255, 0.05), transparent 70%);
+  scrollbar-width: thin;
+  scrollbar-color: #1d3a47 transparent;
+}
+
+.term-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.term-blank {
+  min-height: 0.6em;
+}
+
+.term-input-line {
+  margin-top: 4px;
+}
+
+.term-prompt {
+  color: var(--green);
+}
+
+.term-echo {
+  color: #e6f7ff;
+}
+
+.term-ok { color: var(--green); }
+.term-err { color: var(--red); }
+.term-warn { color: var(--orange); }
+.term-info { color: var(--accent); }
+.term-dim { color: var(--dim); }
+.term-hint { color: var(--faint); }
+.term-purple { color: var(--purple); }
+.term-cmd { color: var(--yellow); }
+
+.term-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 10px;
+  border-top: 1px solid #142a34;
+  background: #081117;
+}
+
+.term-prompt-text {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--green);
+  white-space: nowrap;
+}
+
+#term-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #eafcff;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  caret-color: var(--accent);
+}
+
+#term-input:focus-visible {
+  box-shadow: none;
+}
+
+.term-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 14px 8px;
+  background: #081117;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--faint);
+}
+
+#term-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.term-brand {
+  flex: 0 0 auto;
+  color: var(--faint);
+  opacity: 0.75;
+}
+
+/* 操作按钮右上角的数字键提示 */
+.act {
+  position: relative;
+}
+
+.act-key {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border: 1px solid rgba(56, 78, 104, 0.6);
+  border-radius: 4px;
+  background: rgba(9, 13, 20, 0.65);
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.act:hover:not(:disabled) .act-key {
+  color: var(--accent);
+  border-color: var(--accent-dark);
+}
+
+.act:disabled .act-key {
+  opacity: 0.35;
+}
+
+@media (max-width: 560px) {
+  .terminal {
+    padding: 0;
+    background: rgba(3, 7, 12, 0.9);
+  }
+
+  .term-window {
+    width: 100%;
+    height: 100dvh;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .term-screen {
+    padding: 10px 12px 8px;
+    font-size: 12px;
+  }
+
+  .term-form {
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  }
+
+  #term-input {
+    font-size: 16px;
+  }
+
+  .term-foot {
+    padding: 4px 10px calc(6px + env(safe-area-inset-bottom));
+  }
+
+  .term-brand {
+    display: none;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 1024px) and (max-height: 560px) {
+  .terminal {
+    padding: 0;
+  }
+
+  .term-window {
+    width: 100%;
+    height: 100dvh;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .term-screen {
+    font-size: 11.5px;
+    padding: 8px 12px 6px;
+  }
+}
