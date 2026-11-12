@@ -12,7 +12,7 @@ try {
   // ============================ 教程 ============================
   await click('#menu-tutorial');
   check('教程第 1 页', await evaluate(`document.querySelector('.modal-title').textContent.includes('一分钟看懂')`));
-  check('教程共 12 页', (await evaluate(`document.querySelectorAll('.tutorial-pages i').length`)) === 12);
+  check('教程共 13 页', (await evaluate(`document.querySelectorAll('.tutorial-pages i').length`)) === 13);
   await screenshot('10-tutorial-page1');
 
   for (let i = 0; i < 3; i += 1) await click('[data-act="tutorial-next"]');
@@ -21,7 +21,12 @@ try {
   await screenshot('10b-tutorial-page4');
 
   for (let i = 0; i < 8; i += 1) await click('[data-act="tutorial-next"]');
-  check('教程到第 12 页', await evaluate(`document.querySelector('.modal-kicker').textContent.includes('12 / 12')`));
+  check('第 12 页讲顶栏按钮', await evaluate(`document.querySelector('.modal-title').textContent.includes('顶栏 5 个按钮')`));
+  check('第 12 页有 5 个按钮说明', (await evaluate(`document.querySelectorAll('.tutorial-keys .tut-key').length`)) === 5);
+  await screenshot('10c-tutorial-topbar');
+
+  await click('[data-act="tutorial-next"]');
+  check('教程到第 13 页', await evaluate(`document.querySelector('.modal-kicker').textContent.includes('13 / 13')`));
   await screenshot('11-tutorial-last');
   await click('[data-act="tutorial-next"]');
   check('实战演练提示卡出现', await evaluate(`!document.getElementById('guide').hidden`));

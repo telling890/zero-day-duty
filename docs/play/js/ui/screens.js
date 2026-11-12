@@ -139,16 +139,28 @@
       note: '资源有限，优先处理「会造成重大损失」的攻击链。',
     },
     {
-      title: '加固、决策与高级操作',
-      body: '一局之内还有加固树、剧情决策，以及更快的终端和脚本。',
+      title: '加固与剧情决策',
+      body: '除了处置告警，一局之内还有两件事会影响结局：花钱买加固，以及在关键时刻做决策。',
       bullets: [
-        '按 U 或暂停菜单打开安全加固：三条线 × 两层，第二层三选一。',
-        '第 4/7 回合会弹出剧情决策，每个选项都有代价，没有免费选项。',
-        '顶部「终端」或按 `：输入 scan / isolate / clean / release 等命令。',
-        '顶部「脚本」或按 C：用 for + alerts()/devices() 写自动化处置。',
-        '操作按钮右上角的数字 1–6，可以直接用键盘执行对应按钮。',
+        '按 U 或暂停菜单打开安全加固：三条线 × 两层，第二层三选一，买了本局永久生效。',
+        '加固用公司资金；资金紧张时优先买能减少 AP 或提高情报的升级。',
+        '第 4/7 回合会弹出剧情决策，每个选项都会改变指标，没有免费选项。',
+        '决策立即生效；选择前先看当前安全度、可用性和声誉。',
+        '拿不准时按 F1 打开值班手册，规则和快捷键都在里面。',
       ],
-      note: '先学会手动 4 步，再用终端/脚本提速。',
+      note: '先学会手动处置，再考虑用资金换效率。',
+    },
+    {
+      title: '顶栏 5 个按钮怎么用',
+      body: '值班全程都能点，记住快捷键会快很多。',
+      buttons: [
+        ['终端', '` / ~', '打开命令行（反引号键）；输入 scan PC-01 / isolate PC-01 等命令，Tab 补全，Esc 关闭。'],
+        ['脚本', 'C', '打开自动化剧本；用 for + alerts() 批量处置，Ctrl+Enter 运行，Esc 关闭。'],
+        ['手册', 'F1', '完整规则、快捷键和「播放测试音」；忘记怎么玩时先看这里。'],
+        ['音效', 'M', '开/关音效；浏览器需要先点击页面一次才允许出声。'],
+        ['暂停', 'Esc', '保存（F5）、读取（F9）、安全加固、重开或返回主菜单。'],
+      ],
+      note: '操作面板按钮右上角的 1–6 可直接按键盘执行；空格推进回合。新手先记 Esc / F1 / M。',
     },
     {
       title: '准备实战：6 步演练',
@@ -318,17 +330,36 @@
           </div>
         `
         : '';
+      const buttons = Array.isArray(page.buttons) && page.buttons.length
+        ? `
+          <div class="tutorial-keys" role="list" aria-label="顶栏按钮">
+            ${page.buttons.map(([name, key, desc]) => `
+              <div class="tut-key" role="listitem">
+                <span class="tut-key-name">${esc(name)}</span>
+                <kbd>${esc(key)}</kbd>
+                <span class="tut-key-desc">${esc(desc)}</span>
+              </div>
+            `).join('')}
+          </div>
+        `
+        : '';
+      const bullets = Array.isArray(page.bullets) && page.bullets.length
+        ? `
+          <ul class="tutorial-bullets">
+            ${page.bullets.map((bullet) => `<li>${esc(bullet)}</li>`).join('')}
+          </ul>
+        `
+        : '';
       return `
         <p class="modal-kicker">新手教程 · ${index + 1} / ${TUTORIAL_PAGES.length}</p>
         <h2 class="modal-title" id="modal-title">${esc(page.title)}</h2>
         <p class="modal-sub">${esc(page.body)}</p>
         ${steps}
+        ${buttons}
         <div class="tutorial-pages">
           ${TUTORIAL_PAGES.map((_, i) => `<i class="${i <= index ? 'done' : ''}"></i>`).join('')}
         </div>
-        <ul class="tutorial-bullets">
-          ${page.bullets.map((bullet) => `<li>${esc(bullet)}</li>`).join('')}
-        </ul>
+        ${bullets}
         ${page.note ? `<p class="tutorial-note">${esc(page.note)}</p>` : ''}
         <div class="modal-actions">
           <button class="btn ghost" data-act="tutorial-prev" ${index === 0 ? 'disabled' : ''}>上一步</button>
@@ -395,6 +426,7 @@
           '· 日志终端支持分类过滤和关键词搜索（英文/数字最稳定）',
           '· 顶部「终端」或按 ` 打开处置终端：scan / isolate / clean / release 等命令，Tab 补全、↑/↓ 历史',
           '· 顶部「脚本」或按 C 打开自动化剧本：用 for + alerts()/devices() 批量处置，Ctrl+Enter 运行',
+          '· 顶栏按钮：终端（`）、脚本（C）、手册（F1）、音效（M）、暂停（Esc）',
           '· 操作按钮右上角的数字对应键盘 1–6，选中目标后可直接按键执行',
           '· 空格 = 推进回合　Esc = 暂停　F1 = 手册　U = 安全加固',
           '· F5 = 保存进度　F9 = 读取进度　M = 音效开关',
