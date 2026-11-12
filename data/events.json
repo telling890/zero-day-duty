@@ -754,6 +754,9 @@
       "description": "从一封伪造付款邮件起步的内网渗透：钓鱼投递 → 异常登录提权 → 内部账号批量导出。三段是同一个人做的。",
       "members": ["EVT-PHISH-01", "EVT-LOGIN-02", "EVT-INSIDER-05"],
       "momentum_threshold": 3,
+      "actor_style": "stealth",
+      "isolation_tolerance": 2,
+      "personality": "偏好未调查的入口和可复用凭据；发现大量设备被隔离时会降低活动强度，等待隔离解除，转向前会留下登录或探测线索。",
       "reveal": "情报：钓鱼邮件、异地登录与内部批量导出出自同一攻击者「APT-夜鸦」。它靠“你顾不过来”推进，而不是靠新漏洞——压制任意一环都能拖慢整条链。"
     },
     {
@@ -763,6 +766,9 @@
       "description": "外部团伙盯着对外 Web 资产：流量异常探测 → 零日利用 → 横向进入数据库。",
       "members": ["EVT-WEB-04", "EVT-ZERODAY-06"],
       "momentum_threshold": 2,
+      "actor_style": "aggressive",
+      "prefer_unpatched": true,
+      "personality": "偏好在线、未打补丁、高价值的对外资产；遇到已隔离或已打补丁的目标会转向，但转向前会留下可观察的探测流量。",
       "reveal": "情报：Web 流量异常与随后的零日利用来自同一团伙「灰烬」。它们会等你把注意力放在别处时再动手。"
     }
   ]

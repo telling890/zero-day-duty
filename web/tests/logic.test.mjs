@@ -21,6 +21,7 @@ require(`${root}/js/core/events.js`);
 require(`${root}/js/core/actions.js`);
 require(`${root}/js/core/score.js`);
 require(`${root}/js/core/save.js`);
+require(`${root}/js/core/difficulty.js`);
 require(`${root}/js/core/game.js`);
 
 const ZDD = globalThis.ZDD;
@@ -38,10 +39,23 @@ function memoryStorage() {
   };
 }
 
-function newGame(seed = 2024, tutorial = false) {
+function newGame(seed = 2024, tutorial = false, difficulty = 'standard') {
   const game = new ZDD.Game({ data: ZDD.data, seed, storage: memoryStorage() });
-  game.newGame({ tutorial, briefing: false });
+  game.newGame({ tutorial, briefing: false, difficulty });
   return game;
+}
+
+function logsText(game) {
+  return game.logs.entries.map((entry) => entry.message).join('\n');
+}
+
+function investigateReal(game) {
+  const alert = game.events.alerts.find((item) => !item.falsePositive);
+  game.selectAlert(alert);
+  game.performAction(
+    game.actions.optionsFor(game, game.currentTarget()).find((o) => o.actionId === 'investigate'),
+    game.currentTarget(),
+  );
 }
 
 test('数据加载：8 台设备、6 条事件、6 项服务、7 个加固', () => {
@@ -261,6 +275,135 @@ test('风险区间随调查收窄', () => {
   );
   const [low2, high2] = game.risk.estimate(event, device, game.turn, 0);
   assert.ok(high2 - low2 < high1 - low1);
+});
+
+test('难度：三档信息质量不同且默认标准', () => {
+  const novice = newGame(2024, false, 'novice');
+  const standard = newGame(2024, false, 'standard');
+  const expert = newGame(2024, false, 'expert');
+  assert.deepEqual(novice.difficultySet.modes.map((mode) => mode.id), ['novice', 'standard', 'expert']);
+
+  investigateReal(novice);
+  assert.match(logsText(novice), /建议处置：/);
+  assert.match(logsText(novice), /预测下一跳：/);
+
+  investigateReal(standard);
+  assert.match(logsText(standard), /处置方向：/);
+  assert.doesNotMatch(logsText(standard), /建议处置：/);
+  assert.doesNotMatch(logsText(standard), /预测下一跳：/);
+
+  investigateReal(expert);
+  assert.match(logsText(expert), /处置建议：证据不足/);
+  assert.match(logsText(expert), /下一跳：证据不足/);
+  assert.match(logsText(expert), /未验证：/);
+  assert.equal(expert.difficultyId, 'expert');
+});
+
+test('决策：隐藏安全影响 + 1–3 回合延迟 + 三选一', () => {
+  const game = newGame();
+  game.turn = 4;
+  game.maybeTriggerDecision();
+  assert.ok(game.pendingDecision);
+  assert.ok(!game.pendingDecision.choices[0].hint.includes('安全'));
+  game.chooseDecision(0);
+  assert.equal(game.pendingDelayed.length, 1);
+  assert.equal(game.pendingDelayed[0].dueTurn, 6);
+  game.turn = 6;
+  game.processDelayedEffects();
+  assert.equal(game.pendingDelayed.length, 0);
+  assert.match(logsText(game), /延迟后果/);
+
+  game.turn = 5;
+  game.pendingDecision = null;
+  game.maybeTriggerDecision();
+  assert.equal(game.pendingDecision.id, 'service_tradeoff');
+  assert.equal(game.pendingDecision.choices.length, 3);
+  game.chooseDecision(2);
+  assert.equal(game.pendingDelayed[0].dueTurn, 7);
+});
+
+test('存档：难度、延迟后果与时间线可往返，旧存档有默认值', () => {
+  const storage = memoryStorage();
+  const game = new ZDD.Game({ data: ZDD.data, seed: 2024, storage });
+  game.newGame({ difficulty: 'expert' });
+  game.turn = 4;
+  game.maybeTriggerDecision();
+  game.chooseDecision(0);
+  assert.equal(game.saveGame(), true);
+  const other = new ZDD.Game({ data: ZDD.data, seed: 2024, storage });
+  other.newGame({ difficulty: 'standard' });
+  assert.equal(other.loadGame(), true);
+  assert.equal(other.difficultyId, 'expert');
+  assert.equal(other.pendingDelayed.length, 1);
+  assert.ok(other.timeline.length > 0);
+
+  const raw = JSON.parse(other.saveManager.read('zdd.savegame.v1'));
+  delete raw.difficulty;
+  delete raw.timeline;
+  delete raw.pending_delayed;
+  delete raw.decision_history;
+  other.saveManager.write('zdd.savegame.v1', JSON.stringify(raw));
+  assert.equal(other.loadGame(), true);
+  assert.equal(other.difficultyId, 'standard');
+  assert.equal(other.pendingDelayed.length, 0);
+});
+
+test('攻击者：夜鸦在隔离面足够大时等待并留下线索', () => {
+  const game = newGame();
+  game.devices['WEB-01'].isolate();
+  game.devices['DB-01'].isolate();
+  const event = game.events.events[0];
+  const stage = event.stageIndex;
+  for (let i = 0; i < 3; i += 1) game.events.advanceCampaigns(game);
+  assert.ok(game.events.campaignRuntime['CAM-NIGHTJACK'].waits >= 1);
+  assert.equal(event.stageIndex, stage);
+  assert.match(logsText(game), /活动强度突然下降/);
+  assert.ok(game.timeline.some((item) => item.kind === 'actor_wait'));
+});
+
+test('攻击者：灰烬从已补丁目标转向并留下探测线索', () => {
+  const game = newGame();
+  const webConfig = game.events.getEventConfig('EVT-WEB-04');
+  const web = new ZDD.models.SecurityEvent(webConfig, 3);
+  web.campaignId = 'CAM-CINDER';
+  game.events.events.push(web);
+  game.events.spawnedEventIds.add(web.eventId);
+  game.devices['WEB-01'].patched = true;
+  const bossConfig = JSON.parse(JSON.stringify(game.events.getEventConfig('EVT-ZERODAY-06')));
+  bossConfig.stages[0].active_device = 'DB-01';
+  const boss = new ZDD.models.SecurityEvent(bossConfig, 8);
+  boss.campaignId = 'CAM-CINDER';
+  game.events.events.push(boss);
+  game.events.spawnedEventIds.add(boss.eventId);
+  game.devices['DB-01'].patched = false;
+  game.turn = 8;
+  for (let i = 0; i < 2; i += 1) game.events.advanceCampaigns(game);
+  assert.equal(game.events.campaignRuntime['CAM-CINDER'].lastSwitch, boss.eventId);
+  assert.match(logsText(game), /转向/);
+  assert.ok(game.timeline.some((item) => item.kind === 'actor_switch'));
+});
+
+test('专家模式日志延迟一个回合出现', () => {
+  const game = newGame(2024, false, 'expert');
+  assert.ok(game.events.pendingLogs.length > 0);
+  assert.doesNotMatch(logsText(game), /邮件网关记录/);
+  game.startTurn();
+  assert.match(logsText(game), /\[延迟到达\]/);
+});
+
+test('结算：时间线复盘来自真实记录，流派来自加固线', () => {
+  const game = newGame();
+  game.buyUpgrade('log_plugin');
+  game.buyUpgrade('threat_intel');
+  investigateReal(game);
+  assert.equal(game.doctrine(), '情报主导型');
+  game.turn = 10;
+  game.finish('time');
+  assert.ok(game.report);
+  assert.ok(game.report.timeline.length > 0);
+  assert.ok(game.report.review.keyCorrect);
+  assert.ok(game.report.review.keyMistake);
+  assert.equal(game.report.doctrine, '情报主导型');
 });
 
 let passed = 0;

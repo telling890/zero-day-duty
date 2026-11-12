@@ -39,6 +39,7 @@
 
   const game = new ZDD.Game({ data: ZDD.data, seed: ZDD.randomSeed(), storage: global.localStorage });
   game.seed = ZDD.randomSeed();
+  game.difficultyId = game.difficultySet.defaultId;
   const audio = new ZDD.AudioManager();
   const effects = new ZDD.Effects({
     flash: $('fx-flash'),
@@ -186,6 +187,14 @@
 
     // 主菜单信息
     $('menu-seed-text').textContent = `随机种子 ${game.seed}`;
+    const difficulty = game.difficultyMode;
+    document.querySelectorAll('.diff-btn').forEach((button) => {
+      const active = button.dataset.difficulty === difficulty.id;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    $('menu-difficulty-desc').textContent = `${difficulty.name}：${difficulty.tagline}。${difficulty.description}`;
+    $('topbar-difficulty').textContent = difficulty.name;
     const hasSave = game.saveManager.hasSave();
     const continueButton = $('menu-continue');
     continueButton.disabled = !hasSave;
@@ -224,6 +233,11 @@
     const target = game.currentTarget();
     if (!option || !target || !option.enabled) return false;
     effects.setFocusElement(target.device ? topology.nodeElement(target.device.deviceId) : null);
+    const hint = game.consumeActionHint(option, target);
+    if (hint) {
+      game.pushMessage(`新手提示：${hint}`, 'orange');
+      effects.addBanner('新手提示', hint.slice(0, 46), 'orange');
+    }
     audio.play('click');
     game.performAction(option, target);
     renderAll();
@@ -343,7 +357,7 @@
         ui.modal = null;
         ui.guideCompleted = false;
         game.seed = ZDD.randomSeed();
-        game.newGame({ briefing: true });
+        game.newGame({ briefing: true, difficulty: game.difficultyId });
         renderAll();
         break;
       case 'result-menu':
@@ -371,7 +385,7 @@
         renderAll();
         break;
       case 'pause-restart':
-        game.newGame();
+        game.newGame({ difficulty: game.difficultyId });
         renderAll();
         break;
       case 'pause-menu':
@@ -399,7 +413,7 @@
   function bindMenu() {
     $('menu-start').addEventListener('click', () => {
       ui.modal = null;
-      game.newGame({ briefing: true });
+      game.newGame({ briefing: true, difficulty: game.difficultyId });
       game.pushMessage('提示：按 ` 打开终端，按 C 打开自动化剧本，都可以直接处置目标。', 'accent');
       renderAll();
     });
@@ -414,7 +428,7 @@
       ui.guideCompleted = false;
       ui.tutorialOpen = true;
       ui.tutorialPage = 0;
-      game.newGame({ tutorial: true });
+      game.newGame({ tutorial: true, difficulty: game.difficultyId });
       renderAll();
     });
     $('menu-history').addEventListener('click', () => {
@@ -424,6 +438,12 @@
     $('menu-seed').addEventListener('click', () => {
       game.seed = ZDD.randomSeed();
       $('menu-seed-text').textContent = `随机种子 ${game.seed}`;
+    });
+    document.querySelectorAll('.diff-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        game.difficultyId = button.dataset.difficulty;
+        renderAll();
+      });
     });
     $('menu-help').addEventListener('click', () => {
       ui.modal = 'help';
@@ -723,7 +743,7 @@
       if ((event.key === 'Enter' || event.key === 'NumpadEnter') && game.state === 'menu') {
         if (interactive) return;
         event.preventDefault();
-        game.newGame({ briefing: true });
+        game.newGame({ briefing: true, difficulty: game.difficultyId });
         renderAll();
       }
     });

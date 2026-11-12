@@ -42,10 +42,10 @@
       return Math.round(MARGIN_MIN + (MARGIN_MAX - MARGIN_MIN) * (1 - confidence));
     }
 
-    estimate(event, device, currentTurn, confidenceBonus) {
+    estimate(event, device, currentTurn, confidenceBonus, marginScale) {
       const trueValue = this.trueRisk(event, device, currentTurn);
       const confidence = Math.min(CONFIDENCE_MAX, this.confidence(event) + (confidenceBonus || 0));
-      const margin = this.margin(confidence);
+      const margin = Math.round(this.margin(confidence) * Math.max(0.1, Number(marginScale ?? 1)));
       const low = Math.max(0, trueValue - margin);
       let high = Math.min(100, trueValue + margin);
       if (high - low < 6) high = Math.min(100, low + 6);

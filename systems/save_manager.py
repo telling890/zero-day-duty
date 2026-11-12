@@ -73,6 +73,11 @@ class SaveManager:
             "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "seed": game.seed,
             "turn": game.turn,
+            "difficulty": game.difficulty_id,
+            "hints_used": int(game.hints_used),
+            "timeline": [dict(item) for item in game.timeline],
+            "pending_delayed": [dict(item) for item in game.pending_delayed],
+            "decision_history": [dict(item) for item in game.decision_history],
             "rng_state": _encode_rng(game.rng.getstate()),
             "player": game.player.to_dict(),
             "devices": {device_id: device.to_state() for device_id, device in game.devices.items()},
@@ -185,6 +190,19 @@ class SaveManager:
             # 所有数据解析成功后再写入 Game，避免半加载状态
             game.seed = seed
             game.rng = rng
+            game.difficulty_id = game.difficulty_set.get(
+                str(data.get("difficulty", game.difficulty_set.default_id))
+            ).mode_id
+            game.hints_used = max(0, int(data.get("hints_used", 0)))
+            game.timeline = [
+                dict(item) for item in data.get("timeline", []) if isinstance(item, dict)
+            ] if isinstance(data.get("timeline"), list) else []
+            game.pending_delayed = [
+                dict(item) for item in data.get("pending_delayed", []) if isinstance(item, dict)
+            ] if isinstance(data.get("pending_delayed"), list) else []
+            game.decision_history = [
+                dict(item) for item in data.get("decision_history", []) if isinstance(item, dict)
+            ] if isinstance(data.get("decision_history"), list) else []
             game.devices = devices
             game.player = player
             game.player.turn = turn
@@ -227,6 +245,7 @@ class SaveManager:
             "ending": report.ending_title,
             "style": report.style,
             "seed": int(seed),
+            "difficulty": str(summary.get("difficulty_id", "standard")),
             "turn": int(summary.get("turn", 0)),
             "resolved": int(summary.get("resolved", 0)),
             "missed": int(summary.get("missed", 0)),

@@ -65,6 +65,52 @@
         achievements: this.achievements(summary, endingKey),
         newsHeadline,
         newsDetail,
+        doctrine: String(summary.doctrine || '混合型'),
+        timeline: Array.isArray(summary.timeline) ? summary.timeline.slice() : [],
+        review: this.review(summary),
+      };
+    }
+
+    review(summary) {
+      const timeline = Array.isArray(summary.timeline)
+        ? summary.timeline.filter((item) => item && typeof item === 'object')
+        : [];
+      const dangerous = summary.dangerous_event || {};
+      let correct = null;
+      if (dangerous.name) {
+        correct = timeline.find(
+          (item) => item.kind === 'eradicate' && String(item.text || '').includes(dangerous.name),
+        ) || null;
+      }
+      if (!correct) correct = timeline.find((item) => item.kind === 'eradicate') || null;
+      if (!correct) correct = timeline.find((item) => item.kind === 'contain') || null;
+      if (!correct) correct = timeline.find((item) => item.kind === 'investigate') || null;
+      const mistake = timeline.find(
+        (item) => item.kind === 'false_isolation' || item.kind === 'mistake',
+      ) || null;
+      let mistakeText = mistake ? String(mistake.text || '') : '';
+      if (!mistakeText) {
+        const missedNames = Array.isArray(summary.missed_names)
+          ? summary.missed_names.map(String).filter(Boolean)
+          : [];
+        if (missedNames.length) {
+          mistakeText = `漏掉未处置的真实攻击：${missedNames.slice(0, 3).join('、')}`;
+        } else if (summary.data_leak) {
+          mistakeText = '关键攻击链在最终阶段前没有被彻底清除，导致数据泄露。';
+        }
+      }
+      const delayed = timeline.filter(
+        (item) => item.kind === 'delayed' && item.effects && typeof item.effects === 'object'
+          && Object.values(item.effects).some((value) => Number(value) < 0),
+      );
+      return {
+        keyCorrect: correct ? String(correct.text || '') : '本局没有可确认的关键正确处置。',
+        keyMistake: mistakeText || '未发生误封或无效操作。',
+        invalidActions: Number(summary.invalid_actions || 0),
+        falseIsolationLoss: Number(summary.false_isolation_loss || 0),
+        dangerousEvent: dangerous,
+        delayed,
+        doctrine: String(summary.doctrine || '混合型'),
       };
     }
 

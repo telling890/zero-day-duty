@@ -53,14 +53,16 @@
       });
     }
 
-    income(devices) {
+    income(devices, floor) {
       let total = 0;
       for (const config of this.configs) {
         const device = devices[config.deviceId];
         if (!device) continue;
         total += config.revenue * ServiceManager.healthForDevice(device)[0];
       }
-      return Math.round(total);
+      const value = Math.round(total);
+      const minimum = Number(floor || 0);
+      return value > 0 ? Math.max(minimum, value) : value;
     }
 
     availability(devices) {

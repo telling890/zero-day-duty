@@ -43,10 +43,12 @@
       "tier": 2,
       "name": "威胁情报订阅",
       "cost": 300,
-      "description": "每次调查多揭示 1 条线索，置信度再 +10%。专精：情报深挖。",
+      "description": "每次调查多揭示 1 条线索，置信度再 +10%；更早识别同源战役，并能推断下一跳方向。专精：情报深挖。",
       "effects": {
         "extra_clue": 1,
-        "confidence_bonus": 0.1
+        "confidence_bonus": 0.1,
+        "campaign_early_reveal": 1,
+        "next_hop_detail": 1
       },
       "requires": ["log_plugin"],
       "excludes": ["playbook", "redundant_link"]
@@ -69,10 +71,11 @@
       "tier": 1,
       "name": "自动封禁剧本",
       "cost": 180,
-      "description": "封禁来源 IP 不消耗行动点（资金降为 ¥15）。",
+      "description": "封禁来源 IP 不消耗行动点（资金降为 ¥15）；自动化规则误封合作方时声誉损失 +3。",
       "effects": {
         "block_source_ap": -1,
-        "block_source_money": 15
+        "block_source_money": 15,
+        "false_block_penalty": 3
       },
       "excludes": ["edr"]
     },
@@ -82,10 +85,11 @@
       "tier": 2,
       "name": "自动化处置剧本",
       "cost": 320,
-      "description": "清除威胁行动点 -1、资金 -¥15。专精：快速清场。",
+      "description": "清除威胁行动点 -1、资金 -¥15；自动化剧本在误封关键设备时额外 -2 声誉。专精：快速清场。",
       "effects": {
         "eradicate_ap": -1,
-        "eradicate_money": -15
+        "eradicate_money": -15,
+        "false_isolation_penalty": 2
       },
       "requires_any": ["edr", "auto_block"],
       "excludes": ["threat_intel", "redundant_link"]
@@ -108,10 +112,11 @@
       "tier": 2,
       "name": "多线路与 SLA 缓冲",
       "cost": 280,
-      "description": "每回合收入 +¥30；SLA 违约声誉惩罚 -1。专精：保业务。",
+      "description": "每回合收入 +¥30；SLA 违约声誉惩罚 -1；业务降级时收入至少按 ¥60 结算。专精：保业务。",
       "effects": {
         "income_bonus": 30,
-        "sla_reputation_mitigation": 1
+        "sla_reputation_mitigation": 1,
+        "income_floor": 60
       },
       "requires": ["offline_backup"],
       "excludes": ["threat_intel", "playbook"]

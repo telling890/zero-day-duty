@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "default": "standard",
+  "modes": [
+    {
+      "id": "novice",
+      "name": "新手模式",
+      "tagline": "完整处置建议 + 更准风险区间 + 一次关键提示",
+      "description": "适合第一次游玩和课堂演示：调查会给出完整处置建议和精确下一跳，风险区间更窄，并在第一次关键误操作前提醒一次。",
+      "recommendations": "full",
+      "next_hop": "exact",
+      "risk_scale": 0.55,
+      "clue_noise": 0,
+      "false_positive_rate": 0.2,
+      "log_delay": 0,
+      "hints": 1,
+      "false_isolation_penalty": 1.0,
+      "decision_detail": "full"
+    },
+    {
+      "id": "standard",
+      "name": "标准模式",
+      "tagline": "证据、风险与处置方向，保留少量不完整信息",
+      "description": "调查只给出证据、风险区间和处置方向，不再列出完整操作顺序；存在少量误报，下一跳只显示大致方向。",
+      "recommendations": "direction",
+      "next_hop": "direction",
+      "risk_scale": 1.0,
+      "clue_noise": 0,
+      "false_positive_rate": 0.5,
+      "log_delay": 0,
+      "hints": 0,
+      "false_isolation_penalty": 1.0,
+      "decision_detail": "partial"
+    },
+    {
+      "id": "expert",
+      "name": "专家模式",
+      "tagline": "无完整建议、延迟日志、噪声线索与更高的误封代价",
+      "description": "调查只给证据与风险，部分日志延迟一个回合，线索可能互相冲突；误封和业务中断的损失更高，脚本同样不能读取隐藏标签。",
+      "recommendations": "none",
+      "next_hop": "none",
+      "risk_scale": 1.35,
+      "clue_noise": 1,
+      "false_positive_rate": 0.65,
+      "log_delay": 1,
+      "hints": 0,
+      "false_isolation_penalty": 1.6,
+      "decision_detail": "partial"
+    }
+  ]
+}

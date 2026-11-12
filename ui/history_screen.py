@@ -53,8 +53,8 @@ class HistoryScreen:
                 (self.rect.x + 30, self.rect.y + 110),
             )
         else:
-            header = ("#", "得分", "等级", "结局", "回合", "种子", "时间")
-            x_positions = (30, 100, 190, 330, 600, 690, 780)
+            header = ("#", "得分", "等级", "结局", "回合", "难度", "种子", "时间")
+            x_positions = (30, 100, 190, 310, 560, 630, 705, 790)
             header_font = draw_utils.get_font(11, True)
             for text, x in zip(header, x_positions):
                 surface.blit(header_font.render(text, True, settings.TEXT_FAINT), (self.rect.x + x, self.rect.y + 94))
@@ -83,6 +83,9 @@ class HistoryScreen:
                     grade,
                     str(entry.get("ending", "-")),
                     str(entry.get("turn", "-")),
+                    {"novice": "新手", "standard": "标准", "expert": "专家"}.get(
+                        str(entry.get("difficulty", "standard")), "标准"
+                    ),
                     str(entry.get("seed", "-")),
                     str(entry.get("timestamp", "-")),
                 )

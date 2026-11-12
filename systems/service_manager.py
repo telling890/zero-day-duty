@@ -134,8 +134,8 @@ class ServiceManager:
             )
         return result
 
-    def income(self, devices: dict[str, Device]) -> int:
-        """按 SLA 结算的当回合服务收入（满额 120）。"""
+    def income(self, devices: dict[str, Device], floor: int = 0) -> int:
+        """按 SLA 结算的当回合服务收入（满额 120）。floor 为韧性流的收入下限。"""
         total = 0.0
         for config in self.configs:
             device = devices.get(config.device_id)
@@ -143,7 +143,8 @@ class ServiceManager:
                 continue
             health, _status, _reason = self.health_for_device(device)
             total += config.revenue * health
-        return int(round(total))
+        value = int(round(total))
+        return max(int(floor), value) if value > 0 else value
 
     def availability(self, devices: dict[str, Device]) -> int:
         """按业务重要度加权的服务可用性，用于顶部指标。"""

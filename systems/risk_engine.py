@@ -65,11 +65,15 @@ class RiskEngine:
         device: Device | None,
         current_turn: int,
         confidence_bonus: float = 0.0,
+        margin_scale: float = 1.0,
     ) -> tuple[int, int, int]:
-        """返回 (下限, 上限, 置信度百分比)。玩家只能看到这个区间。"""
+        """返回 (下限, 上限, 置信度百分比)。玩家只能看到这个区间。
+
+        margin_scale 由难度决定：新手更窄，专家更宽；不改变真实风险本身。
+        """
         true_value = self.true_risk(event, device, current_turn)
         confidence = min(settings.CONFIDENCE_MAX, self.confidence(event) + confidence_bonus)
-        margin = self.margin(confidence)
+        margin = int(round(self.margin(confidence) * max(0.1, float(margin_scale))))
         low = max(0, true_value - margin)
         high = min(100, true_value + margin)
         if high - low < 6:

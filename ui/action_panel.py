@@ -125,6 +125,10 @@ class ActionPanel:
             if button.handle_event(event):
                 target = game.current_target()
                 if target is not None:
+                    hint = game.consume_action_hint(option, target)
+                    if hint:
+                        game.push_message(f"新手提示：{hint}", settings.ORANGE)
+                        game.effects.add_banner("新手提示", hint[:46], settings.ORANGE)
                     game.perform_action(option, target)
                 return True
         return False

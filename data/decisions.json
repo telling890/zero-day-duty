@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
+  "note": "hint 只写玩家能合理预知的直接成本；hidden_effects 与 delayed 在结算/延迟回合解释。condition 由游戏内条件解释器求值，不使用 eval。",
   "decisions": [
     {
       "id": "customer_pressure",
@@ -9,20 +10,57 @@
       "choices": [
         {
           "label": "关闭搜索接口，优先排查",
-          "hint": "可用性 -8，安全度 +5",
+          "hint": "可用性 -8",
           "effects": {
-            "availability": -8,
+            "availability": -8
+          },
+          "hidden_effects": {
             "security": 5
           },
+          "delayed": [
+            {
+              "after_turns": 2,
+              "condition": {
+                "active_events_at_least": 2
+              },
+              "effects": {
+                "security": -3
+              },
+              "text": "关闭接口挡住了搜索探测，但攻击者转向了未受保护的服务；根因未除。",
+              "else_effects": {
+                "security": 2
+              },
+              "else_text": "关闭接口后没有新的探测，排查窗口被争取到了。"
+            }
+          ],
           "result": "搜索接口短暂下线，异常请求被挡住，但客户在群里连续追问了三次。"
         },
         {
           "label": "保持在线，只加强监控",
-          "hint": "声誉 +3，安全度 -2",
+          "hint": "声誉 +3",
           "effects": {
-            "reputation": 3,
+            "reputation": 3
+          },
+          "hidden_effects": {
             "security": -2
           },
+          "delayed": [
+            {
+              "after_turns": 2,
+              "condition": {
+                "active_events_at_least": 3
+              },
+              "effects": {
+                "security": -4,
+                "reputation": -2
+              },
+              "text": "攻击仍在扩散，客户开始追问异常流量；保持在线换来了短期信任，却放大了暴露面。",
+              "else_effects": {
+                "security": 1
+              },
+              "else_text": "业务保持在线，攻击也没有继续扩大；这次观察是值得的。"
+            }
+          ],
           "result": "服务没有中断，客户满意；但攻击面仍然暴露，安全团队只能继续观察。"
         }
       ],
@@ -36,25 +74,153 @@
       "choices": [
         {
           "label": "主动披露并安抚客户",
-          "hint": "资金 -120，声誉 +5，安全度 +2",
+          "hint": "资金 -120，声誉 +5",
           "effects": {
             "funds": -120,
-            "reputation": 5,
+            "reputation": 5
+          },
+          "hidden_effects": {
             "security": 2
           },
+          "delayed": [
+            {
+              "after_turns": 3,
+              "condition": {
+                "data_leak": true
+              },
+              "effects": {
+                "reputation": -4
+              },
+              "text": "披露后确认仍有数据外泄，客户追问细节，信任二次受损。",
+              "else_effects": {
+                "security": 1
+              },
+              "else_text": "提前沟通稳住了客户，也没有出现新的泄露证据。"
+            }
+          ],
           "result": "公司发布简短声明并启动客户沟通，短期成本增加，但信任没有崩塌。"
         },
         {
           "label": "暂不回应，集中排查",
-          "hint": "声誉 -4，安全度 +3",
+          "hint": "声誉 -4",
           "effects": {
-            "reputation": -4,
+            "reputation": -4
+          },
+          "hidden_effects": {
             "security": 3
           },
+          "delayed": [
+            {
+              "after_turns": 2,
+              "condition": {
+                "data_leak": true
+              },
+              "effects": {
+                "reputation": -5
+              },
+              "text": "媒体自行报道了“疑似泄露”，公关只能被动应对。",
+              "else_effects": {
+                "security": 1
+              },
+              "else_text": "排查没有发现外泄证据，沉默没有造成进一步损失。"
+            }
+          ],
           "result": "团队把全部精力放在排查上，媒体的报道在第二天变成了质疑。"
         }
       ],
       "speaker": "公关负责人 · 林岚"
+    },
+    {
+      "id": "service_tradeoff",
+      "turn": 5,
+      "title": "高风险服务窗口",
+      "prompt": "运维发现对外服务附近出现异常流量，但还没有确认攻击是否已经进入内网。你可以立即关停、限流观察，或者保持在线集中调查。三个选择都有代价。",
+      "choices": [
+        {
+          "label": "立即关闭高风险服务",
+          "hint": "可用性 -12",
+          "effects": {
+            "availability": -12
+          },
+          "hidden_effects": {
+            "security": 4
+          },
+          "delayed": [
+            {
+              "after_turns": 2,
+              "condition": {
+                "active_events_at_least": 2
+              },
+              "effects": {
+                "security": 2
+              },
+              "text": "关闭窗口压住了扩散，攻击者转向未被暴露的资产；整体节奏被拖慢。",
+              "else_effects": {
+                "reputation": -5
+              },
+              "else_text": "没有发现后续攻击，客户投诉停服；这是一次过度防御。"
+            }
+          ],
+          "result": "高风险服务被关闭，安全团队获得了排查窗口，但客户开始抱怨不可用。"
+        },
+        {
+          "label": "限流并继续观察",
+          "hint": "资金 -40，可用性 -4",
+          "effects": {
+            "funds": -40,
+            "availability": -4
+          },
+          "hidden_effects": {
+            "security": 1
+          },
+          "delayed": [
+            {
+              "after_turns": 2,
+              "condition": {
+                "threat_at_least": 3
+              },
+              "effects": {
+                "security": -3
+              },
+              "text": "限流没有挡住横向移动；观察窗口被攻击者利用，攻击进入了更深的阶段。",
+              "else_effects": {
+                "security": 2
+              },
+              "else_text": "限流把异常流量压了下去，核心业务没有受到影响。"
+            }
+          ],
+          "result": "对外服务被限流，异常流量下降，但运维需要持续盯住指标。"
+        },
+        {
+          "label": "保持在线，集中调查",
+          "hint": "声誉 +2",
+          "effects": {
+            "reputation": 2
+          },
+          "hidden_effects": {
+            "security": -2
+          },
+          "delayed": [
+            {
+              "after_turns": 2,
+              "condition": {
+                "active_events_at_least": 1
+              },
+              "effects": {
+                "security": -4,
+                "availability": -4
+              },
+              "text": "集中调查没有及时控制服务，攻击影响了对外业务；在线换来的时间被攻击者用掉了。",
+              "else_effects": {
+                "security": 3
+              },
+              "else_text": "调查确认只是虚惊，业务保持在线，客户没有感知到中断。"
+            }
+          ],
+          "result": "服务保持在线，团队把精力放到调查上；风险仍在，但客户暂时没有投诉。"
+        }
+      ],
+      "speaker": "IT 运维 · 阿哲"
     }
   ]
 }

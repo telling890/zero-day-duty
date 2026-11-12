@@ -19,6 +19,7 @@ from models.device import Device, validate_device_configs
 from models.player_state import METRIC_LABELS, MetricKey, PlayerState
 from systems.action_manager import ActionResult, ActionManager, ActionOption, Target
 from systems.audio_manager import get_audio
+from systems.difficulty import DifficultySet
 from systems.event_manager import EventManager
 from systems.log_system import LogSystem
 from systems.risk_engine import RiskEngine
@@ -90,6 +91,11 @@ class Game:
         self.decisions: list[dict[str, Any]] = [
             item for item in decisions if isinstance(item, dict) and item.get("id")
         ]
+        difficulty_payload = settings.load_json(settings.DIFFICULTY_FILE)
+        if not isinstance(difficulty_payload, dict):
+            raise settings.DataError("difficulty.json 的根节点必须是 JSON 对象")
+        self.difficulty_set = DifficultySet(difficulty_payload)
+        self.difficulty_id = self.difficulty_set.default_id
 
         # ------------------------------------------------------------------
         # 界面组件
@@ -165,6 +171,10 @@ class Game:
         self.seen_decisions: set[str] = set()
         self.tutorial_mode = False
         self.report: ScoreReport | None = None
+        self.hints_used = 0
+        self.timeline: list[dict[str, Any]] = []
+        self.pending_delayed: list[dict[str, Any]] = []
+        self.decision_history: list[dict[str, Any]] = []
 
         self.background = self._build_background()
         self.logs.add(0, settings.clock_text(0), "系统", "监控中心启动，等待值班员开始游戏。")
@@ -184,7 +194,9 @@ class Game:
         surface.blit(glow, (0, 0))
         return surface
 
-    def new_game(self, tutorial: bool = False, briefing: bool = False) -> None:
+    def new_game(self, tutorial: bool = False, briefing: bool = False, difficulty: str | None = None) -> None:
+        if difficulty:
+            self.difficulty_id = self.difficulty_set.get(difficulty).mode_id
         self.rng = random.Random(self.seed)
         self.player = PlayerState()
         self.devices = {config["id"]: Device.from_config(config) for config in self._device_configs}
@@ -204,12 +216,17 @@ class Game:
         self.best_combo = 0
         self.seen_decisions = set()
         self.report = None
+        self.hints_used = 0
+        self.timeline = []
+        self.pending_delayed = []
+        self.decision_history = []
         self.effects = EffectsManager()
         self.state = GameState.PLAYING
         self.shop.close()
         self.history_screen.close()
         self.decision_screen.close()
         self.tutorial_screen.close()
+        self.result_screen.timeline_visible = False
         self.tutorial_guide.reset()
         self.briefing.close()
         self.help.hide()
@@ -230,7 +247,7 @@ class Game:
             0,
             settings.clock_text(0),
             "系统",
-            f"值班开始：{settings.COMPANY_NAME}，随机种子 {self.seed}。",
+            f"值班开始：{settings.COMPANY_NAME}，随机种子 {self.seed}，难度 {self.difficulty_mode.name}。",
         )
         self.audio.play_ambient()
         self.recompute_availability("开局网络状态")
@@ -259,7 +276,9 @@ class Game:
             f"第 {self.turn} 回合开始（{settings.clock_text(self.turn)}），行动点已重置。",
             settings.ACCENT,
         )
-        service_income = self.services.income(self.devices)
+        service_income = self.services.income(
+            self.devices, int(self.modifiers.get("income_floor", 0))
+        )
         income_bonus = int(self.modifiers.get("income_bonus", 0))
         self.adjust_metric(
             MetricKey.FUNDS,
@@ -285,6 +304,7 @@ class Game:
         if self.player.funds <= settings.FUNDS_WARN:
             self.push_message("资金偏低：后续操作的可用选项会受限，请谨慎花费。", settings.ORANGE)
         self.events.start_turn(self)
+        self.process_delayed_effects()
         self._maybe_trigger_decision()
         self.action_panel._signature = None
         self.log_panel._cache_key = None
@@ -386,6 +406,8 @@ class Game:
             self.state = GameState.MENU
 
     def finish(self, reason: str) -> None:
+        # 值班结束时，尚未到期的延迟后果也一并结算，保证结算界面能解释完整因果
+        self.process_delayed_effects(force=True)
         self.state = GameState.RESULT
         self.briefing.close()
         self.audio.stop_ambient()
@@ -440,7 +462,9 @@ class Game:
             "security_breach": self.security_breach,
             "best_combo": self.best_combo,
             "service_availability": self.services.availability(self.devices),
-            "service_income": self.services.income(self.devices),
+            "service_income": self.services.income(
+                self.devices, int(self.modifiers.get("income_floor", 0))
+            ),
             "sla_breaches": int(self.player.stats.get("sla_breaches", 0)),
             "campaigns": campaigns,
             "campaigns_cleared": len(
@@ -450,11 +474,94 @@ class Game:
                     if item.get("spawned") and item.get("resolved") == item.get("spawned")
                 ]
             ),
+            "difficulty_id": self.difficulty_id,
+            "difficulty_name": self.difficulty_mode.name,
+            "timeline": [dict(item) for item in self.timeline],
+            "decision_history": [dict(item) for item in self.decision_history],
+            "invalid_actions": int(self.player.stats.get("invalid_actions", 0)),
+            "false_isolation_loss": int(self.player.stats.get("false_isolation_loss", 0)),
+            "doctrine": self.doctrine(),
+            "dangerous_event": self.dangerous_event(),
         }
+
+    def doctrine(self) -> str:
+        counts = {"detect": 0, "respond": 0, "resilience": 0}
+        for upgrade in self.upgrade_tree.upgrades:
+            if upgrade.upgrade_id in self.player.upgrades:
+                counts[upgrade.track] = counts.get(upgrade.track, 0) + 1
+        ranked = sorted(counts.items(), key=lambda item: item[1], reverse=True)
+        top = ranked[0] if ranked else ("", 0)
+        second = ranked[1] if len(ranked) > 1 else ("", 0)
+        if top[1] < 2 or (second and second[1] == top[1]):
+            return "混合型"
+        return {"detect": "情报主导型", "respond": "响应主导型", "resilience": "韧性主导型"}.get(
+            top[0], "混合型"
+        )
+
+    def dangerous_event(self) -> dict[str, Any] | None:
+        resolved = [event for event in self.events.events if event.eradicated]
+        if not resolved:
+            return None
+        event = max(resolved, key=lambda item: (item.severity, item.stage_index))
+        return {
+            "name": event.name,
+            "severity": event.severity,
+            "stage": event.stage_index + 1,
+        }
+
+    def consume_action_hint(self, option: ActionOption, target: Target) -> str:
+        """新手模式的一次关键操作提示；只提示，不阻止操作。"""
+        mode = self.difficulty_mode
+        if mode.hints <= 0 or self.hints_used >= mode.hints:
+            return ""
+        alert = target.alert
+        device = target.device
+        event = self.event_for_alert(alert) if alert is not None else None
+        reason = ""
+        action_id = option.action_id
+        if action_id == "delete_mail" and event is not None and event.stage_index > 1:
+            reason = "邮件删除已经太晚，凭据可能已经泄露；考虑重置凭据或清除设备。"
+        elif action_id == "unisolate" and device is not None and self.controlled_events_for_device(device.device_id):
+            reason = "解除隔离会让被压制的攻击重新活跃；先清除根因，再恢复业务。"
+        elif action_id == "shutdown" and device is not None and device.importance >= 4:
+            reason = "关闭关键设备会中断业务并扣声誉；确认这是必要控制，而不是过度防御。"
+        elif action_id == "isolate" and device is not None and device.importance >= 4 and not self.events_for_device(device.device_id):
+            reason = "该设备承载关键业务且没有活动事件，隔离可能造成误封和业务中断。"
+        if not reason:
+            return ""
+        self.hints_used += 1
+        self.logs.add(
+            self.turn,
+            settings.clock_text(self.turn),
+            "系统",
+            f"新手提示：{reason}",
+            source=device.name if device else "",
+        )
+        self.record_timeline("hint", f"新手提示：{reason}")
+        return reason
 
     # ==================================================================
     # 指标与资源
     # ==================================================================
+    @property
+    def difficulty_mode(self) -> Any:
+        """当前难度配置（缺失时回退到默认标准模式）。"""
+        return self.difficulty_set.get(self.difficulty_id)
+
+    def record_timeline(self, kind: str, text: str, **extra: Any) -> dict[str, Any]:
+        """记录真实发生的因果事件，供结算时间线使用。"""
+        entry: dict[str, Any] = {
+            "turn": int(self.turn),
+            "clock": settings.clock_text(self.turn),
+            "kind": str(kind),
+            "text": str(text),
+        }
+        entry.update(extra)
+        self.timeline.append(entry)
+        if len(self.timeline) > 240:
+            self.timeline = self.timeline[-240:]
+        return entry
+
     @property
     def threat_level(self) -> int:
         """威胁等级随未处置事件数量上升，最多 5 级。"""
@@ -512,6 +619,9 @@ class Game:
         if not isinstance(choice, dict):
             return
         label = str(choice.get("label", "选择"))
+        decision_id = str(decision.get("id", ""))
+        title = str(decision.get("title", "值班决策"))
+        # 直接成本：玩家在选项上能合理预知的代价，正常记录
         effects = choice.get("effects", {})
         if isinstance(effects, dict):
             for key, value in effects.items():
@@ -521,12 +631,166 @@ class Game:
                     delta = int(value)
                 except (TypeError, ValueError):
                     continue
-                self.adjust_metric(key, delta, f"值班决策「{decision.get('title', '')}」")
+                self.adjust_metric(key, delta, f"值班决策「{title}」")
+        # 隐藏影响：立即生效但不写入精确数值日志，避免变成算术题；
+        # 只进入结算时间线，由最终复盘解释。
+        hidden = choice.get("hidden_effects", {})
+        hidden_actual: dict[str, int] = {}
+        if isinstance(hidden, dict):
+            for key, value in hidden.items():
+                if key not in ("security", "funds", "reputation", "availability", "integrity"):
+                    continue
+                try:
+                    delta = int(value)
+                except (TypeError, ValueError):
+                    continue
+                actual = self.player.adjust(key, delta, f"值班决策「{title}」的隐性影响")
+                if actual:
+                    hidden_actual[key] = actual
+        delayed_items = choice.get("delayed", [])
+        if not isinstance(delayed_items, list):
+            delayed_items = []
+        for item in delayed_items:
+            if not isinstance(item, dict):
+                continue
+            try:
+                after = max(1, min(3, int(item.get("after_turns", 1))))
+            except (TypeError, ValueError):
+                after = 1
+            pending = {
+                "due_turn": min(self.player.total_turns + 1, self.turn + after),
+                "source_id": decision_id,
+                "source_title": title,
+                "choice_label": label,
+                "condition": item.get("condition", {}),
+                "effects": item.get("effects", {}),
+                "text": str(item.get("text", "")),
+                "else_effects": item.get("else_effects", {}),
+                "else_text": str(item.get("else_text", "")),
+            }
+            self.pending_delayed.append(pending)
+            self.record_timeline(
+                "decision_delayed",
+                f"决策「{title}」选择「{label}」，将在第 {pending['due_turn']} 回合产生后续影响",
+                decision_id=decision_id,
+            )
+        self.decision_history.append(
+            {
+                "id": decision_id,
+                "turn": self.turn,
+                "title": title,
+                "choice": label,
+                "choice_index": int(index),
+                "known_effects": dict(effects) if isinstance(effects, dict) else {},
+                "hidden_effects": hidden_actual,
+            }
+        )
+        self.record_timeline(
+            "decision",
+            f"第 {self.turn} 回合决策「{title}」：选择「{label}」",
+            decision_id=decision_id,
+        )
+        if hidden_actual:
+            hidden_summary = "、".join(
+                f"{METRIC_LABELS.get(key, key)} {value:+d}" for key, value in hidden_actual.items()
+            )
+            self.record_timeline(
+                "decision_hidden",
+                f"「{title}」选择「{label}」的隐性影响：{hidden_summary}",
+                decision_id=decision_id,
+            )
         result = str(choice.get("result", ""))
         self.push_message(f"决策：{label}。{result}", settings.ACCENT)
         self.effects.add_banner(f"决策：{label}", result[:46], settings.ORANGE)
         self.audio.play("click")
         self.decision_screen.close()
+
+    # ------------------------------------------------------------------
+    # 延迟决策后果
+    # ------------------------------------------------------------------
+    def _condition_met(self, condition: Any) -> bool:
+        if not isinstance(condition, dict) or not condition:
+            return True
+        for key, value in condition.items():
+            if key == "active_events_at_least":
+                count = len([event for event in self.events.events if event.is_active])
+                if count < int(value):
+                    return False
+            elif key == "threat_at_least":
+                if self.threat_level < int(value):
+                    return False
+            elif key == "service_outage_at_least":
+                count = len([view for view in self.services.views(self.devices) if view.status == "中断"])
+                if count < int(value):
+                    return False
+            elif key == "data_leak":
+                if bool(self.data_leak) != bool(value):
+                    return False
+            elif key == "false_isolation_at_least":
+                if int(self.player.stats.get("false_isolations", 0)) < int(value):
+                    return False
+            elif key == "security_below":
+                if self.player.security >= int(value):
+                    return False
+            else:
+                return False
+        return True
+
+    def _apply_effect_map(self, effects: Any, reason: str) -> None:
+        if not isinstance(effects, dict):
+            return
+        for key, value in effects.items():
+            if key not in ("security", "funds", "reputation", "availability", "integrity"):
+                continue
+            try:
+                delta = int(value)
+            except (TypeError, ValueError):
+                continue
+            if delta:
+                self.adjust_metric(key, delta, reason)
+
+    def process_delayed_effects(self, force: bool = False) -> None:
+        if not self.pending_delayed:
+            return
+        remaining: list[dict[str, Any]] = []
+        for item in self.pending_delayed:
+            if not force and int(item.get("due_turn", 0)) > self.turn:
+                remaining.append(item)
+                continue
+            matched = self._condition_met(item.get("condition"))
+            effects = item.get("effects") if matched else item.get("else_effects")
+            text = str(item.get("text") if matched else item.get("else_text") or "")
+            reason = f"延迟决策「{item.get('source_title', '')}」"
+            self._apply_effect_map(effects, reason)
+            if text:
+                self.logs.add(
+                    self.turn,
+                    settings.clock_text(self.turn),
+                    "情报",
+                    f"延迟后果：{text}",
+                )
+                self.push_message(f"延迟后果：{text}", settings.ORANGE)
+                self.effects.add_banner("延迟后果", text[:46], settings.ORANGE)
+            actual = effects if isinstance(effects, dict) else {}
+            summary = "、".join(
+                f"{METRIC_LABELS.get(key, key)} {int(value):+d}"
+                for key, value in actual.items()
+                if key in METRIC_LABELS
+            )
+            self.record_timeline(
+                "delayed",
+                f"「{item.get('choice_label', '')}」的延迟后果：{text or '指标变化'}",
+                source_id=str(item.get("source_id", "")),
+                effects=dict(actual),
+            )
+            if summary:
+                self.logs.add(
+                    self.turn,
+                    settings.clock_text(self.turn),
+                    "系统",
+                    f"延迟后果结算：{summary}",
+                )
+        self.pending_delayed = remaining
 
     def save_game(self) -> bool:
         ok, message = self.save_manager.save(self)
@@ -625,6 +889,11 @@ class Game:
             "操作",
             f"事件「{event.name}」已被控制，方式：{method}；根因尚未清除。",
         )
+        self.record_timeline(
+            "contain",
+            f"控制「{event.name}」：{method}",
+            event_id=event.event_id,
+        )
         self.push_message(
             f"「{event.name}」已控制，但还没清除。选择相关设备执行「清除威胁」。",
             settings.YELLOW,
@@ -707,6 +976,13 @@ class Game:
             position or (settings.SCREEN_WIDTH // 2, settings.SCREEN_HEIGHT // 2 - 60),
             settings.GREEN,
             16,
+        )
+        self.record_timeline(
+            "eradicate",
+            f"清除「{event.name}」：{method}",
+            event_id=event.event_id,
+            severity=getattr(event, "severity", 0),
+            stage=getattr(event, "stage_index", 0) + 1,
         )
 
     def resume_events_on(self, device_id: str, method: str = "隔离设备") -> list[str]:
@@ -1016,6 +1292,14 @@ class Game:
             self.history_screen.open()
         elif action == "seed":
             self.seed = random.randint(1000, 9999)
+        elif action == "difficulty":
+            modes = [mode.mode_id for mode in self.difficulty_set.modes]
+            try:
+                index = (modes.index(self.difficulty_id) + 1) % len(modes)
+            except ValueError:
+                index = 0
+            self.difficulty_id = modes[index]
+            self.push_message(f"难度已切换为：{self.difficulty_mode.name}", settings.ACCENT)
         elif action == "quit":
             self.running = False
 
