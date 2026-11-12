@@ -45,6 +45,7 @@ DEVICES_FILE = DATA_DIR / "devices.json"
 SERVICES_FILE = DATA_DIR / "services.json"
 UPGRADES_FILE = DATA_DIR / "upgrades.json"
 DECISIONS_FILE = DATA_DIR / "decisions.json"
+DIFFICULTY_FILE = DATA_DIR / "difficulty.json"
 SAVE_FILE = SAVE_DIR / "savegame.json"
 HISTORY_FILE = SAVE_DIR / "history.json"
 
@@ -52,7 +53,7 @@ HISTORY_FILE = SAVE_DIR / "history.json"
 # 基本信息
 # ---------------------------------------------------------------------------
 GAME_TITLE = "零日值班：网络安全防御模拟器"
-GAME_VERSION = "v1.5.0"
+GAME_VERSION = "v1.6.0"
 COMPANY_NAME = "云栖示例科技（虚构）"
 
 SCREEN_WIDTH = 1280

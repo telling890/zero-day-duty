@@ -96,7 +96,7 @@ class GameFlowTest(unittest.TestCase):
         tree = self.game.upgrade_tree
         self.assertEqual(len(self.game.upgrade_catalog), 7)
         self.assertEqual(len(tree.tracks), 3)
-        self.assertEqual(len(self.game.decisions), 2)
+        self.assertEqual(len(self.game.decisions), 3)
         configs = self.game.events.event_configs
         self.assertEqual(len(configs), 6)
         self.assertTrue(all(config.get("enabled") for config in configs))

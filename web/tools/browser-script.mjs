@@ -58,6 +58,20 @@ try {
     '代码语法高亮生效',
     await session.evaluate(`document.querySelectorAll('#script-highlight .k').length > 0 && document.querySelectorAll('#script-highlight .a').length > 0`),
   );
+  const hiddenState = await session.evaluate(`(() => {
+    const host = __zdd.script.buildHost();
+    const alert = host.alerts()[0];
+    return {
+      level: alert.props.level(),
+      falsePositive: alert.props.false_positive(),
+      event: alert.props.event(),
+      events: host.events().length,
+    };
+  })()`);
+  session.check('脚本读不到未调查告警的真实等级', hiddenState.level === '待评估', JSON.stringify(hiddenState));
+  session.check('脚本读不到未调查告警的误报标签', hiddenState.falsePositive === null, JSON.stringify(hiddenState));
+  session.check('脚本读不到未调查告警的事件归属', hiddenState.event === null, JSON.stringify(hiddenState));
+  session.check('脚本看不到未调查事件列表', hiddenState.events === 0, JSON.stringify(hiddenState));
   await session.screenshot('script-open');
 
   // 真实键入中文注释与字符串，检查高亮镜像
@@ -107,6 +121,17 @@ try {
   session.check('脚本耗尽行动点', runState.ap === 0, String(runState.ap));
   session.check('运行结束后编辑器解锁', !runState.readOnly);
   session.check('控制台有完成汇总', runState.console.includes('脚本完成：共执行 4 个操作'));
+  const revealedState = await session.evaluate(`(() => {
+    const host = __zdd.script.buildHost();
+    const alert = host.alerts().find((item) => item.props.investigated());
+    return {
+      level: alert.props.level(),
+      event: alert.props.event() !== null,
+      events: host.events().length,
+    };
+  })()`);
+  session.check('调查后脚本能读到真实等级', revealedState.level !== '待评估', JSON.stringify(revealedState));
+  session.check('调查后脚本能读到事件归属', revealedState.event === true && revealedState.events >= 1, JSON.stringify(revealedState));
   await session.screenshot('script-done');
 
   // 重新开一局，测试单步
@@ -156,18 +181,24 @@ try {
   session.check('错误行在行号栏标红', syntax.errorLine === true);
   session.check('语法错误后可以重新运行', syntax.runDisabled === false);
 
-  // next() 连续推进，遇到剧情决策自动暂停并关闭剧本
-  await setCode('next()\nnext()\nnext()\nprint("不会执行到这里")');
+  // next() 连续推进；先控制住邮件事件，避免第 3 回合末直接数据泄露掩盖决策测试
+  await setCode('isolate("PC-01")\nnext()\nnext()\nnext()\nprint("不会执行到这里")');
   await session.click('#script-run');
-  await sleep(2200);
+  await sleep(3000);
   const decision = await session.evaluate(`(() => ({
     pending: Boolean(__zdd.game.pendingDecision),
     hidden: document.getElementById('script').hidden,
     turn: __zdd.game.turn,
+    state: __zdd.game.state,
+    report: __zdd.game.report ? { ending: __zdd.game.report.endingKey, score: __zdd.game.report.score } : null,
+    security: __zdd.game.player.security,
+    integrity: __zdd.game.player.integrity,
+    availability: __zdd.game.player.availability,
+    logs: __zdd.game.logs.entries.slice(-8).map((entry) => entry.message),
     status: document.getElementById('script-status').textContent,
   }))()`);
-  session.check('脚本连续推进到第 4 回合', decision.turn === 4, String(decision.turn));
-  session.check('遇到剧情决策自动暂停', decision.pending === true && decision.status === '等待决策');
+  session.check('脚本连续推进到第 4 回合', decision.turn === 4, JSON.stringify(decision));
+  session.check('遇到剧情决策自动暂停', decision.pending === true && decision.status === '等待决策', JSON.stringify(decision));
   session.check('决策出现时收起剧本面板', decision.hidden === true);
   await session.reload();
   await sleep(450);

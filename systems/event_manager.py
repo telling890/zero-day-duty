@@ -52,6 +52,8 @@ class EventManager:
         self.last_false_positive_turn = -99
         self.used_false_positive_titles: set[str] = set()
         self.spawn_schedule: dict[str, int] = {}
+        # 专家模式的延迟日志：先入队，下一回合再写入日志终端
+        self.pending_logs: list[dict[str, Any]] = []
         # 攻击战役（事件链）的运行时状态：节奏压力、升级次数、是否已揭示
         self.campaign_runtime: dict[str, dict[str, Any]] = {
             str(campaign.get("id", "")): self._new_campaign_runtime()
@@ -188,7 +190,15 @@ class EventManager:
     # ------------------------------------------------------------------
     @staticmethod
     def _new_campaign_runtime() -> dict[str, Any]:
-        return {"momentum": 0, "escalations": 0, "revealed": False, "settled": False}
+        return {
+            "momentum": 0,
+            "escalations": 0,
+            "revealed": False,
+            "settled": False,
+            "waits": 0,
+            "last_switch": "",
+            "last_target": "",
+        }
 
     @property
     def campaign_configs(self) -> list[dict[str, Any]]:
@@ -254,6 +264,9 @@ class EventManager:
                     "escalations": int(runtime["escalations"]),
                     "revealed": bool(runtime["revealed"]),
                     "settled": bool(runtime["settled"]),
+                    "waits": int(runtime.get("waits", 0)),
+                    "style": str(campaign.get("actor_style", "standard")),
+                    "last_switch": str(runtime.get("last_switch", "")),
                 }
             )
         return result
@@ -309,8 +322,11 @@ class EventManager:
         runtime = self._runtime(campaign)
         if runtime["revealed"]:
             return False
-        if len(self.campaign_members(campaign)) < 2:
-            return False
+        members = self.campaign_members(campaign)
+        if len(members) < 2:
+            early = float(game.modifiers.get("campaign_early_reveal", 0) or 0)
+            if not early or not any(event.investigations > 0 for event in members):
+                return False
         runtime["revealed"] = True
         name = str(campaign.get("name", ""))
         actor = str(campaign.get("actor", name))
@@ -323,6 +339,12 @@ class EventManager:
         game.effects.add_banner(f"情报 · {actor}", f"战役「{name}」已被识别", settings.PURPLE)
         return True
 
+    def _alert_for_event(self, event: SecurityEvent) -> Alert | None:
+        for alert in reversed(self.alerts):
+            if alert.event_id == event.event_id and not alert.resolved:
+                return alert
+        return None
+
     def _escalate_campaign(
         self,
         game: "Game",
@@ -332,19 +354,55 @@ class EventManager:
         name = str(campaign.get("name", ""))
         actor = str(campaign.get("actor", name))
         clock = settings.clock_text(game.turn)
+        runtime = self._runtime(campaign)
+        style = str(campaign.get("actor_style", "standard"))
         pending = [
             str(item)
             for item in campaign.get("members", [])
             if str(item) not in self.spawned_event_ids
         ]
-        # 1) 还有没登场的成员：把它的排期提前到下一回合
+
+        # 夜鸦：发现隔离面足够大时，降低活动强度等待窗口，但仍留下可观察线索
+        if style == "stealth":
+            isolated = sum(1 for device in game.devices.values() if device.isolated)
+            tolerance = max(1, int(campaign.get("isolation_tolerance", 2) or 2))
+            if isolated >= tolerance and int(runtime.get("waits", 0)) < 2:
+                runtime["waits"] = int(runtime.get("waits", 0)) + 1
+                clue = (
+                    f"情报：{actor} 的活动强度突然下降，但在隔离网段边缘出现低强度探测；"
+                    "它可能在等待隔离解除，而不是放弃。"
+                )
+                game.logs.add(game.turn, clock, INTEL_CATEGORY, clue)
+                game.push_message(clue, settings.PURPLE)
+                game.effects.add_banner(f"情报 · {actor}", "攻击者转入低强度等待", settings.PURPLE)
+                game.record_timeline("actor_wait", f"{actor} 在 {isolated} 台设备隔离后降低活动强度", actor=actor)
+                return
+            if int(runtime.get("waits", 0)) >= 2:
+                runtime["waits"] = 0
+                game.logs.add(
+                    game.turn,
+                    clock,
+                    INTEL_CATEGORY,
+                    f"情报：{actor} 等不下去了，重新提高活动强度。",
+                )
+
+        # 1) 还有没登场的成员：提前它的排期
         for event_id in pending:
             next_turn = game.turn + 1
             scheduled = self.spawn_schedule.get(event_id)
             if scheduled is not None and scheduled <= next_turn:
                 continue
-            self.spawn_schedule[event_id] = next_turn
             config = self.get_event_config(event_id) or {}
+            target_device = game.devices.get(str(config.get("initial_target", "")))
+            if style == "aggressive":
+                if target_device is not None and target_device.isolated:
+                    game.logs.add(
+                        game.turn,
+                        clock,
+                        INTEL_CATEGORY,
+                        f"情报：{actor} 避开了已隔离的「{target_device.name}」，正在寻找新的入口。",
+                    )
+            self.spawn_schedule[event_id] = next_turn
             event_name = str(config.get("name", event_id))
             plan = f"，原计划第 {scheduled} 回合" if scheduled is not None else ""
             self._maybe_reveal_campaign(game, campaign)
@@ -363,8 +421,77 @@ class EventManager:
             )
             return
 
-        # 2) 成员都已出现：直接推进一步最靠前的攻击链
-        target = max(active, key=lambda event: (event.stage_index, -event.start_turn))
+        # 2) 成员都已出现：按攻击者性格选择推进目标
+        default_target = max(active, key=lambda event: (event.stage_index, -event.start_turn))
+        target = default_target
+        reason = ""
+        if style == "stealth":
+            def stealth_score(event: SecurityEvent) -> tuple[int, int, int]:
+                alert = self._alert_for_event(event)
+                investigated = bool(alert and alert.investigated)
+                return (
+                    (0 if investigated else 2) + (0 if event.credentials_reset else 1),
+                    event.stage_index,
+                    -event.start_turn,
+                )
+
+            target = max(active, key=stealth_score)
+            reason = "尚未调查的入口与可复用凭据"
+        elif style == "aggressive":
+            candidates = []
+            for event in active:
+                device = game.devices.get(event.active_device_id)
+                if device is None:
+                    continue
+                if device.online and not device.patched:
+                    candidates.append(event)
+            if candidates:
+                target = max(
+                    candidates,
+                    key=lambda event: (
+                        game.devices[event.active_device_id].importance,
+                        game.devices[event.active_device_id].exposure,
+                        event.stage_index,
+                    ),
+                )
+                reason = "在线、未打补丁的高价值资产"
+            else:
+                runtime["waits"] = int(runtime.get("waits", 0)) + 1
+                game.logs.add(
+                    game.turn,
+                    clock,
+                    INTEL_CATEGORY,
+                    f"情报：{actor} 没有找到可用的未打补丁入口，暂时收手，等待资产重新上线或补丁窗口过去。",
+                )
+                game.push_message(
+                    f"情报：{actor} 暂时收手，已隔离/已修复的资产没有给它可乘之机。",
+                    settings.PURPLE,
+                )
+                if int(runtime.get("waits", 0)) <= 2:
+                    return
+                game.logs.add(
+                    game.turn,
+                    clock,
+                    INTEL_CATEGORY,
+                    f"情报：{actor} 等不下去，重新尝试已暴露的入口。",
+                )
+        if target is not default_target:
+            clue = (
+                f"情报：{actor} 在「{default_target.name}」附近留下异常探测流量，"
+                f"随后把注意力转向「{target.name}」（{reason}）。目标可能发生变化。"
+            )
+            game.logs.add(game.turn, clock, INTEL_CATEGORY, clue)
+            game.push_message(clue, settings.PURPLE)
+            game.effects.add_banner(f"情报 · {actor}", f"攻击焦点转向「{target.name}」", settings.PURPLE)
+            runtime["last_switch"] = str(target.event_id)
+            runtime["last_target"] = str(target.active_device_id)
+            game.record_timeline(
+                "actor_switch",
+                f"{actor} 从「{default_target.name}」转向「{target.name}」：{reason}",
+                actor=actor,
+                from_event=default_target.event_id,
+                to_event=target.event_id,
+            )
         self._maybe_reveal_campaign(game, campaign)
         if target.stage_index >= target.max_stage_index:
             game.logs.add(
@@ -388,12 +515,19 @@ class EventManager:
         game.push_message(
             f"情报：{actor} 加速推进「{target.name}」到“{target.stage_name}”！", settings.RED
         )
+        game.record_timeline(
+            "actor_advance",
+            f"{actor} 把「{target.name}」推进到「{target.stage_name}」",
+            actor=actor,
+            event_id=target.event_id,
+        )
         self._apply_stage(game, target, old_name)
 
     # ------------------------------------------------------------------
     # 回合开始
     # ------------------------------------------------------------------
     def start_turn(self, game: "Game") -> None:
+        self._flush_pending_logs(game)
         self._spawn_due_events(game)
         self._maybe_false_positive(game)
         self._background_noise(game)
@@ -434,20 +568,74 @@ class EventManager:
                 # 第二个同源事件出现时，玩家才真正看清“这是一场战役”
                 self._maybe_reveal_campaign(game, campaign)
 
+    def _write_log(
+        self,
+        game: "Game",
+        category: str,
+        message: str,
+        *,
+        source: str = "",
+        account: str = "",
+        ip: str = "",
+        delay: bool = False,
+    ) -> None:
+        mode = getattr(game, "difficulty_mode", None)
+        delay_turns = int(getattr(mode, "log_delay", 0) or 0) if delay else 0
+        if delay_turns > 0:
+            self.pending_logs.append(
+                {
+                    "due": int(game.turn) + delay_turns,
+                    "category": str(category),
+                    "message": str(message),
+                    "source": str(source),
+                    "account": str(account),
+                    "ip": str(ip),
+                }
+            )
+            return
+        self.logs.add(
+            game.turn,
+            settings.clock_text(game.turn),
+            category,
+            message,
+            source=source,
+            account=account,
+            ip=ip,
+        )
+
+    def _flush_pending_logs(self, game: "Game") -> None:
+        if not self.pending_logs:
+            return
+        remaining: list[dict[str, Any]] = []
+        for item in self.pending_logs:
+            if int(item.get("due", 0)) <= int(game.turn):
+                game.logs.add(
+                    int(game.turn),
+                    settings.clock_text(game.turn),
+                    str(item.get("category", "系统")),
+                    f"[延迟到达] {item.get('message', '')}",
+                    source=str(item.get("source", "")),
+                    account=str(item.get("account", "")),
+                    ip=str(item.get("ip", "")),
+                )
+            else:
+                remaining.append(item)
+        self.pending_logs = remaining
+
     def _announce_stage(self, game: "Game", event: SecurityEvent, first: bool = False) -> None:
         """记录日志、生成告警、推送消息。"""
         clock = settings.clock_text(game.turn)
         stage = event.stage
         device = game.devices.get(event.active_device_id)
         source_name = device.name if device else event.target_id
-        game.logs.add(
-            game.turn,
-            clock,
+        self._write_log(
+            game,
             "邮件" if event.event_type == "钓鱼邮件" and event.stage_index == 0 else "告警",
             str(stage.get("log", event.name)),
             source=source_name,
             account=event.account,
             ip=event.source_ip,
+            delay=True,
         )
         alert = self.create_alert(
             game,
@@ -458,6 +646,13 @@ class EventManager:
             source_ip=event.source_ip,
             account=event.account,
             detail=str(stage.get("alert_detail", event.summary)),
+        )
+        game.record_timeline(
+            "attack",
+            f"攻击「{event.name}」进入「{event.stage_name}」，目标 {source_name}",
+            event_id=event.event_id,
+            severity=event.severity,
+            stage=event.stage_index + 1,
         )
         prefix = "检测到新的可疑活动" if first else "事件升级"
         game.push_message(f"{prefix}：{alert.title}（{alert.level}）", alert.level_color)
@@ -510,7 +705,9 @@ class EventManager:
         turn = game.turn
         should_spawn = turn == 1
         if not should_spawn:
-            should_spawn = (turn - self.last_false_positive_turn >= 2) and self.rng.random() < 0.5
+            mode = getattr(game, "difficulty_mode", None)
+            rate = float(getattr(mode, "false_positive_rate", 0.5) or 0.5)
+            should_spawn = (turn - self.last_false_positive_turn >= 2) and self.rng.random() < rate
         if not should_spawn:
             return
         candidates = [item for item in pool if item.get("title") not in self.used_false_positive_titles]
@@ -773,6 +970,7 @@ class EventManager:
             "last_false_positive_turn": self.last_false_positive_turn,
             "used_false_positive_titles": sorted(self.used_false_positive_titles),
             "spawn_schedule": dict(self.spawn_schedule),
+            "pending_logs": [dict(item) for item in self.pending_logs],
             "campaign_runtime": {
                 campaign_id: dict(runtime) for campaign_id, runtime in self.campaign_runtime.items()
             },
@@ -794,6 +992,10 @@ class EventManager:
                 for key, value in schedule.items()
                 if isinstance(value, (int, float))
             }
+        pending = state.get("pending_logs", [])
+        self.pending_logs = [
+            dict(item) for item in pending if isinstance(item, dict)
+        ] if isinstance(pending, list) else []
 
         self.events = []
         for event_state in state.get("events", []):
@@ -824,6 +1026,9 @@ class EventManager:
                 restored["escalations"] = max(0, int(runtime.get("escalations", 0) or 0))
                 restored["revealed"] = bool(runtime.get("revealed", False))
                 restored["settled"] = bool(runtime.get("settled", False))
+                restored["waits"] = max(0, int(runtime.get("waits", 0) or 0))
+                restored["last_switch"] = str(runtime.get("last_switch", ""))
+                restored["last_target"] = str(runtime.get("last_target", ""))
                 self.campaign_runtime[campaign_id] = restored
 
         self.alerts = []

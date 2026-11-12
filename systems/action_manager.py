@@ -14,6 +14,40 @@ from models.player_state import MetricKey
 if TYPE_CHECKING:  # 仅用于类型提示
     from game import Game
 
+# 标准难度只给“处置方向”，不直接列出完整步骤
+DIRECTION_BY_TYPE = {
+    "钓鱼邮件": "先确认投递范围与发件来源，再决定删除邮件、封禁来源或隔离终端；不要直接关停邮件服务器。",
+    "异常登录": "先确认账号是否失陷，再重置凭据、踢出会话；必要时隔离登录来源。",
+    "模拟勒索软件": "优先控制扩散并保护备份，再清除；不要在扩散中先删文件。",
+    "Web 流量异常": "先确认对外服务与补丁状态，再考虑限流、隔离 Web 或封禁来源。",
+    "内部账号异常访问": "先核实账号行为与数据范围，再重置凭据、限制导出。",
+    "零日漏洞": "优先隔离高价值节点、保护备份，等待补丁窗口；不要只封 IP。",
+}
+
+ZONE_BY_DEVICE = {
+    "GW-01": "办公网出口",
+    "MAIL-01": "邮件网关",
+    "WEB-01": "对外 Web",
+    "PC-01": "办公终端",
+    "PC-02": "办公终端",
+    "FIN-01": "财务终端",
+    "DB-01": "数据库区",
+    "BAK-01": "备份区",
+}
+
+# 专家模式的噪声线索：明确标注“未验证”，可能与真实证据冲突
+NOISE_CLUES = (
+    "同一时间戳附近还有 3 条低危告警，来源尚未核实",
+    "日志中有一段响应时间异常，可能只是业务高峰",
+    "该账号在另一台设备上有一次正常登录记录，时间接近",
+    "来源 IP 的归属信息与告警描述不完全一致",
+    "终端上存在一个未签名的计划任务，但无法确认是否与本次事件有关",
+)
+
+
+def _zone_of(device_id: str) -> str:
+    return ZONE_BY_DEVICE.get(str(device_id), "未知网段")
+
 
 @dataclass
 class Target:
@@ -326,8 +360,30 @@ class ActionManager:
         )
         handler = getattr(self, option.handler_name)
         result: ActionResult = handler(game, target)
+        if result.success:
+            game.record_timeline(
+                "action",
+                f"{option.name}：{target.label}",
+                action_id=option.action_id,
+                success=True,
+            )
+        else:
+            game.player.stats["invalid_actions"] = game.player.stats.get("invalid_actions", 0) + 1
+            game.record_timeline(
+                "mistake",
+                f"{option.name} 未生效：{result.message}",
+                action_id=option.action_id,
+                success=False,
+            )
         game.push_message(result.message, settings.GREEN if result.success else settings.YELLOW)
         return result
+
+    @staticmethod
+    def _false_penalty(game: "Game", base: int) -> int:
+        """误封/误停的声誉代价：难度 × 响应流的自动化副作用。"""
+        mode = game.difficulty_mode
+        extra = float(game.modifiers.get("false_isolation_penalty", 0.0))
+        return max(1, int(round(base * max(1.0, mode.false_isolation_penalty) + extra)))
 
     # ------------------------------------------------------------------
     # 具体操作效果
@@ -360,43 +416,74 @@ class ActionManager:
         if event.response_turn is None:
             event.response_turn = max(1, game.turn - event.start_turn + 1)
             stats["response_turns"].append(event.response_turn)
+        mode = game.difficulty_mode
         # 威胁情报订阅：一次调查可以多拿到线索，但仍受该阶段线索总数限制
         extra_clues = max(0, int(game.modifiers.get("extra_clue", 0)))
         revealed = [event.reveal_next_clue() for _ in range(1 + extra_clues)]
         clues = [str(item) for item in revealed if item]
         clue = "；".join(clues) if clues else "暂未获得新的可观察线索。"
+        noise: list[str] = []
+        if mode.clue_noise > 0:
+            for _ in range(mode.clue_noise):
+                noise.append(f"未验证：{game.rng.choice(NOISE_CLUES)}")
         device = game.devices.get(event.active_device_id)
+        source_name = device.name if device else event.target_id
         low, high, confidence = game.risk.estimate(
-            event, device, game.turn, game.confidence_bonus
+            event,
+            device,
+            game.turn,
+            game.confidence_bonus,
+            mode.risk_scale,
         )
         game.logs.add(
             game.turn,
             settings.clock_text(game.turn),
             "告警",
             f"调查确认「{event.name}」为真实威胁。新线索：{clue}",
-            source=device.name if device else event.target_id,
+            source=source_name,
             account=event.account,
             ip=event.source_ip,
         )
-        recommended = "、".join(str(item) for item in event.stage.get("recommended", []))
-        if recommended:
+        if mode.recommendations == "full":
+            recommended = "、".join(str(item) for item in event.stage.get("recommended", []))
+            if recommended:
+                game.logs.add(
+                    game.turn,
+                    settings.clock_text(game.turn),
+                    "告警",
+                    f"建议处置：{recommended}。",
+                    source=source_name,
+                )
+            warning = event.stage_text("wrong_action", "")
+            if warning:
+                game.logs.add(
+                    game.turn,
+                    settings.clock_text(game.turn),
+                    "告警",
+                    f"风险提示：{warning}",
+                    source=source_name,
+                )
+        elif mode.recommendations == "direction":
+            direction = DIRECTION_BY_TYPE.get(
+                event.event_type,
+                "先确认证据，再决定控制或清除；不要只凭告警等级行动。",
+            )
             game.logs.add(
                 game.turn,
                 settings.clock_text(game.turn),
                 "告警",
-                f"建议处置：{recommended}。",
-                source=device.name if device else event.target_id,
+                f"处置方向：{direction}",
+                source=source_name,
             )
-        warning = event.stage_text("wrong_action", "")
-        if warning:
+        else:
             game.logs.add(
                 game.turn,
                 settings.clock_text(game.turn),
                 "告警",
-                f"风险提示：{warning}",
-                source=device.name if device else event.target_id,
+                "处置建议：证据不足，无法判断完整处置顺序；先继续调查或加固情报。",
+                source=source_name,
             )
-        if event.next_device_id:
+        if mode.next_hop == "exact" and event.next_device_id:
             next_device = game.devices.get(event.next_device_id)
             next_name = next_device.name if next_device else event.next_device_id
             game.logs.add(
@@ -404,7 +491,38 @@ class ActionManager:
                 settings.clock_text(game.turn),
                 "告警",
                 f"预测下一跳：{next_name}（{event.next_stage_name}）。提前隔离可拖住攻击。",
-                source=device.name if device else event.target_id,
+                source=source_name,
+            )
+        elif mode.next_hop == "direction" and event.next_device_id:
+            intel_detail = float(game.modifiers.get("next_hop_detail", 0) or 0) > 0
+            if intel_detail:
+                next_device = game.devices.get(event.next_device_id)
+                next_name = next_device.name if next_device else event.next_device_id
+                game.logs.add(
+                    game.turn,
+                    settings.clock_text(game.turn),
+                    "告警",
+                    f"情报插件推断下一跳：{next_name}（{event.next_stage_name}）。",
+                    source=source_name,
+                )
+            else:
+                game.logs.add(
+                    game.turn,
+                    settings.clock_text(game.turn),
+                    "告警",
+                    f"下一跳方向：可能在{_zone_of(event.next_device_id)}，具体设备还需要更多证据。",
+                    source=source_name,
+                )
+        elif mode.next_hop == "none" and event.next_device_id:
+            intel_detail = float(game.modifiers.get("next_hop_detail", 0) or 0) > 0
+            game.logs.add(
+                game.turn,
+                settings.clock_text(game.turn),
+                "告警",
+                f"下一跳方向：可能在{_zone_of(event.next_device_id)}，无法确认具体设备。"
+                if intel_detail
+                else "下一跳：证据不足，无法判断方向。",
+                source=source_name,
             )
         related = game.related_alerts(alert)
         if related:
@@ -413,21 +531,49 @@ class ActionManager:
                 settings.clock_text(game.turn),
                 "告警",
                 f"情报关联：发现 {len(related)} 条同源/同账号告警，可能属于同一攻击活动。",
-                source=device.name if device else event.target_id,
+                source=source_name,
             )
-        spread_condition = str(event.config.get("spread_condition", ""))
-        if spread_condition:
+        if mode.recommendations == "full":
+            spread_condition = str(event.config.get("spread_condition", ""))
+            if spread_condition:
+                game.logs.add(
+                    game.turn,
+                    settings.clock_text(game.turn),
+                    "告警",
+                    f"传播条件：{spread_condition}",
+                    source=source_name,
+                )
+        for item in noise:
             game.logs.add(
                 game.turn,
                 settings.clock_text(game.turn),
                 "告警",
-                f"传播条件：{spread_condition}",
-                source=device.name if device else event.target_id,
+                item,
+                source=source_name,
             )
-        return ActionResult(
-            True,
-            f"确认「{event.name}」是真实威胁。新线索：{clue}｜风险估计 {low}~{high}（置信度 {confidence}%）。",
+        if noise:
+            game.logs.add(
+                game.turn,
+                settings.clock_text(game.turn),
+                "告警",
+                "情报提示：以上含未验证线索，可能与真实证据冲突；建议交叉验证后再处置。",
+                source=source_name,
+            )
+        message = (
+            f"确认「{event.name}」是真实威胁。新线索：{clue}｜风险估计 {low}~{high}"
+            f"（置信度 {confidence}%）。"
         )
+        if mode.recommendations == "direction":
+            message += " 情报只给出处置方向，完整步骤需要自行判断。"
+        elif mode.recommendations == "none":
+            message += " 证据不足，无法给出完整处置顺序。"
+        if noise:
+            message += " 其中含有未验证线索。"
+        game.record_timeline(
+            "investigate",
+            f"调查「{event.name}」：线索 {event.revealed_clues}/{event.total_clues}，风险 {low}~{high}",
+        )
+        return ActionResult(True, message)
 
     def _delete_mail(self, game: "Game", target: Target) -> ActionResult:
         alert = target.alert
@@ -453,10 +599,19 @@ class ActionManager:
         alert = target.alert
         assert alert is not None
         if alert.false_positive:
+            penalty = 6 + max(0, int(game.modifiers.get("false_block_penalty", 0) or 0))
             game.adjust_metric(
-                MetricKey.REPUTATION, -6, f"封禁合作方地址 {alert.source_ip}，正常业务中断"
+                MetricKey.REPUTATION, -penalty, f"封禁合作方地址 {alert.source_ip}，正常业务中断"
+            )
+            game.player.stats["false_isolation_loss"] = (
+                game.player.stats.get("false_isolation_loss", 0) + penalty
             )
             game.break_combo("误封合作方地址")
+            game.record_timeline(
+                "false_isolation",
+                f"误封合作方地址 {alert.source_ip}：声誉 -{penalty}",
+                alert_id=alert.alert_id,
+            )
             return ActionResult(
                 False,
                 f"已封禁 {alert.source_ip}，但该地址属于合作方，接口调用失败，声誉下降。",
@@ -496,8 +651,18 @@ class ActionManager:
                 f"{device.name} 已隔离。该设备与近期事件相关，但当前没有以它为主链的活动攻击。",
             )
         game.adjust_metric(MetricKey.REPUTATION, -5, f"误封 {device.name}，影响正常业务")
+        penalty = self._false_penalty(game, 5)
+        lost = game.adjust_metric(MetricKey.REPUTATION, -(penalty - 5), f"误封代价：{device.name}")
+        game.player.stats["false_isolation_loss"] = (
+            game.player.stats.get("false_isolation_loss", 0) + max(5, penalty)
+        )
         game.player.stats["false_isolations"] = game.player.stats.get("false_isolations", 0) + 1
         game.break_combo("误封设备")
+        game.record_timeline(
+            "false_isolation",
+            f"误封 {device.name}：声誉 -{max(5, penalty)}，业务受影响",
+            device_id=device.device_id,
+        )
         return ActionResult(
             False,
             f"{device.name} 已隔离，但没有发现该设备相关的活动事件，可能属于误封，声誉下降。",

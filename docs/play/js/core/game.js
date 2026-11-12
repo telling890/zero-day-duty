@@ -48,6 +48,8 @@
       this.decisions = ((data.decisions && data.decisions.decisions) || []).filter(
         (item) => item && item.id,
       );
+      this.difficultySet = new ZDD.DifficultySet(data.difficulty || {});
+      this.difficultyId = this.difficultySet.defaultId;
       this.saveManager = new ZDD.SaveManager(opts.storage);
 
       this.actions = new ZDD.ActionManager();
@@ -77,6 +79,10 @@
       this.pendingDecision = null;
       this.showBriefing = false;
       this.revision = 0;
+      this.hintsUsed = 0;
+      this.timeline = [];
+      this.pendingDelayed = [];
+      this.decisionHistory = [];
 
       this.audio = noopAudio;
       this.effects = noopEffects;
@@ -93,6 +99,9 @@
       const opts = options || {};
       const tutorial = Boolean(opts.tutorial);
       const briefing = Boolean(opts.briefing);
+      if (opts.difficulty) {
+        this.difficultyId = this.difficultySet.get(opts.difficulty).id;
+      }
 
       this.rng = new RNG(this.seed);
       this.player = new PlayerState();
@@ -117,13 +126,19 @@
       this.pendingDecision = null;
       this.showBriefing = briefing;
       this.state = 'playing';
+      this.hintsUsed = 0;
+      this.timeline = [];
+      this.pendingDelayed = [];
+      this.decisionHistory = [];
 
       this.logs.add(
         0,
         clockText(0),
         '系统',
-        `值班开始：${opts.companyName || '云栖示例科技（虚构）'}，随机种子 ${this.seed}。`,
+        `值班开始：${opts.companyName || '云栖示例科技（虚构）'}，随机种子 ${this.seed}，难度 ${this.difficultyMode.name}。`,
       );
+      this.pushMessage(`本局难度：${this.difficultyMode.name} — ${this.difficultyMode.tagline}`, 'dim');
+      this.recordTimeline('start', `以${this.difficultyMode.name}开始值班`);
       this.audio.playAmbient();
       this.recomputeAvailability('开局网络状态');
       this.startTurn();
@@ -150,7 +165,7 @@
       );
       this.pushMessage(`第 ${this.turn} 回合开始（${clockText(this.turn)}），行动点已重置。`, 'accent');
 
-      const serviceIncome = this.services.income(this.devices);
+      const serviceIncome = this.services.income(this.devices, Number(this.modifiers.income_floor || 0));
       const incomeBonus = Math.trunc(this.modifiers.income_bonus || 0);
       this.adjustMetric(
         'funds',
@@ -175,6 +190,7 @@
         this.pushMessage('资金偏低：后续操作的可用选项会受限，请谨慎花费。', 'orange');
       }
       this.events.startTurn(this);
+      this.processDelayedEffects();
       this.maybeTriggerDecision();
       this.touch();
     }
@@ -248,6 +264,8 @@
     }
 
     finish(reason) {
+      // 未到期的延迟后果在结算前一并落地，保证复盘能解释完整因果
+      this.processDelayedEffects(true);
       this.state = 'result';
       this.pendingDecision = null;
       this.showBriefing = false;
@@ -316,18 +334,89 @@
         security_breach: this.securityBreach,
         best_combo: this.bestCombo,
         service_availability: this.services.availability(this.devices),
-        service_income: this.services.income(this.devices),
+        service_income: this.services.income(this.devices, Number(this.modifiers.income_floor || 0)),
         sla_breaches: Number(this.player.stats.sla_breaches || 0),
         campaigns,
         campaigns_cleared: campaigns.filter(
           (item) => item.spawned && item.resolved === item.spawned,
         ).length,
+        difficulty_id: this.difficultyId,
+        difficulty_name: this.difficultyMode.name,
+        timeline: this.timeline.map((item) => Object.assign({}, item)),
+        decision_history: this.decisionHistory.map((item) => Object.assign({}, item)),
+        invalid_actions: Number(this.player.stats.invalid_actions || 0),
+        false_isolation_loss: Number(this.player.stats.false_isolation_loss || 0),
+        doctrine: this.doctrine(),
+        dangerous_event: this.dangerousEvent(),
       };
+    }
+
+    doctrine() {
+      const counts = { detect: 0, respond: 0, resilience: 0 };
+      for (const upgradeId of this.player.upgrades) {
+        const upgrade = this.upgradeTree.get(upgradeId);
+        if (upgrade && counts[upgrade.track] !== undefined) counts[upgrade.track] += 1;
+      }
+      const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      const [top, second] = entries;
+      if (!top || top[1] < 2) return '混合型';
+      if (second && second[1] === top[1]) return '混合型';
+      return { detect: '情报主导型', respond: '响应主导型', resilience: '韧性主导型' }[top[0]] || '混合型';
+    }
+
+    dangerousEvent() {
+      const events = this.events.events.filter((event) => event.eradicated);
+      if (!events.length) return null;
+      const ranked = events.slice().sort((a, b) => (
+        (b.severity * 10 + b.stageIndex) - (a.severity * 10 + a.stageIndex)
+      ));
+      const event = ranked[0];
+      return { name: event.name, severity: event.severity, stage: event.stageIndex + 1 };
     }
 
     // ==================================================================
     // 指标与资源
     // ==================================================================
+    get difficultyMode() {
+      return this.difficultySet.get(this.difficultyId);
+    }
+
+    recordTimeline(kind, text, extra) {
+      const entry = Object.assign({
+        turn: this.turn,
+        clock: clockText(this.turn),
+        kind: String(kind),
+        text: String(text),
+      }, extra || {});
+      this.timeline.push(entry);
+      if (this.timeline.length > 240) this.timeline = this.timeline.slice(-240);
+      return entry;
+    }
+
+    consumeActionHint(option, target) {
+      const mode = this.difficultyMode;
+      if (!mode || mode.hints <= 0 || this.hintsUsed >= mode.hints) return '';
+      const alert = target && target.alert ? target.alert : null;
+      const device = target && target.device ? target.device : null;
+      const event = alert ? this.eventForAlert(alert) : null;
+      let reason = '';
+      if (option.actionId === 'delete_mail' && event && event.stageIndex > 1) {
+        reason = '邮件删除已经太晚，凭据可能已经泄露；考虑重置凭据或清除设备。';
+      } else if (option.actionId === 'unisolate' && device && this.controlledEventsForDevice(device.deviceId).length) {
+        reason = '解除隔离会让被压制的攻击重新活跃；先清除根因，再恢复业务。';
+      } else if (option.actionId === 'shutdown' && device && device.importance >= 4) {
+        reason = '关闭关键设备会中断业务并扣声誉；确认这是必要控制，而不是过度防御。';
+      } else if (option.actionId === 'isolate' && device && device.importance >= 4
+        && !this.eventsForDevice(device.deviceId).length) {
+        reason = '该设备承载关键业务且没有活动事件，隔离可能造成误封和业务中断。';
+      }
+      if (!reason) return '';
+      this.hintsUsed += 1;
+      this.logs.add(this.turn, clockText(this.turn), '系统', `新手提示：${reason}`, { source: device ? device.name : '' });
+      this.recordTimeline('hint', `新手提示：${reason}`);
+      return reason;
+    }
+
     get threatLevel() {
       const active = this.events.events.filter((event) => event.isActive).length;
       return Math.max(1, Math.min(5, 1 + active));
@@ -373,13 +462,69 @@
       const choice = choices[index];
       if (!choice || typeof choice !== 'object') return;
       const label = String(choice.label || '选择');
-      const effects = choice.effects || {};
+      const title = String(decision.title || '值班决策');
       const allowedKeys = ['security', 'funds', 'reputation', 'availability', 'integrity'];
-      for (const [key, value] of Object.entries(effects)) {
-        if (!allowedKeys.includes(key)) continue;
-        const delta = Number(value);
-        if (!Number.isFinite(delta)) continue;
-        this.adjustMetric(key, delta, `值班决策「${decision.title || ''}」`);
+      const hiddenActual = {};
+      const applyMap = (map, visible) => {
+        if (!map || typeof map !== 'object') return;
+        for (const [key, value] of Object.entries(map)) {
+          if (!allowedKeys.includes(key)) continue;
+          const delta = Number(value);
+          if (!Number.isFinite(delta) || !delta) continue;
+          if (visible) {
+            this.adjustMetric(key, delta, `值班决策「${title}」`);
+          } else {
+            // 隐藏影响：立即改变状态，但不写精确数值日志；只进入结算时间线
+            const actual = this.player.adjust(key, delta, `值班决策「${title}」的隐性影响`);
+            if (actual) hiddenActual[key] = actual;
+          }
+        }
+      };
+      applyMap(choice.effects, true);
+      applyMap(choice.hidden_effects, false);
+      const delayed = Array.isArray(choice.delayed) ? choice.delayed : [];
+      for (const item of delayed) {
+        if (!item || typeof item !== 'object') continue;
+        const after = Math.max(1, Math.min(3, Number(item.after_turns || 1)));
+        const pending = {
+          dueTurn: Math.min(this.player.totalTurns + 1, this.turn + after),
+          sourceId: String(decision.id || ''),
+          sourceTitle: title,
+          choiceLabel: label,
+          condition: item.condition || {},
+          effects: item.effects || {},
+          text: String(item.text || ''),
+          elseEffects: item.else_effects || {},
+          elseText: String(item.else_text || ''),
+        };
+        this.pendingDelayed.push(pending);
+        this.recordTimeline(
+          'decision_delayed',
+          `决策「${title}」选择「${label}」，将在第 ${pending.dueTurn} 回合产生后续影响`,
+          { decisionId: pending.sourceId },
+        );
+      }
+      this.decisionHistory.push({
+        id: String(decision.id || ''),
+        turn: this.turn,
+        title,
+        choice: label,
+        choiceIndex: index,
+        knownEffects: Object.assign({}, choice.effects || {}),
+        hiddenEffects: Object.assign({}, hiddenActual),
+      });
+      this.recordTimeline('decision', `第 ${this.turn} 回合决策「${title}」：选择「${label}」`, {
+        decisionId: String(decision.id || ''),
+      });
+      if (Object.keys(hiddenActual).length) {
+        const hiddenSummary = Object.entries(hiddenActual)
+          .map(([key, value]) => `${ZDD.METRIC_LABELS[key] || key} ${value > 0 ? '+' : ''}${value}`)
+          .join('、');
+        this.recordTimeline(
+          'decision_hidden',
+          `「${title}」选择「${label}」的隐性影响：${hiddenSummary}`,
+          { decisionId: String(decision.id || '') },
+        );
       }
       const result = String(choice.result || '');
       this.pushMessage(`决策：${label}。${result}`, 'accent');
@@ -387,6 +532,70 @@
       this.audio.play('click');
       this.pendingDecision = null;
       this.touch();
+    }
+
+    conditionMet(condition) {
+      if (!condition || typeof condition !== 'object' || !Object.keys(condition).length) return true;
+      for (const [key, value] of Object.entries(condition)) {
+        if (key === 'active_events_at_least') {
+          if (this.events.events.filter((event) => event.isActive).length < Number(value)) return false;
+        } else if (key === 'threat_at_least') {
+          if (this.threatLevel < Number(value)) return false;
+        } else if (key === 'service_outage_at_least') {
+          const count = this.services.views(this.devices).filter((view) => view.status === '中断').length;
+          if (count < Number(value)) return false;
+        } else if (key === 'data_leak') {
+          if (Boolean(this.dataLeak) !== Boolean(value)) return false;
+        } else if (key === 'false_isolation_at_least') {
+          if (Number(this.player.stats.false_isolations || 0) < Number(value)) return false;
+        } else if (key === 'security_below') {
+          if (this.player.security >= Number(value)) return false;
+        } else {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    processDelayedEffects(force) {
+      if (!this.pendingDelayed.length) return;
+      const remaining = [];
+      for (const item of this.pendingDelayed) {
+        if (!force && Number(item.dueTurn || 0) > this.turn) {
+          remaining.push(item);
+          continue;
+        }
+        const matched = this.conditionMet(item.condition);
+        const effects = matched ? item.effects : item.elseEffects;
+        const text = matched ? item.text : (item.elseText || '');
+        const reason = `延迟决策「${item.sourceTitle || ''}」`;
+        const actual = {};
+        for (const [key, value] of Object.entries(effects && typeof effects === 'object' ? effects : {})) {
+          if (!['security', 'funds', 'reputation', 'availability', 'integrity'].includes(key)) continue;
+          const delta = Number(value);
+          if (!Number.isFinite(delta) || !delta) continue;
+          actual[key] = delta;
+          this.adjustMetric(key, delta, reason);
+        }
+        if (text) {
+          const clock = clockText(this.turn);
+          this.logs.add(this.turn, clock, '情报', `延迟后果：${text}`);
+          this.pushMessage(`延迟后果：${text}`, 'orange');
+          this.effects.addBanner('延迟后果', text.slice(0, 46), 'orange');
+        }
+        const summary = Object.entries(actual)
+          .map(([key, value]) => `${ZDD.METRIC_LABELS[key] || key} ${value > 0 ? '+' : ''}${value}`)
+          .join('、');
+        if (summary) {
+          this.logs.add(this.turn, clockText(this.turn), '系统', `延迟后果结算：${summary}`);
+        }
+        this.recordTimeline(
+          'delayed',
+          `「${item.choiceLabel || ''}」的延迟后果：${text || '指标变化'}`,
+          { sourceId: String(item.sourceId || ''), effects: actual },
+        );
+      }
+      this.pendingDelayed = remaining;
     }
 
     saveGame() {
@@ -481,6 +690,7 @@
         '操作',
         `事件「${event.name}」已被控制，方式：${method}；根因尚未清除。`,
       );
+      this.recordTimeline('contain', `控制「${event.name}」：${method}`, { eventId: event.eventId });
       this.pushMessage(`「${event.name}」已控制，但还没清除。选择相关设备执行「清除威胁」。`, 'yellow');
       this.audio.play('click');
       this.effects.flash('yellow', 24);
@@ -544,6 +754,11 @@
       this.effects.flash('green', 30);
       this.effects.addFloater(`清除 +${securityGain}`, 'green');
       this.effects.addBurst('center', 'green', 16);
+      this.recordTimeline('eradicate', `清除「${event.name}」：${method}`, {
+        eventId: event.eventId,
+        severity: event.severity,
+        stage: event.stageIndex + 1,
+      });
       this.touch();
     }
 
@@ -764,6 +979,11 @@
       this.combo = Number(data.combo || 0);
       this.bestCombo = Number(data.bestCombo || 0);
       this.seenDecisions = data.seenDecisions || new Set();
+      this.difficultyId = this.difficultySet.get(data.difficultyId).id;
+      this.hintsUsed = Math.max(0, Number(data.hintsUsed || 0));
+      this.timeline = (data.timeline || []).map((item) => Object.assign({}, item));
+      this.pendingDelayed = (data.pendingDelayed || []).map((item) => Object.assign({}, item));
+      this.decisionHistory = (data.decisionHistory || []).map((item) => Object.assign({}, item));
       this.report = null;
       this.selectedAlert = null;
       this.selectedDeviceId = null;

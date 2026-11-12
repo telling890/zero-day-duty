@@ -740,7 +740,8 @@
       const wrapAlert = (alert) => ZDD.ZScript.wrap('alert', alert, {
         id: () => alert.alertId,
         title: () => alert.title,
-        level: () => alert.level,
+        // 未调查的告警只能读到平台给出的“待评估”，不能读到真实等级/误报标签/事件归属
+        level: () => (alert.investigated ? alert.level : '待评估'),
         display_level: () => alert.displayLevel,
         target_id: () => alert.targetId,
         device: () => {
@@ -750,11 +751,12 @@
         source_ip: () => alert.sourceIp,
         account: () => alert.account,
         investigated: () => alert.investigated,
-        false_positive: () => alert.falsePositive,
+        false_positive: () => (alert.investigated ? alert.falsePositive : null),
         controlled: () => alert.controlled,
         resolved: () => alert.resolved,
         status: () => alert.statusText,
         event: () => {
+          if (!alert.investigated) return null;
           const event = game.eventForAlert(alert);
           return event ? wrapEvent(event) : null;
         },
@@ -791,14 +793,19 @@
         alerts: () => game.orderedAlerts
           .filter((alert) => alert.targetId === device.deviceId)
           .map(wrapAlert),
-        events: () => game.eventsForDevice(device.deviceId).map(wrapEvent),
+        events: () => game.eventsForDevice(device.deviceId)
+          .filter((event) => event.investigations > 0)
+          .map(wrapEvent),
       });
 
       return {
         output: (text, level) => this.print(text, level),
         alerts: () => game.orderedAlerts.map(wrapAlert),
         devices: () => Object.values(game.devices).map(wrapDevice),
-        events: () => game.events.events.map(wrapEvent),
+        // 只暴露玩家已经调查过的事件，未来/未调查事件不可通过脚本提前发现
+        events: () => game.events.events
+          .filter((event) => event.investigations > 0)
+          .map(wrapEvent),
         find: (token) => {
           const resolved = resolveTargetValue(game, token);
           if (!resolved || resolved.error) return null;

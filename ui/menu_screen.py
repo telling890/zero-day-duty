@@ -121,6 +121,7 @@ class MenuScreen:
             ("tutorial", "新手教程 / 值班手册", "default", left_x, rows[2]),
             ("history", "历史排行榜", "ghost", right_x, rows[0]),
             ("seed", "更换随机种子", "ghost", right_x, rows[1]),
+            ("difficulty", "难度：标准模式", "default", left_x, 542),
             ("quit", "退出游戏", "ghost", right_x, rows[2]),
         )
         for tag, text, style, x, y in specs:
@@ -140,6 +141,10 @@ class MenuScreen:
             tooltip_reason="" if has_save else "还没有存档，先开始一局并在暂停菜单保存",
         )
         continue_button.subtitle = "" if has_save else "暂无存档"
+        difficulty_button = self.buttons.get("difficulty")
+        if difficulty_button is not None:
+            mode = getattr(game, "difficulty_mode", None)
+            difficulty_button.text = f"难度：{mode.name if mode else '标准模式'}"
 
         title_font = draw_utils.get_font(62, True)
         title = title_font.render("零日值班", True, settings.TEXT)
@@ -181,7 +186,9 @@ class MenuScreen:
             button.draw(surface, mouse_pos)
 
         seed_font = draw_utils.get_font(11)
-        seed_text = f"本次随机种子：{game.seed}（同一随机种子可复现同一局）"
+        seed_text = (
+            f"本次随机种子：{game.seed}（同一随机种子 + 同一难度可复现同一局）"
+        )
         seed_image = seed_font.render(seed_text, True, settings.TEXT_FAINT)
         surface.blit(seed_image, (settings.SCREEN_WIDTH // 2 - seed_image.get_width() // 2, 588))
 

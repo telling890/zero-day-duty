@@ -63,6 +63,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--seed", type=int, default=None, help="固定随机种子，便于复现同一局")
     parser.add_argument(
+        "--difficulty",
+        choices=("novice", "standard", "expert"),
+        default=None,
+        help="开局难度：novice 新手 / standard 标准 / expert 专家",
+    )
+    parser.add_argument(
         "--selftest",
         action="store_true",
         help=argparse.SUPPRESS,
@@ -133,8 +139,10 @@ def main(argv: list[str] | None = None) -> int:
         from game import Game
 
         game = Game(screen, seed=args.seed)
+        if args.difficulty:
+            game.difficulty_id = game.difficulty_set.get(args.difficulty).mode_id
         if SELFTEST:
-            game.new_game()
+            game.new_game(difficulty=args.difficulty)
             game.update(0.016)
             game.draw()
             from ui.tutorial_screen import PAGES as TUTORIAL_PAGES

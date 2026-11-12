@@ -22,6 +22,7 @@ const files = {
   services: 'services.json',
   upgrades: 'upgrades.json',
   decisions: 'decisions.json',
+  difficulty: 'difficulty.json',
 };
 
 const datasets = {};
@@ -42,6 +43,7 @@ const out = `/* 自动生成，请勿手改；来源：../data/*.json
   ZDD.data.services = ${JSON.stringify(datasets.services)};
   ZDD.data.upgrades = ${JSON.stringify(datasets.upgrades)};
   ZDD.data.decisions = ${JSON.stringify(datasets.decisions)};
+  ZDD.data.difficulty = ${JSON.stringify(datasets.difficulty)};
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 `;
 

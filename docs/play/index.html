@@ -38,6 +38,14 @@
           <p class="menu-safe">所有数据均为虚构，本游戏不连接任何真实网络。</p>
         </div>
 
+        <div class="menu-difficulty" id="menu-difficulty" role="group" aria-label="选择难度">
+          <span class="menu-difficulty-label">难度</span>
+          <button class="diff-btn" type="button" data-difficulty="novice">新手</button>
+          <button class="diff-btn" type="button" data-difficulty="standard">标准</button>
+          <button class="diff-btn" type="button" data-difficulty="expert">专家</button>
+          <p class="menu-difficulty-desc" id="menu-difficulty-desc">标准模式：证据、风险与处置方向，保留少量不完整信息。</p>
+        </div>
+
         <div class="menu-actions">
           <button class="btn primary lg" id="menu-start">开始新值班</button>
           <button class="btn lg" id="menu-continue" disabled title="还没有存档">继续上次值班</button>
@@ -49,7 +57,7 @@
 
         <p class="menu-meta">
           <span id="menu-seed-text">随机种子 2024</span>
-          <span>同一随机种子可复现同一局</span>
+          <span>同一随机种子 + 同一难度可复现同一局</span>
         </p>
         <button class="menu-audio" id="menu-mute" type="button" aria-pressed="false" title="音效开关（M）">音效：开（M）</button>
         <nav class="menu-links" aria-label="项目链接">
@@ -58,7 +66,7 @@
           <a href="https://github.com/telling890/zero-day-duty/releases/latest" target="_blank" rel="noreferrer">下载 Windows 版</a>
           <a href="README.md" target="_blank" rel="noreferrer">网页版说明</a>
         </nav>
-        <p class="menu-foot">课程演示项目 · 不使用真实恶意代码 · IP 均为文档保留地址 <span id="version">v1.5.0-web</span></p>
+        <p class="menu-foot">课程演示项目 · 不使用真实恶意代码 · IP 均为文档保留地址 <span id="version">v1.6.0-web</span></p>
       </div>
     </section>
 
@@ -68,6 +76,7 @@
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">0</span>
           <span class="brand-text">零日值班<small>NET DEFENSE SIM</small></span>
+          <span class="difficulty-chip" id="topbar-difficulty">标准</span>
         </div>
         <div class="metrics" id="metrics" role="list" aria-label="全局指标"></div>
         <div class="top-actions">
@@ -237,6 +246,7 @@
   <script src="js/core/actions.js"></script>
   <script src="js/core/score.js"></script>
   <script src="js/core/save.js"></script>
+  <script src="js/core/difficulty.js"></script>
   <script src="js/core/game.js"></script>
   <script src="js/core/zscript.js"></script>
   <script src="js/ui/audio.js"></script>

@@ -22,6 +22,9 @@ class ScoreReport:
     achievements: list[str] = field(default_factory=list)
     news_headline: str = ""
     news_detail: str = ""
+    doctrine: str = "混合型"
+    timeline: list[dict[str, Any]] = field(default_factory=list)
+    review: dict[str, Any] = field(default_factory=dict)
 
 
 ENDINGS = {
@@ -92,7 +95,54 @@ class ScoreSystem:
             achievements=self._achievements(summary, ending_key),
             news_headline=news_headline,
             news_detail=news_detail,
+            doctrine=str(summary.get("doctrine", "混合型")),
+            timeline=list(summary.get("timeline", [])),
+            review=self._review(summary),
         )
+
+    def _review(self, summary: dict[str, Any]) -> dict[str, Any]:
+        """从真实记录的时间线提取复盘，不按最终分数反推。"""
+        timeline = [item for item in summary.get("timeline", []) if isinstance(item, dict)]
+        dangerous = summary.get("dangerous_event") or {}
+        correct = None
+        if dangerous.get("name"):
+            for item in timeline:
+                if item.get("kind") == "eradicate" and dangerous.get("name") in str(item.get("text", "")):
+                    correct = item
+                    break
+        if correct is None:
+            correct = next((item for item in timeline if item.get("kind") == "eradicate"), None)
+        if correct is None:
+            correct = next((item for item in timeline if item.get("kind") == "contain"), None)
+        if correct is None:
+            correct = next((item for item in timeline if item.get("kind") == "investigate"), None)
+        mistake = next(
+            (item for item in timeline if item.get("kind") in ("false_isolation", "mistake")),
+            None,
+        )
+        if mistake is None:
+            missed_names = [str(name) for name in summary.get("missed_names", []) if name]
+            if missed_names:
+                mistake = {
+                    "text": f"漏掉未处置的真实攻击：{'、'.join(missed_names[:3])}",
+                }
+            elif summary.get("data_leak"):
+                mistake = {"text": "关键攻击链在最终阶段前没有被彻底清除，导致数据泄露。"}
+        delayed = [
+            item for item in timeline
+            if item.get("kind") == "delayed"
+            and isinstance(item.get("effects"), dict)
+            and any(int(value) < 0 for value in item["effects"].values())
+        ]
+        return {
+            "key_correct": str(correct.get("text", "")) if correct else "本局没有可确认的关键正确处置。",
+            "key_mistake": str(mistake.get("text", "")) if mistake else "未发生误封或无效操作。",
+            "invalid_actions": int(summary.get("invalid_actions", 0)),
+            "false_isolation_loss": int(summary.get("false_isolation_loss", 0)),
+            "dangerous_event": dangerous,
+            "delayed": delayed,
+            "doctrine": str(summary.get("doctrine", "混合型")),
+        }
 
     def _achievements(self, summary: dict[str, Any], ending_key: str) -> list[str]:
         achievements: list[str] = []

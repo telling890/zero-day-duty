@@ -25,11 +25,11 @@ class DecisionScreen:
         choices = decision.get("choices", [])
         if not isinstance(choices, list):
             choices = []
-        for index, choice in enumerate(choices[:2]):
+        for index, choice in enumerate(choices[:3]):
             if not isinstance(choice, dict):
                 continue
             button = Button(
-                (self.rect.x + 42, self.rect.y + 218 + index * 82, self.rect.width - 84, 66),
+                (self.rect.x + 42, self.rect.y + 214 + index * 74, self.rect.width - 84, 62),
                 str(choice.get("label", "选择")),
                 subtitle=str(choice.get("hint", "")),
                 style="primary" if index == 0 else "default",
@@ -78,7 +78,7 @@ class DecisionScreen:
         )
         hint_font = draw_utils.get_font(11)
         surface.blit(
-            hint_font.render("选择会立即改变指标，并影响本局最终结算。", True, settings.TEXT_FAINT),
+            hint_font.render("选项只显示可预知的直接成本；安全影响可能在 1–3 回合后显现。", True, settings.TEXT_FAINT),
             (self.rect.x + 42, self.rect.y + 184),
         )
         mouse_pos = pygame.mouse.get_pos()

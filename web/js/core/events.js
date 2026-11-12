@@ -27,6 +27,7 @@
       this.lastFalsePositiveTurn = -99;
       this.usedFalsePositiveTitles = new Set();
       this.spawnSchedule = {};
+      this.pendingLogs = [];
       this.campaignRuntime = {};
       for (const campaign of this.campaignConfigs) {
         this.campaignRuntime[String(campaign.id || '')] = EventManager.newCampaignRuntime();
@@ -35,7 +36,15 @@
     }
 
     static newCampaignRuntime() {
-      return { momentum: 0, escalations: 0, revealed: false, settled: false };
+      return {
+        momentum: 0,
+        escalations: 0,
+        revealed: false,
+        settled: false,
+        waits: 0,
+        lastSwitch: '',
+        lastTarget: '',
+      };
     }
 
     get eventConfigs() {
@@ -137,6 +146,9 @@
           escalations: runtime.escalations,
           revealed: runtime.revealed,
           settled: runtime.settled,
+          waits: runtime.waits || 0,
+          style: String(campaign.actor_style || 'standard'),
+          lastSwitch: String(runtime.lastSwitch || ''),
         };
       });
     }
@@ -182,7 +194,11 @@
     maybeRevealCampaign(game, campaign) {
       const runtime = this.runtime(campaign);
       if (runtime.revealed) return false;
-      if (this.campaignMembers(campaign).length < 2) return false;
+      const members = this.campaignMembers(campaign);
+      if (members.length < 2) {
+        const early = Number(game.modifiers.campaign_early_reveal || 0);
+        if (!early || !members.some((event) => event.investigations > 0)) return false;
+      }
       runtime.revealed = true;
       const name = String(campaign.name || '');
       const actor = String(campaign.actor || name);
@@ -194,21 +210,59 @@
       return true;
     }
 
+    alertForEvent(event) {
+      for (let i = this.alerts.length - 1; i >= 0; i -= 1) {
+        const alert = this.alerts[i];
+        if (alert.eventId === event.eventId && !alert.resolved) return alert;
+      }
+      return null;
+    }
+
     escalateCampaign(game, campaign, active) {
       const name = String(campaign.name || '');
       const actor = String(campaign.actor || name);
       const clock = ZDD.clockText(game.turn);
+      const runtime = this.runtime(campaign);
+      const style = String(campaign.actor_style || 'standard');
       const pending = (campaign.members || [])
         .map(String)
         .filter((id) => !this.spawnedEventIds.has(id));
+
+      // 夜鸦：隔离面足够大时降低活动强度，等待窗口，但留下低强度探测线索
+      if (style === 'stealth') {
+        const isolated = Object.values(game.devices).filter((device) => device.isolated).length;
+        const tolerance = Math.max(1, Number(campaign.isolation_tolerance || 2));
+        if (isolated >= tolerance && Number(runtime.waits || 0) < 2) {
+          runtime.waits = Number(runtime.waits || 0) + 1;
+          const clue = `情报：${actor} 的活动强度突然下降，但在隔离网段边缘出现低强度探测；它可能在等待隔离解除，而不是放弃。`;
+          game.logs.add(game.turn, clock, INTEL_CATEGORY, clue);
+          game.pushMessage(clue, 'purple');
+          game.effects.addBanner(`情报 · ${actor}`, '攻击者转入低强度等待', 'purple');
+          game.recordTimeline('actor_wait', `${actor} 在 ${isolated} 台设备隔离后降低活动强度`, { actor });
+          return;
+        }
+        if (Number(runtime.waits || 0) >= 2) {
+          runtime.waits = 0;
+          game.logs.add(game.turn, clock, INTEL_CATEGORY, `情报：${actor} 等不下去了，重新提高活动强度。`);
+        }
+      }
 
       // 1) 还没登场的成员：把排期提前到下一回合
       for (const eventId of pending) {
         const nextTurn = game.turn + 1;
         const scheduled = this.spawnSchedule[eventId];
         if (scheduled !== undefined && scheduled <= nextTurn) continue;
-        this.spawnSchedule[eventId] = nextTurn;
         const config = this.getEventConfig(eventId) || {};
+        const targetDevice = config.initial_target ? game.devices[String(config.initial_target)] : null;
+        if (style === 'aggressive' && targetDevice && targetDevice.isolated) {
+          game.logs.add(
+            game.turn,
+            clock,
+            INTEL_CATEGORY,
+            `情报：${actor} 避开了已隔离的「${targetDevice.name}」，正在寻找新的入口。`,
+          );
+        }
+        this.spawnSchedule[eventId] = nextTurn;
         const eventName = String(config.name || eventId);
         const plan = scheduled !== undefined ? `，原计划第 ${scheduled} 回合` : '';
         this.maybeRevealCampaign(game, campaign);
@@ -223,13 +277,73 @@
         return;
       }
 
-      // 2) 成员都已出现：直接推进最靠前的那条攻击链
-      let target = active[0];
+      // 2) 成员都已出现：按性格选择推进目标
+      let defaultTarget = active[0];
       for (const event of active) {
-        if (event.stageIndex > target.stageIndex
-          || (event.stageIndex === target.stageIndex && event.startTurn < target.startTurn)) {
-          target = event;
+        if (event.stageIndex > defaultTarget.stageIndex
+          || (event.stageIndex === defaultTarget.stageIndex && event.startTurn < defaultTarget.startTurn)) {
+          defaultTarget = event;
         }
+      }
+      let target = defaultTarget;
+      let reason = '';
+      if (style === 'stealth') {
+        const score = (event) => {
+          const alert = this.alertForEvent(event);
+          const investigated = Boolean(alert && alert.investigated);
+          return (investigated ? 0 : 2) + (event.credentialsReset ? 0 : 1);
+        };
+        target = active.slice().sort((a, b) => {
+          const diff = score(b) - score(a);
+          if (diff) return diff;
+          if (b.stageIndex !== a.stageIndex) return b.stageIndex - a.stageIndex;
+          return a.startTurn - b.startTurn;
+        })[0];
+        reason = '尚未调查的入口与可复用凭据';
+      } else if (style === 'aggressive') {
+        const candidates = active.filter((event) => {
+          const device = game.devices[event.activeDeviceId];
+          return device && device.online && !device.patched;
+        });
+        if (candidates.length) {
+          target = candidates.slice().sort((a, b) => {
+            const da = game.devices[a.activeDeviceId];
+            const db = game.devices[b.activeDeviceId];
+            if (db.importance !== da.importance) return db.importance - da.importance;
+            if (db.exposure !== da.exposure) return db.exposure - da.exposure;
+            return b.stageIndex - a.stageIndex;
+          })[0];
+          reason = '在线、未打补丁的高价值资产';
+        } else {
+          runtime.waits = Number(runtime.waits || 0) + 1;
+          game.logs.add(
+            game.turn,
+            clock,
+            INTEL_CATEGORY,
+            `情报：${actor} 没有找到可用的未打补丁入口，暂时收手，等待资产重新上线或补丁窗口过去。`,
+          );
+          game.pushMessage(`情报：${actor} 暂时收手，已隔离/已修复的资产没有给它可乘之机。`, 'purple');
+          if (Number(runtime.waits || 0) <= 2) return;
+          game.logs.add(
+            game.turn,
+            clock,
+            INTEL_CATEGORY,
+            `情报：${actor} 等不下去，重新尝试已暴露的入口。`,
+          );
+        }
+      }
+      if (target !== defaultTarget) {
+        const clue = `情报：${actor} 在「${defaultTarget.name}」附近留下异常探测流量，随后把注意力转向「${target.name}」（${reason}）。目标可能发生变化。`;
+        game.logs.add(game.turn, clock, INTEL_CATEGORY, clue);
+        game.pushMessage(clue, 'purple');
+        game.effects.addBanner(`情报 · ${actor}`, `攻击焦点转向「${target.name}」`, 'purple');
+        runtime.lastSwitch = String(target.eventId);
+        runtime.lastTarget = String(target.activeDeviceId);
+        game.recordTimeline(
+          'actor_switch',
+          `${actor} 从「${defaultTarget.name}」转向「${target.name}」：${reason}`,
+          { actor, fromEvent: defaultTarget.eventId, toEvent: target.eventId },
+        );
       }
       this.maybeRevealCampaign(game, campaign);
       if (target.stageIndex >= target.maxStageIndex) {
@@ -253,13 +367,57 @@
         `情报：${actor} 绕过轮询节奏，把「${target.name}」从“${oldName}”推进到“${target.stageName}”。`,
       );
       game.pushMessage(`情报：${actor} 加速推进「${target.name}」到“${target.stageName}”！`, 'red');
+      game.recordTimeline(
+        'actor_advance',
+        `${actor} 把「${target.name}」推进到「${target.stageName}」`,
+        { actor, eventId: target.eventId },
+      );
       this.applyStage(game, target, oldName);
     }
 
     startTurn(game) {
+      this.flushPendingLogs(game);
       this.spawnDueEvents(game);
       this.maybeFalsePositive(game);
       this.backgroundNoise(game);
+    }
+
+    writeLog(game, category, message, extra, delay) {
+      const mode = game.difficultyMode;
+      const delayTurns = delay && mode ? Number(mode.logDelay || 0) : 0;
+      if (delayTurns > 0) {
+        this.pendingLogs.push({
+          due: game.turn + delayTurns,
+          category,
+          message,
+          ...extra,
+        });
+        return;
+      }
+      game.logs.add(game.turn, ZDD.clockText(game.turn), category, message, extra || {});
+    }
+
+    flushPendingLogs(game) {
+      if (!this.pendingLogs.length) return;
+      const remaining = [];
+      for (const item of this.pendingLogs) {
+        if (Number(item.due || 0) <= game.turn) {
+          game.logs.add(
+            game.turn,
+            ZDD.clockText(game.turn),
+            String(item.category || '系统'),
+            `[延迟到达] ${item.message || ''}`,
+            {
+              source: String(item.source || ''),
+              account: String(item.account || ''),
+              ip: String(item.ip || ''),
+            },
+          );
+        } else {
+          remaining.push(item);
+        }
+      }
+      this.pendingLogs = remaining;
     }
 
     spawnDueEvents(game) {
@@ -296,12 +454,12 @@
       const stage = event.stage;
       const device = game.devices[event.activeDeviceId];
       const sourceName = device ? device.name : event.targetId;
-      game.logs.add(
-        game.turn,
-        clock,
+      this.writeLog(
+        game,
         event.eventType === '钓鱼邮件' && event.stageIndex === 0 ? '邮件' : '告警',
         String(stage.log || event.name),
         { source: sourceName, account: event.account, ip: event.sourceIp },
+        true,
       );
       const alert = this.createAlert(game, {
         title: String(stage.alert_title || event.name),
@@ -314,6 +472,11 @@
       });
       const prefix = first ? '检测到新的可疑活动' : '事件升级';
       game.pushMessage(`${prefix}：${alert.title}（${alert.level}）`, alert.levelColor);
+      game.recordTimeline(
+        'attack',
+        `攻击「${event.name}」进入「${event.stageName}」，目标 ${sourceName}`,
+        { eventId: event.eventId, severity: event.severity, stage: event.stageIndex + 1 },
+      );
       if (first && event.severity >= 5) game.onCriticalEvent(event);
     }
 
@@ -344,7 +507,10 @@
       if (!pool.length) return;
       const turn = game.turn;
       let shouldSpawn = turn === 1;
-      if (!shouldSpawn) shouldSpawn = turn - this.lastFalsePositiveTurn >= 2 && this.rng.random() < 0.5;
+      if (!shouldSpawn) {
+        const rate = Number(game.difficultyMode && game.difficultyMode.falsePositiveRate);
+        shouldSpawn = turn - this.lastFalsePositiveTurn >= 2 && this.rng.random() < (Number.isFinite(rate) ? rate : 0.5);
+      }
       if (!shouldSpawn) return;
       let candidates = pool.filter((item) => !this.usedFalsePositiveTitles.has(item.title));
       if (!candidates.length) candidates = pool;
@@ -566,6 +732,7 @@
         last_false_positive_turn: this.lastFalsePositiveTurn,
         used_false_positive_titles: Array.from(this.usedFalsePositiveTitles).sort(),
         spawn_schedule: Object.assign({}, this.spawnSchedule),
+        pending_logs: this.pendingLogs.map((item) => Object.assign({}, item)),
         campaign_runtime: Object.fromEntries(
           Object.entries(this.campaignRuntime).map(([id, runtime]) => [id, Object.assign({}, runtime)]),
         ),
@@ -586,6 +753,9 @@
           if (Number.isFinite(Number(value))) this.spawnSchedule[String(key)] = Number(value);
         }
       }
+      this.pendingLogs = Array.isArray(state.pending_logs)
+        ? state.pending_logs.filter((item) => item && typeof item === 'object').map((item) => Object.assign({}, item))
+        : [];
 
       this.events = [];
       for (const eventState of state.events || []) {
@@ -611,6 +781,9 @@
             escalations: Math.max(0, Number(runtime.escalations || 0) | 0),
             revealed: Boolean(runtime.revealed),
             settled: Boolean(runtime.settled),
+            waits: Math.max(0, Number(runtime.waits || 0) | 0),
+            lastSwitch: String(runtime.lastSwitch || ''),
+            lastTarget: String(runtime.lastTarget || ''),
           };
         }
       }

@@ -143,9 +143,9 @@
       body: '除了处置告警，一局之内还有两件事会影响结局：花钱买加固，以及在关键时刻做决策。',
       bullets: [
         '按 U 或暂停菜单打开安全加固：三条线 × 两层，第二层三选一，买了本局永久生效。',
-        '加固用公司资金；资金紧张时优先买能减少 AP 或提高情报的升级。',
-        '第 4/7 回合会弹出剧情决策，每个选项都会改变指标，没有免费选项。',
-        '决策立即生效；选择前先看当前安全度、可用性和声誉。',
+        '开局可选新手/标准/专家：只改变信息质量、提示和误判代价，不直接增加攻击伤害。',
+        '第 4/5/7 回合会弹出剧情决策，第 5 回合是三选一；选项只显示直接成本，安全影响可能延后 1–3 回合显现。',
+        '延迟后果会回到日志与结算时间里解释；没有免费选项，也没有稳赚不赔的路线。',
         '拿不准时按 F1 打开值班手册，规则和快捷键都在里面。',
       ],
       note: '先学会手动处置，再考虑用资金换效率。',
@@ -471,9 +471,9 @@
         <p class="modal-kicker">第 ${game.turn} 回合 · 值班决策${speaker ? ` · ${esc(speaker)}` : ''}</p>
         <h2 class="modal-title decision-card" id="modal-title">${esc(decision.title || '紧急决策')}</h2>
         <p class="modal-sub">${esc(decision.prompt || '')}</p>
-        <p class="modal-note">选择会立即改变指标，并影响本局最终结算。</p>
+        <p class="modal-note">选项只显示可预知的直接成本；安全与业务影响可能在 1–3 回合后显现，结算时会解释。</p>
         <div>
-          ${choices.slice(0, 2).map((choice, index) => `
+          ${choices.slice(0, 3).map((choice, index) => `
             <button class="choice" data-act="decision-choose" data-index="${index}">
               <strong>${esc(choice.label || '选择')}</strong>
               <span>${esc(choice.hint || '')}</span>
@@ -580,6 +580,7 @@
           <td><span class="grade-tag grade-${esc(String(entry.grade || '-').slice(0, 1))}">${esc(entry.grade || '-')}</span></td>
           <td title="${esc(entry.ending || '-')}">${esc(entry.ending || '-')}</td>
           <td>${esc(entry.turn || '-')}</td>
+          <td>${esc({ novice: '新手', standard: '标准', expert: '专家' }[entry.difficulty] || '标准')}</td>
           <td>${esc(entry.seed || '-')}</td>
           <td>${esc(entry.timestamp || '-')}</td>
         </tr>
@@ -590,7 +591,7 @@
         <p class="modal-sub">历史记录保存在这台设备的浏览器里，不会上传到任何服务器。</p>
         <table class="history-table">
           <thead>
-            <tr><th>#</th><th>得分</th><th>等级</th><th>结局</th><th>回合</th><th>种子</th><th>时间</th></tr>
+            <tr><th>#</th><th>得分</th><th>等级</th><th>结局</th><th>回合</th><th>难度</th><th>种子</th><th>时间</th></tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
@@ -608,10 +609,13 @@
       const report = game.report;
       if (!report) return '';
       const color = ENDING_COLORS[report.endingKey] || 'var(--accent)';
+      const review = report.review || {};
+      const dangerous = review.dangerousEvent || {};
+      const timeline = Array.isArray(report.timeline) ? report.timeline.slice(-10) : [];
       return `
         <div class="result-head">
           <div>
-            <p class="modal-kicker">值班结算 · 第 ${game.turn} 回合结束 · 随机种子 ${game.seed}</p>
+            <p class="modal-kicker">值班结算 · 第 ${game.turn} 回合结束 · ${esc(game.difficultyMode.name)} · 随机种子 ${game.seed}</p>
             <h2 class="ending-title" id="modal-title" style="color:${color}">${esc(report.endingTitle)}</h2>
             <p class="modal-sub">${esc(report.endingText)}</p>
           </div>
@@ -629,7 +633,7 @@
               <span class="score-value" style="color:${color}">${report.score}</span>
               <span class="score-max">/ 130</span>
             </div>
-            <p class="style-line">值班风格：${esc(report.style)}</p>
+            <p class="style-line">值班风格：${esc(report.style)} · ${esc(report.doctrine)}</p>
             <p class="style-comment">${esc(report.styleComment)}</p>
           </div>
           <div class="stats-box">
@@ -649,7 +653,23 @@
             `).join('')}
           </div>
         ` : ''}
-        <p class="modal-note">本局所有数据均为虚构；随机种子固定时结果可复现。</p>
+        <div class="result-review">
+          <h3>关键复盘 <span>只从本局真实记录提取，不按分数反推</span></h3>
+          <div class="review-grid">
+            <div><span>关键正确</span><p>${esc(review.keyCorrect || '—')}</p></div>
+            <div><span>最大失误</span><p>${esc(review.keyMistake || '—')}</p></div>
+            <div><span>无效操作</span><p>${Number(review.invalidActions || 0)} 次 · 误封损失 ${Number(review.falseIsolationLoss || 0)} 声誉</p></div>
+            <div><span>打法与最危险攻击</span><p>${esc(report.doctrine)}${dangerous.name ? ` · ${esc(dangerous.name)}（第 ${dangerous.stage} 阶段）` : ' · 没有完成清除的高危事件'}</p></div>
+          </div>
+          ${timeline.length ? `
+            <ol class="timeline-list">
+              ${timeline.map((item) => `
+                <li><time>${esc(item.clock || '')}</time><span>${esc(item.text || '')}</span></li>
+              `).join('')}
+            </ol>
+          ` : '<p class="modal-note">本局没有记录到关键事件。</p>'}
+        </div>
+        <p class="modal-note">本局所有数据均为虚构；同一随机种子 + 同一难度可复现。</p>
         <div class="modal-actions">
           <button class="btn ghost" data-act="result-menu">返回主菜单</button>
           <button class="btn primary" data-act="result-restart">再值一班</button>

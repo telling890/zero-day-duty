@@ -35,6 +35,38 @@
 
   const ALERT_ACTION_ORDER = ['investigate', 'delete_mail', 'reset_password', 'block_source'];
 
+  const DIRECTION_BY_TYPE = {
+    钓鱼邮件: '先确认投递范围与发件来源，再决定删除邮件、封禁来源或隔离终端；不要直接关停邮件服务器。',
+    异常登录: '先确认账号是否失陷，再重置凭据、踢出会话；必要时隔离登录来源。',
+    模拟勒索软件: '优先控制扩散并保护备份，再清除；不要在扩散中先删文件。',
+    'Web 流量异常': '先确认对外服务与补丁状态，再考虑限流、隔离 Web 或封禁来源。',
+    内部账号异常访问: '先核实账号行为与数据范围，再重置凭据、限制导出。',
+    零日漏洞: '优先隔离高价值节点、保护备份，等待补丁窗口；不要只封 IP。',
+  };
+
+  const ZONE_BY_DEVICE = {
+    'GW-01': '办公网出口',
+    'MAIL-01': '邮件网关',
+    'WEB-01': '对外 Web',
+    'PC-01': '办公终端',
+    'PC-02': '办公终端',
+    'FIN-01': '财务终端',
+    'DB-01': '数据库区',
+    'BAK-01': '备份区',
+  };
+
+  const NOISE_CLUES = [
+    '同一时间戳附近还有 3 条低危告警，来源尚未核实',
+    '日志中有一段响应时间异常，可能只是业务高峰',
+    '该账号在另一台设备上有一次正常登录记录，时间接近',
+    '来源 IP 的归属信息与告警描述不完全一致',
+    '终端上存在一个未签名的计划任务，但无法确认是否与本次事件有关',
+  ];
+
+  function zoneOf(deviceId) {
+    return ZONE_BY_DEVICE[String(deviceId)] || '未知网段';
+  }
+
   class ActionManager {
     static styleOf(actionId) {
       return {
@@ -250,8 +282,26 @@
         { source: target.device ? target.device.name : '' },
       );
       const result = this[option.actionId](game, target) || { success: false, message: '操作没有返回结果' };
+      if (result.success) {
+        game.recordTimeline('action', `${option.name}：${target.label}`, {
+          actionId: option.actionId,
+          success: true,
+        });
+      } else {
+        game.player.stats.invalid_actions = Number(game.player.stats.invalid_actions || 0) + 1;
+        game.recordTimeline('mistake', `${option.name} 未生效：${result.message}`, {
+          actionId: option.actionId,
+          success: false,
+        });
+      }
       game.pushMessage(result.message, result.success ? 'green' : 'yellow');
       return Object.assign({ executed: true }, result);
+    }
+
+    falsePenalty(game, base) {
+      const mode = game.difficultyMode;
+      const extra = Number(game.modifiers.false_isolation_penalty || 0);
+      return Math.max(1, Math.round(base * Math.max(1, Number(mode.falseIsolationPenalty || 1)) + extra));
     }
 
     // ------------------------------------------------------------------
@@ -284,6 +334,7 @@
         event.responseTurn = Math.max(1, game.turn - event.startTurn + 1);
         stats.response_turns.push(event.responseTurn);
       }
+      const mode = game.difficultyMode;
       const extraClues = Math.max(0, Math.trunc(game.modifiers.extra_clue || 0));
       const revealed = [];
       for (let i = 0; i < 1 + extraClues; i += 1) {
@@ -291,36 +342,65 @@
         if (clue) revealed.push(clue);
       }
       const clue = revealed.length ? revealed.join('；') : '暂未获得新的可观察线索。';
+      const noise = [];
+      for (let i = 0; i < (mode.clueNoise || 0); i += 1) {
+        noise.push(`未验证：${game.rng.choice(NOISE_CLUES)}`);
+      }
       const device = game.devices[event.activeDeviceId];
-      const [low, high, confidence] = game.risk.estimate(event, device, game.turn, game.confidenceBonus);
+      const sourceName = device ? device.name : event.targetId;
+      const [low, high, confidence] = game.risk.estimate(
+        event,
+        device,
+        game.turn,
+        game.confidenceBonus,
+        mode.riskScale,
+      );
       game.logs.add(
         game.turn,
         ZDD.clockText(game.turn),
         '告警',
         `调查确认「${event.name}」为真实威胁。新线索：${clue}`,
-        { source: device ? device.name : event.targetId, account: event.account, ip: event.sourceIp },
+        { source: sourceName, account: event.account, ip: event.sourceIp },
       );
-      const recommended = (event.stage.recommended || []).map(String).join('、');
-      if (recommended) {
+      if (mode.recommendations === 'full') {
+        const recommended = (event.stage.recommended || []).map(String).join('、');
+        if (recommended) {
+          game.logs.add(
+            game.turn,
+            ZDD.clockText(game.turn),
+            '告警',
+            `建议处置：${recommended}。`,
+            { source: sourceName },
+          );
+        }
+        const warning = event.stageText('wrong_action', '');
+        if (warning) {
+          game.logs.add(
+            game.turn,
+            ZDD.clockText(game.turn),
+            '告警',
+            `风险提示：${warning}`,
+            { source: sourceName },
+          );
+        }
+      } else if (mode.recommendations === 'direction') {
         game.logs.add(
           game.turn,
           ZDD.clockText(game.turn),
           '告警',
-          `建议处置：${recommended}。`,
-          { source: device ? device.name : event.targetId },
+          `处置方向：${DIRECTION_BY_TYPE[event.eventType] || '先确认证据，再决定控制或清除；不要只凭告警等级行动。'}`,
+          { source: sourceName },
         );
-      }
-      const warning = event.stageText('wrong_action', '');
-      if (warning) {
+      } else {
         game.logs.add(
           game.turn,
           ZDD.clockText(game.turn),
           '告警',
-          `风险提示：${warning}`,
-          { source: device ? device.name : event.targetId },
+          '处置建议：证据不足，无法判断完整处置顺序；先继续调查或加固情报。',
+          { source: sourceName },
         );
       }
-      if (event.nextDeviceId) {
+      if (mode.nextHop === 'exact' && event.nextDeviceId) {
         const nextDevice = game.devices[event.nextDeviceId];
         const nextName = nextDevice ? nextDevice.name : event.nextDeviceId;
         game.logs.add(
@@ -328,7 +408,31 @@
           ZDD.clockText(game.turn),
           '告警',
           `预测下一跳：${nextName}（${event.nextStageName}）。提前隔离可拖住攻击。`,
-          { source: device ? device.name : event.targetId },
+          { source: sourceName },
+        );
+      } else if (mode.nextHop === 'direction' && event.nextDeviceId) {
+        const intelDetail = Number(game.modifiers.next_hop_detail || 0) > 0;
+        const nextDevice = game.devices[event.nextDeviceId];
+        const nextName = nextDevice ? nextDevice.name : event.nextDeviceId;
+        game.logs.add(
+          game.turn,
+          ZDD.clockText(game.turn),
+          '告警',
+          intelDetail
+            ? `情报插件推断下一跳：${nextName}（${event.nextStageName}）。`
+            : `下一跳方向：可能在${zoneOf(event.nextDeviceId)}，具体设备还需要更多证据。`,
+          { source: sourceName },
+        );
+      } else if (mode.nextHop === 'none' && event.nextDeviceId) {
+        const intelDetail = Number(game.modifiers.next_hop_detail || 0) > 0;
+        game.logs.add(
+          game.turn,
+          ZDD.clockText(game.turn),
+          '告警',
+          intelDetail
+            ? `下一跳方向：可能在${zoneOf(event.nextDeviceId)}，无法确认具体设备。`
+            : '下一跳：证据不足，无法判断方向。',
+          { source: sourceName },
         );
       }
       const related = game.relatedAlerts(alert);
@@ -338,23 +442,42 @@
           ZDD.clockText(game.turn),
           '告警',
           `情报关联：发现 ${related.length} 条同源/同账号告警，可能属于同一攻击活动。`,
-          { source: device ? device.name : event.targetId },
+          { source: sourceName },
         );
       }
-      const spreadCondition = String(event.config.spread_condition || '');
-      if (spreadCondition) {
+      if (mode.recommendations === 'full') {
+        const spreadCondition = String(event.config.spread_condition || '');
+        if (spreadCondition) {
+          game.logs.add(
+            game.turn,
+            ZDD.clockText(game.turn),
+            '告警',
+            `传播条件：${spreadCondition}`,
+            { source: sourceName },
+          );
+        }
+      }
+      for (const item of noise) {
+        game.logs.add(game.turn, ZDD.clockText(game.turn), '告警', item, { source: sourceName });
+      }
+      if (noise.length) {
         game.logs.add(
           game.turn,
           ZDD.clockText(game.turn),
           '告警',
-          `传播条件：${spreadCondition}`,
-          { source: device ? device.name : event.targetId },
+          '情报提示：以上含未验证线索，可能与真实证据冲突；建议交叉验证后再处置。',
+          { source: sourceName },
         );
       }
-      return {
-        success: true,
-        message: `确认「${event.name}」是真实威胁。新线索：${clue}｜风险估计 ${low}~${high}（置信度 ${confidence}%）。`,
-      };
+      let message = `确认「${event.name}」是真实威胁。新线索：${clue}｜风险估计 ${low}~${high}（置信度 ${confidence}%）。`;
+      if (mode.recommendations === 'direction') message += ' 情报只给出处置方向，完整步骤需要自行判断。';
+      else if (mode.recommendations === 'none') message += ' 证据不足，无法给出完整处置顺序。';
+      if (noise.length) message += ' 其中含有未验证线索。';
+      game.recordTimeline(
+        'investigate',
+        `调查「${event.name}」：线索 ${event.revealedClues}/${event.totalClues}，风险 ${low}~${high}`,
+      );
+      return { success: true, message };
     }
 
     delete_mail(game, target) {
@@ -382,8 +505,13 @@
     block_source(game, target) {
       const alert = target.alert;
       if (alert.falsePositive) {
-        game.adjustMetric('reputation', -6, `封禁合作方地址 ${alert.sourceIp}，正常业务中断`);
+        const penalty = 6 + Math.max(0, Number(game.modifiers.false_block_penalty || 0));
+        game.adjustMetric('reputation', -penalty, `封禁合作方地址 ${alert.sourceIp}，正常业务中断`);
+        game.player.stats.false_isolation_loss = Number(game.player.stats.false_isolation_loss || 0) + penalty;
         game.breakCombo('误封合作方地址');
+        game.recordTimeline('false_isolation', `误封合作方地址 ${alert.sourceIp}：声誉 -${penalty}`, {
+          alertId: alert.alertId,
+        });
         return {
           success: false,
           message: `已封禁 ${alert.sourceIp}，但该地址属于合作方，接口调用失败，声誉下降。`,
@@ -425,8 +553,16 @@
         };
       }
       game.adjustMetric('reputation', -5, `误封 ${device.name}，影响正常业务`);
+      const penalty = this.falsePenalty(game, 5);
+      if (penalty > 5) {
+        game.adjustMetric('reputation', -(penalty - 5), `误封代价：${device.name}`);
+      }
+      game.player.stats.false_isolation_loss = Number(game.player.stats.false_isolation_loss || 0) + Math.max(5, penalty);
       game.player.stats.false_isolations = (game.player.stats.false_isolations || 0) + 1;
       game.breakCombo('误封设备');
+      game.recordTimeline('false_isolation', `误封 ${device.name}：声誉 -${Math.max(5, penalty)}，业务受影响`, {
+        deviceId: device.deviceId,
+      });
       return {
         success: false,
         message: `${device.name} 已隔离，但没有发现该设备相关的活动事件，可能属于误封，声誉下降。`,
