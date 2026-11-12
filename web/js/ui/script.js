@@ -315,6 +315,7 @@
       if (!this.game || this.game.state !== 'playing') return;
       this.isOpen = true;
       this.root.hidden = false;
+      this.clearFeedback();
       document.body.classList.add('script-open');
       this.onOpenChange(true);
       this.onChange();
@@ -332,11 +333,18 @@
       if (!this.isOpen) return;
       this.saveNow();
       this.stopSilent();
+      this.clearFeedback();
       this.isOpen = false;
       this.root.hidden = true;
       this.code.blur();
       document.body.classList.remove('script-open');
       this.onOpenChange(false);
+    }
+
+    clearFeedback() {
+      if (this.effects && this.effects.feedbackEl) {
+        this.effects.feedbackEl.classList.remove('show');
+      }
     }
 
     close() {
