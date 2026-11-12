@@ -72,6 +72,7 @@
         <div class="metrics" id="metrics" role="list" aria-label="全局指标"></div>
         <div class="top-actions">
           <button class="icon-btn" id="btn-terminal" title="处置终端（`）" aria-label="打开处置终端">终端</button>
+          <button class="icon-btn" id="btn-script" title="自动化剧本（C）" aria-label="打开自动化剧本">脚本</button>
           <button class="icon-btn" id="btn-help" title="值班手册（F1）" aria-label="值班手册">手册</button>
           <button class="icon-btn" id="btn-mute" title="音效开关（M）" aria-label="音效开关" aria-pressed="false">音效</button>
           <button class="icon-btn" id="btn-pause" title="暂停（Esc）" aria-label="暂停">暂停</button>
@@ -171,6 +172,40 @@
       </div>
     </div>
 
+    <!-- ============================ 自动化剧本 ============================ -->
+    <div id="script" class="script" hidden role="dialog" aria-modal="true" aria-label="自动化剧本">
+      <div class="script-backdrop" aria-hidden="true"></div>
+      <section class="script-dock">
+        <header class="script-head">
+          <span class="script-kicker">ZDD SCRIPT · 自动化剧本</span>
+          <span class="script-status" id="script-status">就绪</span>
+          <button type="button" class="script-close" id="script-close" aria-label="关闭剧本（Esc）">×</button>
+        </header>
+        <div class="script-meta" id="script-meta"></div>
+        <div class="script-toolbar">
+          <button type="button" class="btn primary small" id="script-run">▶ 运行</button>
+          <button type="button" class="btn small" id="script-step">单步</button>
+          <button type="button" class="btn ghost small" id="script-stop" disabled>■ 停止</button>
+          <select id="script-example" class="script-select" aria-label="示例剧本"></select>
+          <button type="button" class="btn ghost small" id="script-help">语法</button>
+          <button type="button" class="btn ghost small" id="script-clear">清空</button>
+        </div>
+        <div class="script-editor">
+          <div class="script-gutter" id="script-gutter" aria-hidden="true"></div>
+          <div class="script-code-wrap">
+            <pre id="script-highlight" class="script-highlight" aria-hidden="true"></pre>
+            <textarea id="script-code" class="script-code" wrap="off" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="自动化剧本代码"></textarea>
+          </div>
+        </div>
+        <div class="script-console" id="script-console" role="log" aria-live="polite"></div>
+        <footer class="script-foot">
+          <span>Ctrl+Enter 运行 · Tab 缩进 · Esc 停止/关闭</span>
+          <span id="script-line">第 1 行</span>
+          <span id="script-count">0 个操作</span>
+        </footer>
+      </section>
+    </div>
+
     <!-- ============================ 浮层 ============================ -->
     <div id="modal" class="modal" hidden>
       <div class="modal-card" id="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1"></div>
@@ -203,12 +238,14 @@
   <script src="js/core/score.js"></script>
   <script src="js/core/save.js"></script>
   <script src="js/core/game.js"></script>
+  <script src="js/core/zscript.js"></script>
   <script src="js/ui/audio.js"></script>
   <script src="js/ui/effects.js"></script>
   <script src="js/ui/topology.js"></script>
   <script src="js/ui/panels.js"></script>
   <script src="js/ui/screens.js"></script>
   <script src="js/ui/terminal.js"></script>
+  <script src="js/ui/script.js"></script>
   <script src="js/main.js"></script>
   <script>
     /* 注册 Service Worker：装到主屏后可离线进入游戏（http/https 下才启用）

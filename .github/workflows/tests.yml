@@ -51,5 +51,7 @@ jobs:
           git diff --exit-code ../docs/play
 
       - name: Run web logic tests
-        run: node tests/logic.test.mjs
+        run: |
+          node tests/logic.test.mjs
+          node tests/zscript.test.mjs
 

@@ -16,6 +16,7 @@
 - 10 个回合、8 台虚构设备、6 条攻击链、2 个攻击战役
 - 12 种操作、7 项安全加固（三线两层、第二层三选一）、2 个剧情决策、6 种结局
 - 可输入命令的「处置终端」：12 种处置、设备 / 告警查询、加固购买、回合推进，支持 Tab 补全与 ↑/↓ 历史
+- 可写代码的「自动化剧本」：Python 风格子集，for / if / 变量 / 查询函数 + 12 种操作，带行号与语法高亮，支持运行、单步、示例与本地保存
 - 业务服务与 SLA、风险估计区间、攻击下一跳、误报、连击、情报同源
 - 12 页新手教程 + 6 步实战演练
 - 文件小、无外部字体 / 图片 / 音频依赖（音效全部由 WebAudio 合成）
@@ -50,6 +51,7 @@ py -3.10 -m http.server 8000
 | 调查 / 控制 / 清除 / 恢复 | 点击底部「操作面板」中的按钮（按钮上标明 AP 与资金） |
 | 键盘执行操作 | 选中目标后按数字 1–6，直接执行操作面板里对应的按钮 |
 | 处置终端 | 点顶部「终端」或按 `` ` ``；输入 `scan PC-01`、`isolate PC-01`、`clean PC-01`、`release PC-01` 等命令，Tab 补全、↑/↓ 历史、Esc 关闭 |
+| 自动化剧本 | 点顶部「脚本」或按 `C`；Ctrl+Enter 运行、单步执行、Esc 关闭；脚本与手工操作共用 AP 和资金 |
 | 推进回合 | 点击「推进回合 →」或按空格 |
 | 暂停 | `Esc`；暂停菜单可保存、读取、重开、回主菜单 |
 | 快速保存 / 读取 | `F5` / `F9` |
@@ -93,12 +95,14 @@ web/
 │   │   ├── actions.js         # 12 种操作
 │   │   ├── score.js           # 结算、等级、结局、成就
 │   │   ├── save.js            # localStorage 存档与历史
-│   │   └── game.js            # 状态机与回合流程
+│   │   ├── game.js            # 状态机与回合流程
+│   │   └── zscript.js         # 自动化剧本解释器（Python 风格子集）
 │   ├── ui/
 │   │   ├── topology.js        # SVG 连线 + 节点脉冲
 │   │   ├── panels.js          # 指标、设备、告警、日志、操作、消息
 │   │   ├── screens.js         # 菜单之外的浮层与教程
 │   │   ├── terminal.js        # 可输入命令的处置终端（映射到同一套操作）
+│   │   ├── script.js          # 自动化剧本编辑器 / 运行器
 │   │   ├── effects.js         # 闪光、横幅、浮动文字、连击、反馈
 │   │   └── audio.js           # WebAudio 程序化音效
 │   └── main.js                # 装配、快捷键、渲染循环
@@ -107,11 +111,14 @@ web/
 │   ├── build-data.mjs         # JSON → JS 数据文件
 │   ├── cdp.mjs                # 无头浏览器测试工具
 │   ├── browser-smoke.mjs      # 主流程冒烟 + 截图
+│   ├── browser-terminal.mjs   # 处置终端测试
+│   ├── browser-script.mjs     # 自动化剧本测试
 │   ├── browser-flow.mjs       # 教程 / 决策 / 结算 / 存档 / 移动端
 │   ├── browser-extra.mjs      # 购买加固 / 排行榜 / HTTP 托管
 │   └── browser-audio.mjs      # WebAudio 波形与静音测试
 └── tests/
-    └── logic.test.mjs         # 无浏览器逻辑测试（15 项）
+    ├── logic.test.mjs         # 无浏览器逻辑测试（15 项）
+    └── zscript.test.mjs       # 剧本解释器单元测试
 ```
 
 ## 五、数据文件
@@ -129,18 +136,22 @@ node tools/build-data.mjs
 ```powershell
 # 逻辑测试（Node，无需浏览器）
 node tests/logic.test.mjs
+node tests/zscript.test.mjs
 
 # 浏览器测试（需要 Edge 或 Chrome；可用 CHROME_PATH 指定）
 node tools/browser-smoke.mjs
 node tools/browser-terminal.mjs
+node tools/browser-script.mjs
 node tools/browser-flow.mjs
 node tools/browser-extra.mjs
 node tools/browser-audio.mjs
 ```
 
 - 逻辑测试覆盖：数据加载、随机排期复现、调查前后操作可用性、完整处置链、误封、SLA、加固互斥、决策、存读档往返、结算、战役揭示、风险区间收窄。
+- 剧本解释器测试覆盖：变量、if/elif/else、for/while、break/continue、列表与索引、比较与 in、属性访问、内置查询与操作调用、语法错误行号、步数上限。
 - 浏览器测试通过 DevTools Protocol 真实点击并截图，覆盖：菜单 → 简报 → 处置链 → 回合推进 → 商店 → 手册 → 暂停存读档 → 日志过滤 → 教程 12 页与实战演练 → 剧情决策 → 结算 → 刷新后读档 → 移动端布局 → HTTP 托管 → WebAudio 波形与静音。
 - 处置终端测试覆盖：` 热键、Tab 补全、↑ 历史、scan/isolate/clean/release/next、未知命令提示、Esc 关闭、数字键执行操作、手机端全屏与紧凑表格。截图输出到 `tests/screenshots/`。
+- 自动化剧本测试覆盖：脚本面板、默认模板、运行调查/隔离/清除/解除隔离、单步执行、语法错误提示、本地保存、手机布局。
 
 ### 听不到声音时
 
@@ -167,6 +178,7 @@ node tools/sync-docs-play.mjs   # web/ → docs/play/
 - 桌面版仍是规则基准；网页版重写了渲染层，像素级布局与桌面版不同。
 - 音效需要一次点击 / 按键后才会响（浏览器自动播放策略）。
 - 没有联网、账号、云端排行榜或真实网络功能——这是课程项目的安全边界。
+- 自动化剧本是内置的 Python 风格子集：支持变量、if/for/while、列表与属性访问；暂不支持 def / import / 文件或网络操作，只调用游戏内的 12 种操作。
 - 极端窗口尺寸（低于 360px 宽）下信息密度较高，建议横屏或桌面浏览。
 
 ## 九、安全声明

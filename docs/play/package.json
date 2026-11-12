@@ -6,9 +6,9 @@
   "description": "零日值班网页版：无构建步骤的静态游戏，复用桌面版 data/*.json。",
   "scripts": {
     "build:data": "node tools/build-data.mjs",
-    "test": "node tests/logic.test.mjs && node tools/browser-smoke.mjs && node tools/browser-terminal.mjs",
-    "test:logic": "node tests/logic.test.mjs",
-    "test:browser": "node tools/browser-smoke.mjs && node tools/browser-terminal.mjs && node tools/browser-flow.mjs && node tools/browser-extra.mjs && node tools/browser-audio.mjs",
+    "test": "node tests/logic.test.mjs && node tests/zscript.test.mjs && node tools/browser-smoke.mjs && node tools/browser-terminal.mjs && node tools/browser-script.mjs",
+    "test:logic": "node tests/logic.test.mjs && node tests/zscript.test.mjs",
+    "test:browser": "node tools/browser-smoke.mjs && node tools/browser-terminal.mjs && node tools/browser-script.mjs && node tools/browser-flow.mjs && node tools/browser-extra.mjs && node tools/browser-audio.mjs",
     "test:audio": "node tools/browser-audio.mjs"
   },
   "engines": {
