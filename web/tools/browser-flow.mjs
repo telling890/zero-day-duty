@@ -15,7 +15,12 @@ try {
   check('教程共 12 页', (await evaluate(`document.querySelectorAll('.tutorial-pages i').length`)) === 12);
   await screenshot('10-tutorial-page1');
 
-  for (let i = 0; i < 11; i += 1) await click('[data-act="tutorial-next"]');
+  for (let i = 0; i < 3; i += 1) await click('[data-act="tutorial-next"]');
+  check('教程第 4 页讲第一回合操作', await evaluate(`document.querySelector('.modal-title').textContent.includes('第一回合')`));
+  check('第 4 页有 6 步流程图', (await evaluate(`document.querySelectorAll('.tutorial-loop .tut-step').length`)) === 6);
+  await screenshot('10b-tutorial-page4');
+
+  for (let i = 0; i < 8; i += 1) await click('[data-act="tutorial-next"]');
   check('教程到第 12 页', await evaluate(`document.querySelector('.modal-kicker').textContent.includes('12 / 12')`));
   await screenshot('11-tutorial-last');
   await click('[data-act="tutorial-next"]');
