@@ -109,6 +109,12 @@ TapTap 的尺寸和 Steam **不一样**，不能直接复用（尤其「封面�
 | 开发者的话 | 设计理念，别和简介重复 | 见下方文案 | ✅ |
 | **游戏实机录屏** \*下载/试玩必填 | MP4/MOV，>15 秒，前 5 秒展示核心玩法，无配音无贴片 | — | ❌ **还缺，需要录屏** |
 
+配套文档：
+
+- 录屏（唯一缺口）：[record/录屏分镜.md](record/录屏分镜.md)（40 秒分镜，按 TapTap 规则倒推）
+- 预约页文案：[store/booking-page.md](store/booking-page.md)（简介 / 开发者的话 / FAQ / 别写什么）
+- 内部测试名单：[record/internal-test-users.csv](record/internal-test-users.csv) + [record/内部测试名单说明.md](record/内部测试名单说明.md)
+
 重新生成物料：
 
 ```powershell

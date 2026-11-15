@@ -72,7 +72,7 @@ def main():
 
     # 录屏：必填但需要人工录
     videos = []
-    for folder in (MAT, os.path.join(ROOT, "taptap")):
+    for folder in (MAT, os.path.join(ROOT, "taptap"), os.path.join(ROOT, "taptap", "record")):
         if os.path.isdir(folder):
             videos += [f for f in os.listdir(folder) if f.lower().endswith((".mp4", ".mov"))]
     if videos:
