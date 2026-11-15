@@ -162,6 +162,13 @@ def main(argv: list[str] | None = None) -> int:
                 f"日志={len(game.logs.entries)}，教程页={len(TUTORIAL_PAGES)}"
             )
             return 0
+        # Steam 成就：没有 Steam 环境时是空操作，失败不影响游戏
+        try:
+            import steam_bridge
+
+            steam_bridge.init()
+        except Exception:
+            steam_bridge = None
         game.run()
     except settings.DataError as exc:
         _show_message_box("数据文件错误", str(exc), quiet=SELFTEST)
@@ -178,6 +185,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
     finally:
+        try:
+            import steam_bridge as _steam
+
+            _steam.shutdown()
+        except Exception:
+            pass
         pygame.quit()
     return 0
 

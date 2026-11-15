@@ -1,4 +1,4 @@
-# 将《零日值班》打包为 Windows 单文件应用，并生成可直接分发的文件夹与 zip。
+﻿# 将《零日值班》打包为 Windows 单文件应用，并生成可直接分发的文件夹与 zip。
 #
 # 用法（在项目根目录或任意目录）：
 #   powershell -ExecutionPolicy Bypass -File .\build_exe.ps1
@@ -52,6 +52,19 @@ foreach ($path in @($distRoot, $workDir, $specDir)) {
 Write-Host "== PyInstaller 打包（单文件、无控制台） ==" -ForegroundColor Cyan
 $dataArg = "$dataDir;data"
 $iconArg = "$iconPng;assets"
+
+# Steam 成就桥接是可选的：模块本身要打进去（运行时懒加载），
+# steam_api64.dll 只有放到 steam\redist\ 时才一起带上。
+$hiddenArgs = @("--hidden-import", "steam_bridge")
+$steamDll = Join-Path $root "steam\redist\steam_api64.dll"
+$binaryArgs = @()
+if (Test-Path $steamDll) {
+    $binaryArgs = @("--add-binary", "$steamDll;.")
+    Write-Host "  带上 Steamworks DLL：$steamDll" -ForegroundColor DarkGray
+} else {
+    Write-Host "  未找到 steam_api64.dll，成就会静默跳过（正常）" -ForegroundColor DarkGray
+}
+
 & $pythonExe @pythonArgs -m PyInstaller `
     --noconfirm `
     --clean `
@@ -62,6 +75,8 @@ $iconArg = "$iconPng;assets"
     --add-data $dataArg `
     --add-data $iconArg `
     --version-file $versionFile `
+    @hiddenArgs `
+    @binaryArgs `
     --exclude-module numpy `
     --exclude-module scipy `
     --exclude-module pandas `

@@ -491,6 +491,37 @@ echo $LASTEXITCODE
 
 正常退出码为 `0`；窗口版出错时会在 exe 旁生成 `error.log`。
 
+### 上架 Steam
+
+`steam/` 目录里是完整的 Steam 上架物料与脚本，详见 [steam/README.md](steam/README.md)：
+
+```
+steam/
+├── README.md              # 全流程：哪些必须你本人操作、时间线、上架前自查
+├── store/                 # 商店页文案（中/英）、系统需求与标签、截图清单
+│   ├── capsules/          # 7 张商店胶囊图与 Logo（1232x706 / 231x87 / 460x215 …）
+│   ├── screenshots/       # 10 张 1920x1080 商店截图
+│   └── achievements/      # 12 个成就图标（64 / 184 两档，含未解锁版）
+├── build/                 # SteamPipe 的 app_build.vdf / depot_build.vdf（填 AppID 即可）
+└── scripts/               # 生成素材、组装 content、steamcmd 上传、上架前自检
+```
+
+常用命令：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File steam\scripts\prepare_content.ps1   # 组装 steam\content
+python steam\scripts\check_assets.py                                        # 上架前自检
+powershell -ExecutionPolicy Bypass -File steam\scripts\upload.ps1           # steamcmd 上传
+```
+
+账号注册、100 美元 Steam Direct 费用、税务表、商店页审核、点「Set Live」这几步必须你本人做，
+其余（打包、素材、文案、上传脚本）都已经准备好。
+
+成就桥接也已经内置：`steam_bridge.py` 负责上报，`main.py` 启动/退出时初始化与收尾，
+`game.py` 在结算处调用；**没有 Steam 环境时全部空操作**，不影响正常游玩。
+把 `steam_api64.dll` 放进 `steam/redist/`、在后台建好成就项即可启用（详见
+[steam/achievements.md](steam/achievements.md)，含 10 个单测，`py -3.10 -m pytest tests/test_steam_bridge.py -q`）。
+
 ## 十五、已知限制
 
 - 固定 1280×720，不支持窗口缩放。

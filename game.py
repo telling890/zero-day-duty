@@ -415,6 +415,7 @@ class Game:
         self.report = self.score_system.evaluate(summary)
         if not self.tutorial_mode:
             self.save_manager.append_history(self.report, summary, self.seed)
+            self._report_steam_achievements(summary)
         self.audio.play("success" if self.report.ending_key == "perfect" else "fail")
         self.effects.flash(settings.GREEN if self.report.ending_key == "perfect" else settings.RED, 55)
         self.logs.add(
@@ -426,6 +427,22 @@ class Game:
         self.selected_alert = None
         self.action_panel._signature = None
         self.log_panel._cache_key = None
+
+    def _report_steam_achievements(self, summary: dict[str, Any]) -> None:
+        """把结算结果上报给 Steam（未装 Steam / 未登录时静默跳过）。
+
+        只有真的在 Steam 环境里跑时才 import，避免打包体积和启动依赖。
+        """
+        try:
+            import steam_bridge
+        except Exception:
+            return
+        try:
+            if not steam_bridge.is_ready():
+                return
+            steam_bridge.unlock_from_report(self.report, summary)
+        except Exception:
+            pass
 
     def build_summary(self, reason: str) -> dict[str, Any]:
         events = self.events.events

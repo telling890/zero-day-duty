@@ -11,3 +11,8 @@ exe_screen.png
 ~$*
 web/tests/screenshots/
 web/node_modules/
+
+# Steam 上架：内容目录与构建日志是生成物，别进仓库
+steam/content/
+steam/build/output/
+steam/build/*.log
