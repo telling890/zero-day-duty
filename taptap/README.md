@@ -115,6 +115,7 @@ TapTap 的尺寸和 Steam **不一样**，不能直接复用（尤其「封面�
 
 配套文档：
 
+- 游戏资料逐字段填写表：[record/游戏资料填写表.md](record/游戏资料填写表.md)
 - 创建游戏逐字段填写表：[record/创建游戏填写表.md](record/创建游戏填写表.md)
 - 开测操作卡（一页）：[record/开测操作卡.md](record/开测操作卡.md)
 - 包体自检脚本：scripts/verify_test_build.ps1（解包 + 硬超时跑 --selftest）

@@ -194,6 +194,41 @@ def cover(size, seed):
     return img
 
 
+def make_logo(size, with_subtitle=False):
+    """透明底 LOGO：只放游戏名（+ 可选英文副标题），带深色描边。"""
+    w, h = size
+    img = Image.new("RGBA", size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    pad = int(w * 0.05)
+    f_title, title_size = fit_font(TITLE, w - pad * 2, int(h * 0.62))
+    stroke = max(2, int(title_size * 0.022))
+
+    if not with_subtitle:
+        # 单行居中
+        inner = text_height(f_title)
+        y = (h - inner) // 2
+        d.text((pad, y), TITLE, font=f_title, fill=(255, 255, 255),
+               stroke_width=stroke, stroke_fill=(8, 12, 22, 200))
+        return img
+
+    f_sub, sub_size = fit_font(" ".join(SUBTITLE), w - pad * 2, int(title_size * 0.22), 10)
+    gap = max(8, int(title_size * 0.20))
+    total = text_height(f_title) + gap + int(sub_size * 1.35)
+    y = (h - total) // 2
+    d.text((pad, y), TITLE, font=f_title, fill=(255, 255, 255),
+           stroke_width=stroke, stroke_fill=(8, 12, 22, 200))
+    y += text_height(f_title) + gap
+
+    x = pad + 1
+    step = max(1, int(sub_size * 0.26))
+    for ch in SUBTITLE:
+        d.text((x, y), ch, font=f_sub, fill=ACCENT,
+               stroke_width=max(1, stroke // 2), stroke_fill=(8, 12, 22, 170))
+        x += d.textlength(ch, f_sub) + step
+    return img
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=7)
@@ -205,9 +240,12 @@ def main():
     save(make_icon(512), "icon_512x512.png")
 
     # 2. 游戏 LOGO（必填，透明，1280 宽）
+    #    TapTap 规则：LOGO「只能包含游戏名」→ 默认出纯中文名版本；
+    #    带英文副标题的版本也留一份，审核宽松时可以用。
     logo_src = os.path.join(ROOT, "steam", "store", "capsules", "logo_1280x720.png")
+    save(make_logo((1280, 720), with_subtitle=False), "logo_1280x720.png")
     if os.path.exists(logo_src):
-        save(Image.open(logo_src).convert("RGBA"), "logo_1280x720.png")
+        save(Image.open(logo_src).convert("RGBA"), "logo_1280x720_with_en.png")
 
     # 3. 横版封面 460x215（必填）
     save(cover((460, 215), args.seed + 1), "cover_460x215.png")
