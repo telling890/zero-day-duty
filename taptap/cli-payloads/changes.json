@@ -1,0 +1,186 @@
+{
+  "changes": [
+    {
+      "field_id": "description",
+      "expected": null,
+      "value": "你是深夜唯一的安全值班员。10 个回合、6 条攻击链，每回合只有 6 点行动点。\n\n调查、控制、清除、恢复，四步缺一不可：只隔离不清除会扣分，清除后不恢复业务，收入继续掉。\n下手太重也不行——把业务全关停，同样判负。\n\n回合制安全运营，支持鼠标、命令行、自动化脚本三种操作方式。所有公司、IP、数据均为虚构。"
+    },
+    {
+      "field_id": "promotion_material_type",
+      "expected": null,
+      "value": "BANNER_4"
+    },
+    {
+      "field_id": "promotion_text",
+      "expected": null,
+      "value": "10 小时掐断六条攻击链"
+    },
+    {
+      "field_id": "developer_message",
+      "expected": null,
+      "value": "一个人做完的小项目。最初只想讲清一件事：为什么安全处置有先后顺序。\n\n先控制再清除、清除完要恢复，少一步都不算解决——这句话做成游戏以后，比讲十遍 PPT 都直观。\n现在还在打磨，欢迎在评论区告诉我你想要什么玩法。"
+    },
+    {
+      "field_id": "logo",
+      "expected": null,
+      "value": {
+        "url": "https://img-tc.tapimg.com/market/images/7bff30695b5d9ee4cc6c0ba60b1cce50.png",
+        "info": {
+          "format": "png",
+          "size": 36737,
+          "width": 1280,
+          "height": 720,
+          "image_ave": {
+            "rgb": "0xe0e0e0"
+          }
+        }
+      }
+    },
+    {
+      "field_id": "cover",
+      "expected": null,
+      "value": {
+        "url": "https://img-tc.tapimg.com/market/images/08e61b311a3b85d7f573107e99f1815d.png",
+        "info": {
+          "format": "png",
+          "size": 20582,
+          "width": 460,
+          "height": 215,
+          "image_ave": {
+            "rgb": "0x000020"
+          }
+        }
+      }
+    },
+    {
+      "field_id": "cover_vertical",
+      "expected": null,
+      "value": {
+        "url": "https://img-tc.tapimg.com/market/images/7fd8ef432eba6367634567b1aa3325d7.png",
+        "info": {
+          "format": "png",
+          "size": 55461,
+          "width": 600,
+          "height": 900,
+          "image_ave": {
+            "rgb": "0x000020"
+          }
+        }
+      }
+    },
+    {
+      "field_id": "library_hero",
+      "expected": null,
+      "value": {
+        "url": "https://img-tc.tapimg.com/market/images/63af1e1d32ac2bd7cff203cd5b292bba.png",
+        "info": {
+          "format": "png",
+          "size": 169378,
+          "width": 3840,
+          "height": 1240,
+          "image_ave": {
+            "rgb": "0x000000"
+          }
+        }
+      }
+    },
+    {
+      "field_id": "banner_4",
+      "expected": null,
+      "value": {
+        "url": "https://img-tc.tapimg.com/market/images/1a9acae8ad7c2d4a69fc27b98d2c9d5e.png",
+        "info": {
+          "format": "png",
+          "size": 121534,
+          "width": 1920,
+          "height": 1080,
+          "image_ave": {
+            "rgb": "0x000000"
+          }
+        }
+      }
+    },
+    {
+      "field_id": "screenshots",
+      "expected": null,
+      "op": "replace",
+      "value": [
+        {
+          "url": "https://img-tc.tapimg.com/market/images/8436e13064dce9fc0a8e96b656726039.png",
+          "info": {
+            "format": "png",
+            "size": 733372,
+            "width": 1920,
+            "height": 1080,
+            "image_ave": {
+              "rgb": "0x200020"
+            }
+          }
+        },
+        {
+          "url": "https://img-tc.tapimg.com/market/images/a5b324d29a1712c9df9a232f8bbf5927.png",
+          "info": {
+            "format": "png",
+            "size": 698594,
+            "width": 1920,
+            "height": 1080,
+            "image_ave": {
+              "rgb": "0x200020"
+            }
+          }
+        },
+        {
+          "url": "https://img-tc.tapimg.com/market/images/0b093d642889cab141d73daa3398800b.png",
+          "info": {
+            "format": "png",
+            "size": 367088,
+            "width": 1920,
+            "height": 1080,
+            "image_ave": {
+              "rgb": "0x000000"
+            }
+          }
+        },
+        {
+          "url": "https://img-tc.tapimg.com/market/images/b9962472fd843450a7b673286091de12.png",
+          "info": {
+            "format": "png",
+            "size": 443013,
+            "width": 1920,
+            "height": 1080,
+            "image_ave": {
+              "rgb": "0x000020"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "field_id": "icon",
+      "expected": {
+        "info": {
+          "format": "png",
+          "height": 512,
+          "image_ave": {
+            "rgb": "0xace9ed"
+          },
+          "size": 73543,
+          "width": 512
+        },
+        "url": "https://img-tc.tapimg.com/market/images/ef4719159691d7db73760cadfc67eac4.png"
+      },
+      "value": {
+        "url": "https://img-tc.tapimg.com/market/images/ffb9fe9ec8130c1465d85cd763d26e49.png",
+        "info": {
+          "format": "png",
+          "size": 14189,
+          "width": 512,
+          "height": 512,
+          "image_ave": {
+            "rgb": "0x000000"
+          }
+        }
+      }
+    }
+  ]
+}

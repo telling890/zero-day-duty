@@ -1,0 +1,9 @@
+{
+  "changes": [
+    {
+      "field_id": "pc_game_anti_addiction_status",
+      "expected": null,
+      "value": 1
+    }
+  ]
+}

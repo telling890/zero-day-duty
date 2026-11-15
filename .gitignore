@@ -19,3 +19,7 @@ steam/build/*.log
 
 taptap/test-build/
 taptap/h5-build/
+taptap/cli-payloads/assets/
+taptap/cli-payloads/asset-map.json
+taptap/cli-payloads/module-*-out.json
+taptap/cli-payloads/*.tmp
