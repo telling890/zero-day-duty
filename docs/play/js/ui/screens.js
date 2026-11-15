@@ -160,65 +160,111 @@
         ['音效', 'M', '开/关音效；浏览器需要先点击页面一次才允许出声。'],
         ['暂停', 'Esc', '保存（F5）、读取（F9）、安全加固、重开或返回主菜单。'],
       ],
-      note: '操作面板按钮右上角的 1–6 可直接按键盘执行；空格推进回合。新手先记 Esc / F1 / M。',
+      note: '操作面板按钮右上角的 1–6 可直接按键盘执行；空格推进回合。新手先记 Esc / F1 / M；命令与脚本的完整玩法在接下来两页。',
     },
     {
-      title: '准备实战：6 步演练',
-      body: '接下来用一条钓鱼事件走完整循环：选告警 → 调查 → 隔离 → 清除 → 解除隔离 → 推进。屏幕上会高亮要点击的位置。',
-      steps: ['选告警', '调查', '隔离', '清除', '解除隔离', '推进'],
+      title: '命令行：用终端处置',
+      body: '顶栏「终端」或按反引号 ` 打开 SOC 命令行。命令和点按钮是同一套操作：同样扣 AP、同样扣钱、同样受回合规则约束。',
+      steps: ['status', 'alerts', 'scan PC-01', 'isolate PC-01', 'next'],
       bullets: [
-        '教程中只有一条钓鱼事件，不会出现其他攻击。',
-        '每一步都会用光圈高亮目标按钮；按提示点击即可。',
-        '如果点错了，操作面板会提示原因；随时可以退出教程。',
-        '正式值班有 6 条攻击链、随机事件顺序、误报和剧情决策。',
-        '记住检查清单：调查 → 控制 → 清除 → 恢复 → 推进回合。',
+        '打开：顶部「终端」或反引号 `；Esc 关闭，clear 清屏。',
+        '目标写法：设备名（PC-01）或告警编号（#1）；scan 两种都收。',
+        '查询：status / devices / alerts / logs PC-01 12 / upgrades / date / ping PC-01。',
+        '处置：scan → isolate → clean → release；封禁来源用 block <IP>，买加固用 buy log_plugin。',
+        'Tab 补全命令与设备名，↑/↓ 翻历史，help 看全部 28 条命令。',
+        '中文也能输入：调查 / 隔离 / 清除 / 解除隔离 / 推进，会自动映射到对应命令。',
       ],
-      note: '完成演练后，点击「开始正式值班」进入 10 回合实战。',
+      note: '先 status 看 AP、alerts 找目标，再动手；命令不成立时会打印原因，不会白扣费用。',
+    },
+    {
+      title: '脚本：批量自动处置',
+      body: '顶栏「脚本」或按 C 打开自动化剧本。ZDD Script 是 Python 风格子集，每次调用都等价于点一次按钮，不会联网、不会执行真实系统命令。',
+      steps: ['打开脚本', '选模板', 'Ctrl+Enter 运行', '看逐条输出'],
+      bullets: [
+        '查询：alerts() / devices() / events() / find("PC-01") / status()。',
+        '处置：scan(a) / isolate(d) / clean(d) / release(d) / block(a) / next()。',
+        '语法：变量、if/elif/else、for、while、break/continue、列表与属性访问；不支持 def 和 import。',
+        '范例：for a in alerts(): 然后在下一行缩进写 if not a.investigated: scan(a)。',
+        'Ctrl+Enter 运行，「单步」逐条执行；报错会标出行号，遇到剧情决策会自动暂停。',
+        '模板下拉里有「自动巡检 / 清场 / 封禁来源 / 局势查询 / 单设备处置」，可直接套用再改。',
+      ],
+      note: '脚本不替你判断误报：调查后拿到 a.false_positive 再决定是否批量隔离，避免误封扣分。',
+    },
+    {
+      title: '准备实战：6 步带练',
+      body: '接下来用一条钓鱼事件走完整循环，而且刻意让你三种输入方式各用一次：点按钮、敲命令、跑脚本。',
+      steps: ['选告警', '调查', '命令隔离', '清除', '脚本恢复', '推进'],
+      bullets: [
+        '背景会被压暗，只为你圈出这一步该操作的位置；旁边的提示卡说清「做什么」和「为什么」。',
+        '第 3 步必须用终端跑 isolate PC-01，第 5 步必须用脚本跑 release(d)——点按钮不会点亮进度。',
+        '打不动命令或脚本时，点提示卡上的「帮我把命令/脚本填好」，内容会自动填进输入框，你只要回车或点运行。',
+        '教程里只有一条钓鱼事件，不会出现其他攻击；点上一步用过的终端/脚本会自动收起。',
+        '随时可以点「退出教程」；正式值班有 6 条攻击链、随机顺序、误报和剧情决策。',
+      ],
+      note: '完成带练后点「开始正式值班」进入 10 回合实战。',
     },
   ];
 
   const GUIDE_STEPS = [
     {
       title: '选择告警',
+      stage: '选择',
+      channel: '点击',
+      color: 'accent',
+      keys: ['点一条告警'],
       instruction: '点右侧告警列表的第一条告警；选中后下方操作面板才会出现按钮。',
       why: '不知道要处理哪条告警，操作面板不会给你针对性操作。',
-      stage: '选择',
-      color: 'accent',
     },
     {
       title: '调查告警',
-      instruction: '点操作面板「调查告警」，花 1 AP 查看真实等级、线索和下一跳。',
-      why: '调查前等级是「待评估」；调查后才能判断真假并选择处置方式。',
       stage: '调查',
+      channel: '点击',
       color: 'accent',
+      keys: ['点「调查告警」'],
+      instruction: '点操作面板「调查告警」，花 1 AP 看清真实等级、线索和下一跳。',
+      why: '调查前等级是「待评估」；调查后才能判断真假并选择处置方式。',
     },
     {
-      title: '控制攻击',
-      instruction: '点「隔离设备」（2 AP），先让攻击停止扩散。',
-      why: '隔离只是控制；事件会变成「已控制·待清除」，还没结束。',
-      stage: '控制',
+      title: '用命令隔离',
+      stage: '命令',
+      channel: '命令行',
       color: 'yellow',
+      keys: ['反引号 `', 'isolate PC-01', 'Enter'],
+      instruction: '按 ` 打开终端，输入 isolate PC-01 再回车。敲不动就点下面的按钮，它会替你把命令填进输入框。',
+      why: '终端和按钮是同一套操作：一样扣 2 AP；隔离后事件变成「已控制·待清除」，还没结束。',
+      helper: { kind: 'terminal', cmd: 'isolate PC-01', label: '帮我把命令填好' },
     },
     {
       title: '清除根因',
-      instruction: '点「清除威胁」（2 AP），移除根因并关闭告警。',
-      why: '只控制不清除会在结算时扣分；清除才算解决。',
       stage: '清除',
+      channel: '点击',
       color: 'green',
+      keys: ['点「清除威胁」'],
+      instruction: '终端已自动收起。点操作面板「清除威胁」（2 AP），把根因挖掉。',
+      why: '只控制不清除，结算会扣分；清除成功，告警才会关闭。',
     },
     {
-      title: '恢复业务',
-      instruction: '点「解除隔离」（1 AP），让 PC-01 重新上线。',
-      why: '已清除的事件不会复活；恢复后服务收入才会回来。',
-      stage: '恢复',
+      title: '用脚本恢复',
+      stage: '脚本',
+      channel: '脚本',
       color: 'blue',
+      keys: ['C', 'Ctrl+Enter'],
+      instruction: '按 C 打开脚本，运行这三行剧本：find("PC-01") 找到设备，release(d) 让业务重新上线。',
+      why: '脚本是第三种输入方式，调的仍是同一套操作，AP 和钱照扣，但能批量重复。',
+      helper: {
+        kind: 'script',
+        label: '帮我把脚本填好',
+        source: 'd = find("PC-01")\nrelease(d)\nprint("PC-01 已恢复：", d.status)',
+      },
     },
     {
       title: '推进回合',
-      instruction: '点右下「推进回合 →」或按空格，进入 23:00。',
-      why: 'AP 会重置为 6；攻击会在回合结束时推进到下一阶段。',
       stage: '推进',
+      channel: '点击',
       color: 'orange',
+      keys: ['点「推进回合」'],
+      instruction: '脚本已自动收起。点右下「推进回合 →」或按空格，看 AP 重置为 6。',
+      why: '到这里三种输入方式都试过了：点按钮、敲命令、跑脚本，它们完全等价。',
     },
   ];
 
@@ -374,15 +420,15 @@
       return `
         <p class="modal-kicker">实战演练完成</p>
         <h2 class="modal-title" id="modal-title">教程完成</h2>
-        <p class="modal-sub">你刚刚走完了完整循环：选择告警 → 调查 → 隔离 → 清除 → 解除隔离 → 推进回合。</p>
+        <p class="modal-sub">刚才这一遍你用了三种输入方式，做的是同一件事：选择 → 调查 → 隔离 → 清除 → 恢复 → 推进。</p>
         <ul class="tutorial-bullets">
-          <li>只控制不清除会扣分；清除根因后一定要恢复业务。</li>
-          <li>正式值班有 6 条攻击链、随机事件顺序、误报和零日 BOSS。</li>
-          <li>每回合先看告警和日志，再花 AP；不要把所有服务都关掉。</li>
-          <li>看到「下一跳 / 同源」提示，提前防守或整条链一起处理。</li>
-          <li>服务可用性连续 3 回合 ≤ 40 会失败；随时看左下角业务状态。</li>
+          <li>点击：告警、调查、清除——最直观，适合边看边判断。</li>
+          <li>命令行：按反引号键 \` 打开，isolate PC-01 这类命令，记得住命令时连打很快。</li>
+          <li>脚本：按 C 打开，几行 ZDD Script 批量处置，适合重复动作和整条攻击链。</li>
+          <li>三者共用同一套规则与 AP / 资金，没有“免费捷径”；脚本也不会替你判断误报。</li>
+          <li>正式值班有 6 条攻击链、随机顺序、误报和零日 BOSS；先调查，再决定控制还是清除。</li>
         </ul>
-        <p class="tutorial-note">第一回合的标准顺序：点告警 → 调查 → 隔离 → 清除 → 解除隔离 → 推进回合。</p>
+        <p class="tutorial-note">检查清单：调查 → 控制 → 清除 → 恢复 → 推进回合；随时按 F1 查手册。</p>
         <div class="modal-actions">
           <button class="btn ghost" data-act="tutorial-menu">返回主菜单</button>
           <button class="btn purple" data-act="tutorial-start">开始正式值班</button>
@@ -706,19 +752,33 @@
       if (!game.tutorialMode || step === null) {
         this.guide.hidden = true;
         this.ring.hidden = true;
+        this.guide.classList.remove('guide-dock-top');
+        document.body.classList.remove('guide-active');
         return;
       }
       const info = GUIDE_STEPS[step];
       const color = ZDD.colors[info.color] || 'var(--tutorial)';
       this.guide.hidden = false;
+      document.body.classList.add('guide-active');
+      const keys = Array.isArray(info.keys) && info.keys.length
+        ? `<div class="guide-keys">${info.keys.map((key) => `<kbd>${esc(key)}</kbd>`).join('')}</div>`
+        : '';
+      const helper = info.helper
+        ? `<button class="btn small purple" data-act="guide-fill">${esc(info.helper.label)}</button>`
+        : '';
       this.guide.innerHTML = `
         <div class="guide-top">
           <span class="guide-kicker">实战演练 ${step + 1} / ${GUIDE_STEPS.length}</span>
-          <span class="guide-stage" style="background:${color}">${esc(info.stage)}</span>
+          <span class="guide-chips">
+            <span class="guide-channel">${esc(info.channel || '点击')}</span>
+            <span class="guide-stage" style="background:${color}">${esc(info.stage)}</span>
+          </span>
         </div>
         <h3>${esc(info.title)}</h3>
         <p>${esc(info.instruction)}</p>
         <p class="why">为什么：${esc(info.why)}</p>
+        ${keys}
+        <div class="guide-actions">${helper}</div>
         <div class="guide-progress">
           ${GUIDE_STEPS.map((_, i) => `<i class="${i < step ? 'done' : i === step ? 'now' : ''}"></i>`).join('')}
         </div>
@@ -726,15 +786,52 @@
           <button class="btn ghost small" data-act="guide-exit">退出教程</button>
         </div>
       `;
+      // 窄屏：卡片停在与目标相反的一侧，并把高度限制在空出来的那片区域里，
+      // 这样无论目标在页面哪个位置，聚光灯都不会被卡片盖住。
+      this.applyDock(step);
       this.updateRing(step);
     }
 
+    /** 窄屏带练卡避让：把卡片停到目标的反侧，高度取该侧空余。 */
+    applyDock(step, measured) {
+      const narrow = typeof global.matchMedia === 'function'
+        && global.matchMedia('(max-width: 980px)').matches;
+      const target = narrow ? this.guideTarget(step) : null;
+      const rect = measured || (target && typeof target.getBoundingClientRect === 'function'
+        ? target.getBoundingClientRect()
+        : null);
+      if (!narrow || !rect || !rect.height) {
+        this.guide.classList.remove('guide-dock-top');
+        this.guide.style.maxHeight = '';
+        return;
+      }
+      const vh = global.innerHeight || 0;
+      const topbar = parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--topbar-h'),
+      ) || 120;
+      const spaceAbove = rect.top - 12 - (topbar + 8);
+      const spaceBelow = vh - 20 - rect.bottom;
+      const dockTop = spaceAbove >= spaceBelow;
+      this.guide.classList.toggle('guide-dock-top', dockTop);
+      const room = Math.max(96, dockTop ? spaceAbove : spaceBelow);
+      this.guide.style.maxHeight = `${Math.round(Math.min(room, vh * 0.62))}px`;
+    }
+
     guideTarget(step) {
+      const hasClass = (name) => document.body.classList.contains(name);
       if (step === 0) return this.refs.alertList.querySelector('.alert-row') || this.refs.alertList;
       if (step === 1) return this.refs.actionGrid.querySelector('[data-action-id="investigate"]');
-      if (step === 2) return this.refs.actionGrid.querySelector('[data-action-id="isolate"]');
+      if (step === 2) {
+        return hasClass('terminal-open')
+          ? document.getElementById('term-input')
+          : document.getElementById('btn-terminal');
+      }
       if (step === 3) return this.refs.actionGrid.querySelector('[data-action-id="eradicate"]');
-      if (step === 4) return this.refs.actionGrid.querySelector('[data-action-id="unisolate"]');
+      if (step === 4) {
+        return hasClass('script-open')
+          ? document.getElementById('script-run')
+          : document.getElementById('btn-script');
+      }
       if (step === 5) return this.refs.advance;
       return null;
     }
@@ -743,6 +840,7 @@
       const target = this.guideTarget(step);
       if (!target || this.guide.hidden) {
         this.ring.hidden = true;
+        this.ringStep = null;
         return;
       }
       const rect = target.getBoundingClientRect();
@@ -750,6 +848,24 @@
         this.ring.hidden = true;
         return;
       }
+      // 目标完全在视野外时（例如窗口很矮）才滚动一次，其余交给卡片避让
+      this.applyDock(step, rect);
+      const vh = global.innerHeight || 0;
+      const vw = global.innerWidth || 0;
+      const offscreen = rect.top < 0 || rect.bottom > vh || rect.left < 0 || rect.right > vw;
+      const shouldScroll = this.ringStep !== step && offscreen;
+      if (shouldScroll && typeof target.scrollIntoView === 'function') {
+        this.ringStep = step;
+        target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+        // 平滑滚动不会触发 window 的 scroll 回调（滚动发生在内层容器里），
+        // 这里补几次重排，保证光圈跟到新位置，而不是一直停在旧坐标。
+        [90, 260, 560].forEach((delay) => {
+          global.setTimeout(() => {
+            if (!this.guide.hidden) this.updateRing(step);
+          }, delay);
+        });
+      }
+      this.ringStep = step;
       this.ring.hidden = false;
       this.ring.style.left = `${rect.left - 4}px`;
       this.ring.style.top = `${rect.top - 4}px`;

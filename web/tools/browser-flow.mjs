@@ -12,7 +12,7 @@ try {
   // ============================ 教程 ============================
   await click('#menu-tutorial');
   check('教程第 1 页', await evaluate(`document.querySelector('.modal-title').textContent.includes('一分钟看懂')`));
-  check('教程共 13 页', (await evaluate(`document.querySelectorAll('.tutorial-pages i').length`)) === 13);
+  check('教程共 15 页', (await evaluate(`document.querySelectorAll('.tutorial-pages i').length`)) === 15);
   await screenshot('10-tutorial-page1');
 
   for (let i = 0; i < 3; i += 1) await click('[data-act="tutorial-next"]');
@@ -26,22 +26,60 @@ try {
   await screenshot('10c-tutorial-topbar');
 
   await click('[data-act="tutorial-next"]');
-  check('教程到第 13 页', await evaluate(`document.querySelector('.modal-kicker').textContent.includes('13 / 13')`));
+  check('第 13 页讲命令行', await evaluate(`document.querySelector('.modal-title').textContent.includes('命令行')`));
+  check('第 13 页有 5 步命令流程', (await evaluate(`document.querySelectorAll('.tutorial-loop .tut-step').length`)) === 5);
+  await screenshot('10d-tutorial-cli');
+
+  await click('[data-act="tutorial-next"]');
+  check('第 14 页讲脚本', await evaluate(`document.querySelector('.modal-title').textContent.includes('脚本')`));
+  await screenshot('10e-tutorial-script');
+
+  await click('[data-act="tutorial-next"]');
+  check('教程到第 15 页', await evaluate(`document.querySelector('.modal-kicker').textContent.includes('15 / 15')`));
   await screenshot('11-tutorial-last');
   await click('[data-act="tutorial-next"]');
   check('实战演练提示卡出现', await evaluate(`!document.getElementById('guide').hidden`));
   check('指南第 1 步是选择告警', await evaluate(`document.getElementById('guide').textContent.includes('选择告警')`));
+  check('提示卡标出输入通道', await evaluate(`document.querySelector('.guide-channel').textContent === '点击'`));
+  check('聚光灯压暗其余画面', await evaluate(`(() => {
+    const ring = document.getElementById('guide-ring');
+    if (ring.hidden) return false;
+    const box = ring.getBoundingClientRect();
+    return box.width > 0 && getComputedStyle(ring).outlineWidth === '9999px';
+  })()`));
   await screenshot('12-guide-step1');
 
   await click('.alert-row');
   await clickText('.act', '调查告警');
-  await clickText('.act', '隔离');
+  check('第 3 步改用命令行', await evaluate(`document.querySelector('.guide-channel').textContent === '命令行'`));
+
+  await click('[data-act="guide-fill"]');
+  await waitFor(`document.getElementById('term-input').value === 'isolate PC-01'`, 2000);
+  check('带练按钮把命令填进终端', await evaluate(`document.getElementById('term-input').value === 'isolate PC-01'`));
+  check('终端已打开并套上聚光灯', await evaluate(`document.body.classList.contains('terminal-open') && !document.getElementById('guide-ring').hidden`));
+  await screenshot('12b-guide-terminal');
+  await press('Enter', 'Enter', 13);
+  check('命令隔离后事件进入已控制', await waitFor(`__zdd.game.events.events.some((e) => e.contained)`, 3000));
+  check('终端自动收起', await waitFor(`!document.body.classList.contains('terminal-open')`, 2000));
+
   await clickText('.act', '清除威胁');
-  await clickText('.act', '解除隔离');
-  check('指南提示推进回合', await evaluate(`document.getElementById('guide').textContent.includes('推进回合')`));
+  check('第 5 步改用脚本', await evaluate(`document.querySelector('.guide-channel').textContent === '脚本'`));
+  await click('[data-act="guide-fill"]');
+  await waitFor(`document.getElementById('script-code').value.includes('release(d)')`, 2000);
+  check('带练按钮把脚本填进编辑器', await evaluate(`document.getElementById('script-code').value.includes('release(d)')`));
+  await screenshot('12c-guide-script');
+  await click('#script-run');
+  check('脚本执行 release 后设备恢复在线', await waitFor(`(() => {
+    const d = __zdd.game.devices['PC-01'];
+    return Boolean(d) && !d.isolated;
+  })()`, 6000));
+  check('脚本自动收起并提示推进回合', await waitFor(`!document.body.classList.contains('script-open')
+    && document.getElementById('guide').textContent.includes('推进回合')`, 4000));
+
   await click('#btn-advance');
-  await sleep(500);
+  await sleep(600);
   check('教程完成浮层', await evaluate(`!!document.querySelector('[data-act="tutorial-start"]')`));
+  check('完成页讲清三种输入方式', await evaluate(`document.querySelector('.modal-sub').textContent.includes('三种输入方式')`));
   await screenshot('13-tutorial-complete');
   await click('[data-act="tutorial-start"]');
   check('开始正式值班后进入 playing', (await evaluate(`document.getElementById('app').dataset.state`)) === 'playing');
@@ -121,4 +159,22 @@ try {
 
 function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
+}
+
+/** 轮询等待页面条件成立，用于脚本/命令这类异步推进。 */
+async function waitFor(expression, timeout = 4000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if (await evaluate(expression)) return true;
+    await sleep(120);
+  }
+  return false;
+}
+
+/** 真实按键（带 virtualKeyCode，Enter 才能触发表单提交）。 */
+async function press(keyName, code, virtualKey) {
+  const params = { key: keyName, code, windowsVirtualKeyCode: virtualKey || 0 };
+  await session.send('Input.dispatchKeyEvent', Object.assign({ type: 'keyDown' }, params));
+  await session.send('Input.dispatchKeyEvent', Object.assign({ type: 'keyUp' }, params));
+  await sleep(200);
 }

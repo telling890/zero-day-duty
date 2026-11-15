@@ -385,6 +385,24 @@
       this.saveSoon();
     }
 
+    /** 教程带练用：打开剧本面板并填入一段示例，玩家只需要点运行。 */
+    openWith(source) {
+      if (typeof source === 'string' && source) {
+        this.code.value = source;
+        this.activeLine = 0;
+        this.activeError = false;
+        this.renderGutter();
+        this.renderHighlight();
+        this.updateLineLabel();
+        this.exampleSelect.value = '-1';
+        this.saveSoon();
+      }
+      this.open();
+      this.setActiveLine(0);
+      const coarse = global.matchMedia && global.matchMedia('(pointer: coarse)').matches;
+      if (!coarse) global.setTimeout(() => { if (this.isOpen) this.code.focus(); }, 20);
+    }
+
     renderHighlight() {
       if (!this.highlight) return;
       this.highlight.innerHTML = highlightCode(this.code.value);
@@ -943,6 +961,8 @@
 
       if (this.audio) this.audio.play('click');
       const result = this.game.performAction(prepared.option, prepared.target);
+      // 教程按「通道」判定进度：只有真的由脚本执行成功才算数
+      if (result && result.success) this.game.scriptActions = (this.game.scriptActions || 0) + 1;
       this.onChange();
 
       let stop = null;

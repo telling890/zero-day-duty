@@ -896,8 +896,27 @@
       );
       if (this.audio) this.audio.play('click');
       const result = this.game.performAction(prepared.option, prepared.target);
+      // 教程按「通道」判定进度：只有真的从命令行执行成功才算数
+      if (result && result.success) this.game.terminalActions = (this.game.terminalActions || 0) + 1;
       this.onChange();
       this.reportAction(prepared, result);    }
+
+    /** 教程带练用：打开终端并把命令填进输入框，玩家只需要回车。 */
+    prefill(text) {
+      if (!text) return;
+      if (!this.isOpen) this.open();
+      if (!this.isOpen) return;
+      this.input.value = String(text);
+      this.historyIndex = this.history.length;
+      this.updateHint();
+      this.input.focus();
+      const end = this.input.value.length;
+      try {
+        this.input.setSelectionRange(end, end);
+      } catch (error) {
+        // 某些浏览器在隐藏状态下不允许设置选区，忽略即可
+      }
+    }
 
     prepareAction(actionId, args) {
       const requested = args.join(' ').trim();
