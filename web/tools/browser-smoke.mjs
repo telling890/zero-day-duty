@@ -181,7 +181,8 @@ async function main() {
   await sleep(400);
   await screenshot('01-menu');
   check('主菜单已渲染', await evaluate(`!document.getElementById('menu-screen').hidden`));
-  check('主菜单有项目链接', (await evaluate(`document.querySelectorAll('.menu-links a').length`)) === 4);
+  check('主菜单有项目链接', (await evaluate(`document.querySelectorAll('.menu-links a').length`)) >= 4);
+  check('主菜单含隐私政策入口', await evaluate(`Array.from(document.querySelectorAll('.menu-links a')).some(a => a.href.includes('/privacy.html'))`));
   check('主菜单链接指向项目主页', await evaluate(`document.querySelector('.menu-links a').href === 'https://telling890.github.io/zero-day-duty/'`));
 
   await click('#menu-start');
