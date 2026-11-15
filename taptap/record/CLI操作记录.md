@@ -49,6 +49,31 @@ icon                         替换掉默认图标
 而且它意味着**平台会替我们兜防沉迷**——这正好解掉了之前担心「必须接 SDK」的死结。
 以后如果真接了自研防沉迷，再改成 2。
 
+
+## 三之二、补充执行（系统配置 / 资质事实 / 适龄）
+
+| # | 操作 | 结果 |
+| --- | --- | --- |
+| 7 | 写 Windows 最低配置 8 项 + 推荐配置 8 项（`min_*` / `rec_*`） | 15 个字段写入，`min_os` 原本已正确故跳过；`min_processor` 从「无」改为「双核 2.0 GHz（Intel / AMD）」 |
+| 8 | 资质事实（`app_features`）：不联网 / 无内购 / 无 AI 生成 / 无 IP 授权 / 非文字剧情 | 保存成功，`QUALIFICATION_FACTS_UNCONFIRMED` 警告消失 |
+| 9 | 适龄分级 = **12 周岁+**（枚举只有 8/12/16） | 保存成功（需先取 `qualification get-status` 的 `snapshot` 作为 `expected_snapshot`） |
+
+### 关键发现：软著和版号都是 optional
+
+`qualification get-status` 返回的资质要求里：
+
+| 资质 | 是否 required |
+| --- | --- |
+| privacy-compliance（隐私合规） | **required** |
+| anti-addiction（防沉迷） | **required** |
+| ai-declaration（AI 接入声明） | **required** |
+| age_grade（适龄分级） | **required**（已存 12+） |
+| game-license（版号） | optional |
+| software-copyright（软著） | **optional** |
+| icp-filing / authorization-letters / security-assessment | optional |
+
+也就是说：**不做软著、不办版号，也能把这个 PC 单机走完资质**——只剩三项声明类材料要补。
+
 ## 三、当前状态
 
 ```

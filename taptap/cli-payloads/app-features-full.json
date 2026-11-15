@@ -1,0 +1,10 @@
+{
+  "app_features": {
+    "package_types": ["windows"],
+    "is_internet_required": false,
+    "has_in_app_purchase": false,
+    "has_text_story_simulation": false,
+    "has_ai_content": false,
+    "has_ip_authorization": false
+  }
+}

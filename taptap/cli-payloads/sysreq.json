@@ -1,0 +1,79 @@
+{
+  "changes": [
+    {
+      "field_id": "min_processor",
+      "expected": "无",
+      "value": "双核 2.0 GHz（Intel / AMD）"
+    },
+    {
+      "field_id": "min_memory",
+      "expected": null,
+      "value": "4GB"
+    },
+    {
+      "field_id": "min_graphics",
+      "expected": null,
+      "value": "支持 DirectX 10 的集成显卡（Intel HD 620 及以上）"
+    },
+    {
+      "field_id": "min_storage",
+      "expected": null,
+      "value": "300MB"
+    },
+    {
+      "field_id": "min_directx",
+      "expected": null,
+      "value": "10.0"
+    },
+    {
+      "field_id": "min_sound_card",
+      "expected": null,
+      "value": "兼容 DirectX 的声卡"
+    },
+    {
+      "field_id": "min_notes",
+      "expected": null,
+      "value": "1280×720 起，键盘 + 鼠标，完全离线可玩。"
+    },
+    {
+      "field_id": "rec_os",
+      "expected": null,
+      "value": "Windows 10（64 位）"
+    },
+    {
+      "field_id": "rec_processor",
+      "expected": null,
+      "value": "四核 2.5 GHz 及以上"
+    },
+    {
+      "field_id": "rec_memory",
+      "expected": null,
+      "value": "8GB"
+    },
+    {
+      "field_id": "rec_graphics",
+      "expected": null,
+      "value": "集成显卡即可"
+    },
+    {
+      "field_id": "rec_storage",
+      "expected": null,
+      "value": "500MB"
+    },
+    {
+      "field_id": "rec_directx",
+      "expected": null,
+      "value": "11"
+    },
+    {
+      "field_id": "rec_sound_card",
+      "expected": null,
+      "value": "兼容 DirectX 的声卡"
+    },
+    {
+      "field_id": "rec_notes",
+      "expected": null,
+      "value": "1920×1080 显示时文字与拓扑更清晰。"
+    }
+  ]
+}
