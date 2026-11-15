@@ -2255,6 +2255,54 @@ ol {
   font-weight: 700;
 }
 
+.guide-chips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+
+.guide-channel {
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(174, 142, 255, 0.55);
+  color: var(--tutorial-light);
+  font-size: 9.5px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+}
+
+.guide-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.guide-keys kbd {
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid rgba(174, 142, 255, 0.45);
+  border-bottom-width: 2px;
+  background: rgba(174, 142, 255, 0.12);
+  color: #efe7ff;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.guide-actions:empty {
+  display: none;
+}
+
 .guide h3 {
   margin-top: 6px;
   font-size: 15px;
@@ -2301,7 +2349,14 @@ ol {
   border-radius: 8px;
   pointer-events: none;
   animation: guideRing 1.6s ease-in-out infinite;
+  /* 聚光灯：用超大 outline 压暗画面其余部分，只留目标区域明亮 */
+  outline: 9999px solid rgba(4, 6, 14, 0.58);
+  outline-offset: 0;
 }
+
+/* 带练时终端（85）/ 剧本（86）是覆盖层，指示环和提示卡必须压在上面 */
+body.guide-active .guide { z-index: 88; }
+body.guide-active .guide-ring { z-index: 87; }
 
 @keyframes guideRing {
   0%, 100% { box-shadow: 0 0 0 0 rgba(174, 142, 255, 0.35); }
@@ -2682,11 +2737,22 @@ ol {
     max-height: 86dvh;
   }
 
+  /* 窄屏把带练卡停靠在底部：上面留出可视区，聚光灯才照得到目标 */
   .guide {
     left: 8px;
     right: 8px;
     width: auto;
+    top: auto;
+    bottom: 8px;
+    padding: 10px 12px;
+    max-height: 52dvh;
+    overflow: auto;
+  }
+
+  /* 目标在下半屏时把卡片翻到顶部，避免盖住要点的按钮 */
+  .guide.guide-dock-top {
     top: calc(var(--topbar-h, 120px) + 8px);
+    bottom: auto;
   }
 }
 

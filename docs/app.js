@@ -109,7 +109,9 @@
       threat: root.querySelector('[data-demo="threat"]'),
       avail: root.querySelector('[data-demo="avail"]'),
       hint: root.querySelector('[data-demo="hint"]'),
-      log: root.querySelector('[data-demo="log"]')
+      log: root.querySelector('[data-demo="log"]'),
+      step: root.querySelector('[data-demo-step]'),
+      progress: Array.prototype.slice.call(root.querySelectorAll('[data-progress]'))
     };
     var buttons = Array.prototype.slice.call(root.querySelectorAll('[data-step]'));
     var reset = root.querySelector('[data-demo-reset]');
@@ -124,7 +126,7 @@
         hint: '风险已经可信——先把它按住：隔离 PC-01。'
       },
       {
-        ap: 1, funds: 0, threat: 3, cls: 'is-warn',
+        ap: 2, funds: 30, threat: 3, cls: 'is-warn',
         log: '控制成功：PC-01 已隔离，攻击链停住。注意，这只是「控制」。',
         hint: '隔离不等于结束。下一步：清除根因。'
       },
@@ -135,7 +137,7 @@
       },
       {
         ap: 1, funds: 0, threat: 2, cls: 'is-ok',
-        log: '恢复完成：PC-01 从 BAK-01 恢复，可用性 100%。本回合还剩 1 点行动点。',
+        log: '恢复完成：PC-01 从 BAK-01 恢复，可用性 100%。本回合行动点已经用完。',
         hint: '这一回合打完了——真实版里，下一回合还有 5 条链在等你。'
       }
     ];
@@ -158,10 +160,19 @@
         out.threat.classList.toggle('is-ok', state.threat <= 2);
       }
 
+      var done = state.index >= steps.length;
+      setNum(out.step, done ? '本回合完成' : '第 ' + (state.index + 1) + ' / 4 步');
+
+      out.progress.forEach(function (chip, i) {
+        chip.classList.toggle('is-active', i === state.index);
+        chip.classList.toggle('is-done', i < state.index);
+      });
+
       buttons.forEach(function (button, i) {
         var isNext = i === state.index;
-        button.disabled = !isNext;
+        button.disabled = done;
         button.classList.toggle('is-next', isNext);
+        button.setAttribute('aria-current', isNext ? 'step' : 'false');
       });
 
       if (state.index < steps.length) {
@@ -191,16 +202,60 @@
       state.index += 1;
       addLine(step.log, step.cls);
       if (state.index === steps.length) {
-        addLine('回合结束：事件关闭，可用性 100%，本回合花了 5 点行动点、¥60。', 'is-ok');
+        addLine('回合结束：事件关闭，可用性 100%，本回合花了 6 点行动点、¥90。', 'is-ok');
       }
       paint();
     }
 
+    function wrong(i) {
+      var labels = ['调查', '控制', '清除', '恢复'];
+      var reasons = [
+        '没调查就处置，PC-01 的正常业务可能被误伤，误封要扣声誉。',
+        '攻击还在跑，直接清除只会让它从下一跳继续。',
+        '直接恢复业务，等于把还没处理完的攻击重新放回线上。',
+        '先把业务恢复回来，再结束这一回合。'
+      ];
+      var message;
+      if (i < state.index) {
+        message = '「' + labels[i] + '」已经做过了，别重复消耗行动点。';
+      } else if (state.index >= steps.length) {
+        message = '这一回合已经完成，可以点「重置」再走一遍。';
+      } else {
+        message = '顺序不对：现在应做第 ' + (state.index + 1) + ' 步「' + labels[state.index] + '」。' + reasons[state.index];
+      }
+      addLine(message, 'is-warn');
+      if (out.hint) out.hint.textContent = message;
+      var button = buttons[i];
+      if (button) {
+        button.classList.remove('is-wrong');
+        void button.offsetWidth;
+        button.classList.add('is-wrong');
+        window.setTimeout(function () { button.classList.remove('is-wrong'); }, 520);
+      }
+    }
+
     buttons.forEach(function (button, i) {
       button.addEventListener('click', function () {
-        if (i !== state.index) return;
+        if (i !== state.index) {
+          wrong(i);
+          return;
+        }
         run(steps[i]);
       });
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      var tag = (event.target && event.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      var box = root.getBoundingClientRect();
+      if (box.bottom < 0 || box.top > window.innerHeight) return;
+      var index = ['1', '2', '3', '4'].indexOf(event.key);
+      if (index === -1) return;
+      var button = buttons[index];
+      if (!button || button.disabled) return;
+      event.preventDefault();
+      button.click();
     });
 
     if (reset) {

@@ -80,6 +80,7 @@
     tutorialOpen: false,
     tutorialPage: 0,
     guideStep: 0,
+    guideBase: null,
     guideCompleted: false,
     logCategory: '全部',
     logKeyword: '',
@@ -250,6 +251,7 @@
   function startGuide() {
     ui.guideStep = 0;
     ui.guideCompleted = false;
+    ui.guideBase = { terminal: game.terminalActions || 0, script: game.scriptActions || 0 };
     screens.renderGuide(0, game);
     const step = ZDD.GUIDE_STEPS[0];
     game.pushMessage(`${step.title}：${step.instruction}`, 'tutorial');
@@ -258,23 +260,32 @@
 
   function updateTutorial() {
     if (!game.tutorialMode || ui.guideCompleted || ui.tutorialOpen) return;
+    const base = ui.guideBase || { terminal: 0, script: 0 };
+    const terminalHits = (game.terminalActions || 0) - base.terminal;
+    const scriptHits = (game.scriptActions || 0) - base.script;
     let advance = false;
     if (ui.guideStep === 0 && game.selectedAlert) advance = true;
     else if (ui.guideStep === 1 && game.selectedAlert && game.selectedAlert.investigated) advance = true;
-    else if (ui.guideStep === 2 && game.events.events.some((event) => event.contained)) advance = true;
+    // 第 3 步刻意要求「用命令」完成隔离：只看状态会被点按钮蒙混过去
+    else if (ui.guideStep === 2 && terminalHits > 0 && game.events.events.some((event) => event.contained)) advance = true;
     else if (ui.guideStep === 3 && game.events.events.some((event) => event.eradicated)) advance = true;
-    else if (ui.guideStep === 4 && game.events.events.some((event) => (
+    // 第 5 步同理：必须由脚本释放隔离，才算经过「脚本」这条通道
+    else if (ui.guideStep === 4 && scriptHits > 0 && game.events.events.some((event) => (
       event.eradicated && game.devices[event.activeDeviceId] && !game.devices[event.activeDeviceId].isolated
     ))) advance = true;
     else if (ui.guideStep === 5 && game.turn >= 2) advance = true;
     if (!advance) return;
 
     ui.guideStep += 1;
+    ui.guideBase = { terminal: game.terminalActions || 0, script: game.scriptActions || 0 };
+    // 上一步用过的工具自动收起，否则聚光灯会打在覆盖层下面、点不到的按钮上
+    if (ui.guideStep === 3 && terminal.isOpen) terminal.close();
+    if (ui.guideStep === 5 && script.isOpen) script.close();
     if (ui.guideStep >= ZDD.GUIDE_STEPS.length) {
       ui.guideCompleted = true;
       audio.play('upgrade');
       effects.flash('green', 50);
-      effects.addBanner('教程完成', '你已经掌握完整处置循环', 'green');
+      effects.addBanner('教程完成', '点击、命令、脚本三条通道都走通了', 'green');
       screens.renderGuide(null, game);
     } else {
       audio.play('success');
@@ -399,6 +410,20 @@
         game.finishTutorial(false);
         renderAll();
         break;
+      case 'guide-fill': {
+        // 沉浸式带练：把当前这一步要用的命令/脚本直接填好，玩家只需要按回车或点运行
+        const step = ZDD.GUIDE_STEPS[ui.guideStep];
+        if (!step || !step.helper) break;
+        if (step.helper.kind === 'terminal') {
+          terminal.open();
+          terminal.prefill(step.helper.cmd);
+        } else if (step.helper.kind === 'script') {
+          script.openWith(step.helper.source);
+        }
+        audio.play('click');
+        renderAll();
+        break;
+      }
       case 'test-sound':
         playSoundTest();
         break;
