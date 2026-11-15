@@ -2,6 +2,7 @@
   "qualification": {
     "qualification_type": "anti-addiction",
     "anti_addiction_status": 1,
-    "anti_addiction_read": true
+    "anti_addiction_read": true,
+    "anti_addiction_zxb": false
   }
 }

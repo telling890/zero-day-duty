@@ -1,0 +1,41 @@
+{
+  "ok": true,
+  "data": {
+    "result": {
+      "blockers": [],
+      "preaudit_passed": true,
+      "preaudit_status": "passed",
+      "version_id": "1277426",
+      "warnings": [
+        {
+          "code": "QUALIFICATION_INCOMPLETE",
+          "field_ids": [],
+          "message": "仍有资质待完成：AI 接入声明（已保存）、隐私合规（已保存）、防沉迷合规材料（已保存）。继续提审可能被驳回。"
+        },
+        {
+          "code": "AGE_GRADE_REQUIRED",
+          "field_ids": [
+            "age_grade"
+          ],
+          "message": "游戏适龄分级（已保存）"
+        }
+      ]
+    },
+    "status": "completed"
+  },
+  "meta": {
+    "catalog": {
+      "source_version": "1.0.77",
+      "digest": "sha256:43382e54167f5515810ee3bba84f974cd5b5eb7e83b49c546c1de2682e6eb292",
+      "loaded_from": "cache"
+    }
+  },
+  "_notice": {
+    "update_check": {
+      "command": "taptap-cli update --check --json",
+      "message": "Automatic update check could not complete; run: taptap-cli update --check --json",
+      "reason": "timeout",
+      "status": "unavailable"
+    }
+  }
+}
