@@ -16,3 +16,5 @@ web/node_modules/
 steam/content/
 steam/build/output/
 steam/build/*.log
+
+taptap/test-build/

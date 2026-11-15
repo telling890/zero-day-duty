@@ -111,6 +111,8 @@ TapTap 的尺寸和 Steam **不一样**，不能直接复用（尤其「封面�
 
 配套文档：
 
+- 内部测试最短路径：[record/内部测试最短路径.md](record/内部测试最短路径.md)（传包 + 发资格 + 自测清单）
+- 测试包脚本：scripts/prepare_test_build.ps1（生成可直接上传的 zip）
 - 录屏（唯一缺口）：[record/录屏分镜.md](record/录屏分镜.md)（40 秒分镜，按 TapTap 规则倒推）
 - 预约页文案：[store/booking-page.md](store/booking-page.md)（简介 / 开发者的话 / FAQ / 别写什么）
 - 内部测试名单：[record/internal-test-users.csv](record/internal-test-users.csv) + [record/内部测试名单说明.md](record/内部测试名单说明.md)
