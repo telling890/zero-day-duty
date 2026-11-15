@@ -18,3 +18,4 @@ steam/build/output/
 steam/build/*.log
 
 taptap/test-build/
+taptap/h5-build/
