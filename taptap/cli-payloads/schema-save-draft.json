@@ -1,0 +1,899 @@
+{
+  "ok": true,
+  "data": {
+    "_meta": {
+      "access_tokens": [],
+      "danger": true,
+      "envelope_version": "1.0",
+      "required_scopes": [],
+      "risk": "write",
+      "scopes": []
+    },
+    "description": "保存指定类型的资质草稿。",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "app_features": {
+          "description": "应用特征（可选，随资质审核提交）",
+          "properties": {
+            "has_ai_content": {
+              "type": "boolean"
+            },
+            "has_in_app_purchase": {
+              "type": "boolean"
+            },
+            "has_ip_authorization": {
+              "type": "boolean"
+            },
+            "has_text_story_simulation": {
+              "type": "boolean"
+            },
+            "is_internet_required": {
+              "type": "boolean"
+            },
+            "package_types": {
+              "description": "包体类型声明（可省略）；数组元素不得为 null",
+              "items": {
+                "description": "包体类型：apk=Android APK，windows=Windows 客户端，mini_app=TapTap 小游戏，h5=H5 游戏包，spark=TapTap 制造",
+                "enum": [
+                  "apk",
+                  "windows",
+                  "mini_app",
+                  "h5",
+                  "spark"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "app_id": {
+          "description": "游戏 ID",
+          "format": "int64",
+          "type": "integer"
+        },
+        "developer_id": {
+          "description": "厂商 ID",
+          "format": "int64",
+          "type": "integer"
+        },
+        "expected_snapshot": {
+          "description": "查询返回的确认快照；检测写前漂移，不提供原子 CAS",
+          "type": "string"
+        },
+        "qualification": {
+          "oneOf": [
+            {
+              "allOf": [
+                {
+                  "description": "资质材料（以 qualification_type 判别的联合类型；仅保存 app_features 时可为空）",
+                  "discriminator": {
+                    "propertyName": "qualification_type"
+                  },
+                  "properties": {
+                    "qualification_type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "aigc_qualification": {
+                      "description": "AI 声明材料",
+                      "properties": {
+                        "package_types": {
+                          "description": "包体类型；传 proof_file 时必填且至少一项（如 [\"apk\"]）",
+                          "items": {
+                            "description": "包体类型；传 proof_file 时必填且至少一项（如 [\"apk\"]）",
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "proof_file": {
+                          "description": "防沉迷说明视频",
+                          "properties": {
+                            "type": {
+                              "description": "文件类型（img / pdf / video）",
+                              "pattern": "img|pdf|video",
+                              "type": "string"
+                            },
+                            "url": {
+                              "description": "文件地址",
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "url"
+                          ],
+                          "type": "object"
+                        },
+                        "proof_files": {
+                          "description": "按包体完整替换证明列表并据此生成 package_types；同时传 package_types 时两者包体须一致。空数组清空，省略保留。不可与 proof_file 同传",
+                          "items": {
+                            "description": "按包体完整替换证明列表并据此生成 package_types；同时传 package_types 时两者包体须一致。空数组清空，省略保留。不可与 proof_file 同传",
+                            "properties": {
+                              "file": {
+                                "description": "防沉迷说明视频",
+                                "properties": {
+                                  "type": {
+                                    "description": "文件类型（img / pdf / video）",
+                                    "pattern": "img|pdf|video",
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "description": "文件地址",
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "url"
+                                ],
+                                "type": "object"
+                              },
+                              "package_type": {
+                                "description": "包体类型：apk=Android APK，windows=Windows 客户端，mini_app=TapTap 小游戏，h5=H5 游戏包，spark=TapTap 制造",
+                                "enum": [
+                                  "apk",
+                                  "windows",
+                                  "mini_app",
+                                  "h5",
+                                  "spark"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "file",
+                              "package_type"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "provide_aigc_service": {
+                          "description": "是否提供 AIGC 服务",
+                          "type": "boolean"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "qualification_type": {
+                      "const": "ai-declaration",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "required": [
+                "aigc_qualification"
+              ],
+              "type": "object"
+            },
+            {
+              "allOf": [
+                {
+                  "description": "资质材料（以 qualification_type 判别的联合类型；仅保存 app_features 时可为空）",
+                  "discriminator": {
+                    "propertyName": "qualification_type"
+                  },
+                  "properties": {
+                    "qualification_type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "anti_addiction_ge16_lt18_recharge_file": {
+                      "description": "防沉迷说明视频",
+                      "properties": {
+                        "type": {
+                          "description": "文件类型（img / pdf / video）",
+                          "pattern": "img|pdf|video",
+                          "type": "string"
+                        },
+                        "url": {
+                          "description": "文件地址",
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ],
+                      "type": "object"
+                    },
+                    "anti_addiction_ge8_lt16_recharge_file": {
+                      "description": "防沉迷说明视频",
+                      "properties": {
+                        "type": {
+                          "description": "文件类型（img / pdf / video）",
+                          "pattern": "img|pdf|video",
+                          "type": "string"
+                        },
+                        "url": {
+                          "description": "文件地址",
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ],
+                      "type": "object"
+                    },
+                    "anti_addiction_guest_recharge_file": {
+                      "description": "防沉迷说明视频",
+                      "properties": {
+                        "type": {
+                          "description": "文件类型（img / pdf / video）",
+                          "pattern": "img|pdf|video",
+                          "type": "string"
+                        },
+                        "url": {
+                          "description": "文件地址",
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ],
+                      "type": "object"
+                    },
+                    "anti_addiction_lt8_recharge_file": {
+                      "description": "防沉迷说明视频",
+                      "properties": {
+                        "type": {
+                          "description": "文件类型（img / pdf / video）",
+                          "pattern": "img|pdf|video",
+                          "type": "string"
+                        },
+                        "url": {
+                          "description": "文件地址",
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ],
+                      "type": "object"
+                    },
+                    "anti_addiction_read": {
+                      "description": "是否已阅读防沉迷须知",
+                      "type": "boolean"
+                    },
+                    "anti_addiction_status": {
+                      "description": "防沉迷接入状态：1 未接入；2 已接入（TapTap SDK）；3 已接入（其他方案）；4 已接入新规。\n仅状态 4 会额外要求防沉迷说明视频（有内购或文字剧情时另需三档年龄充值限制文件）。",
+                      "format": "int32",
+                      "maximum": 4,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "anti_addiction_video_file": {
+                      "description": "防沉迷说明视频",
+                      "properties": {
+                        "type": {
+                          "description": "文件类型（img / pdf / video）",
+                          "pattern": "img|pdf|video",
+                          "type": "string"
+                        },
+                        "url": {
+                          "description": "文件地址",
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ],
+                      "type": "object"
+                    },
+                    "anti_addiction_zxb": {
+                      "description": "是否接入中宣部实名",
+                      "type": "boolean"
+                    },
+                    "anti_addiction_zxb_file": {
+                      "description": "防沉迷说明视频",
+                      "properties": {
+                        "type": {
+                          "description": "文件类型（img / pdf / video）",
+                          "pattern": "img|pdf|video",
+                          "type": "string"
+                        },
+                        "url": {
+                          "description": "文件地址",
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "qualification_type": {
+                      "const": "anti-addiction",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "required": [
+                "anti_addiction_status"
+              ],
+              "type": "object"
+            },
+            {
+              "allOf": [
+                {
+                  "description": "资质材料（以 qualification_type 判别的联合类型；仅保存 app_features 时可为空）",
+                  "discriminator": {
+                    "propertyName": "qualification_type"
+                  },
+                  "properties": {
+                    "qualification_type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "power_of_attorneys_file": {
+                      "description": "授权书文件列表",
+                      "items": {
+                        "description": "防沉迷说明视频",
+                        "properties": {
+                          "type": {
+                            "description": "文件类型（img / pdf / video）",
+                            "pattern": "img|pdf|video",
+                            "type": "string"
+                          },
+                          "url": {
+                            "description": "文件地址",
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "url"
+                        ],
+                        "type": "object"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "qualification_type": {
+                      "const": "authorization-letters",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "required": [
+                "power_of_attorneys_file"
+              ],
+              "type": "object"
+            },
+            {
+              "allOf": [
+                {
+                  "description": "资质材料（以 qualification_type 判别的联合类型；仅保存 app_features 时可为空）",
+                  "discriminator": {
+                    "propertyName": "qualification_type"
+                  },
+                  "properties": {
+                    "qualification_type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "extra_isbn": {
+                      "description": "附加版号",
+                      "pattern": "^ISBN\\s*[\\d\\-]+$",
+                      "type": "string"
+                    },
+                    "extra_isbn_file": {
+                      "description": "防沉迷说明视频",
+                      "properties": {
+                        "type": {
+                          "description": "文件类型（img / pdf / video）",
+                          "pattern": "img|pdf|video",
+                          "type": "string"
+                        },
+                        "url": {
+                          "description": "文件地址",
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ],
+                      "type": "object"
+                    },
+                    "isbn": {
+                      "description": "游戏版号（ISBN）",
+                      "minLength": 1,
+                      "pattern": "^ISBN\\s*[\\d\\-]+$",
+                      "type": "string"
+                    },
+                    "isbn_file": {
+                      "description": "防沉迷说明视频",
+                      "properties": {
+                        "type": {
+                          "description": "文件类型（img / pdf / video）",
+                          "pattern": "img|pdf|video",
+                          "type": "string"
+                        },
+                        "url": {
+                          "description": "文件地址",
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "qualification_type": {
+                      "const": "game-license",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "required": [
+                "isbn"
+              ],
+              "type": "object"
+            },
+            {
+              "allOf": [
+                {
+                  "description": "资质材料（以 qualification_type 判别的联合类型；仅保存 app_features 时可为空）",
+                  "discriminator": {
+                    "propertyName": "qualification_type"
+                  },
+                  "properties": {
+                    "qualification_type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "filing_file": {
+                      "description": "防沉迷说明视频",
+                      "properties": {
+                        "type": {
+                          "description": "文件类型（img / pdf / video）",
+                          "pattern": "img|pdf|video",
+                          "type": "string"
+                        },
+                        "url": {
+                          "description": "文件地址",
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ],
+                      "type": "object"
+                    },
+                    "filing_number": {
+                      "description": "小游戏备案号",
+                      "type": "string"
+                    },
+                    "icp_entity_license_no": {
+                      "description": "ICP 主体证件号",
+                      "type": "string"
+                    },
+                    "icp_entity_name": {
+                      "description": "ICP 主体名称",
+                      "type": "string"
+                    },
+                    "icp_entity_type": {
+                      "description": "ICP 主体类型：1 公司；2 个人",
+                      "format": "int32",
+                      "maximum": 2,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "icp_file": {
+                      "description": "防沉迷说明视频",
+                      "properties": {
+                        "type": {
+                          "description": "文件类型（img / pdf / video）",
+                          "pattern": "img|pdf|video",
+                          "type": "string"
+                        },
+                        "url": {
+                          "description": "文件地址",
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ],
+                      "type": "object"
+                    },
+                    "icp_number": {
+                      "description": "ICP 备案号",
+                      "minLength": 1,
+                      "pattern": "^[京津冀晋蒙辽吉黑沪苏浙皖闽赣鲁豫鄂湘粤桂琼渝川贵云藏陕甘青宁新]ICP备\\d{8,10}号(-\\d+[A-Z]?)?$",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "qualification_type": {
+                      "const": "icp-filing",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "required": [
+                "icp_number"
+              ],
+              "type": "object"
+            },
+            {
+              "allOf": [
+                {
+                  "description": "资质材料（以 qualification_type 判别的联合类型；仅保存 app_features 时可为空）",
+                  "discriminator": {
+                    "propertyName": "qualification_type"
+                  },
+                  "properties": {
+                    "qualification_type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "privacy_qualification": {
+                      "description": "隐私合规材料",
+                      "properties": {
+                        "privacy_audit_id": {
+                          "description": "隐私审核 ID",
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "privacy_policy_link": {
+                          "description": "隐私政策链接",
+                          "type": "string"
+                        },
+                        "proof_file": {
+                          "description": "防沉迷说明视频",
+                          "properties": {
+                            "type": {
+                              "description": "文件类型（img / pdf / video）",
+                              "pattern": "img|pdf|video",
+                              "type": "string"
+                            },
+                            "url": {
+                              "description": "文件地址",
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "url"
+                          ],
+                          "type": "object"
+                        },
+                        "use_general_privacy_policy": {
+                          "description": "是否使用通用隐私政策",
+                          "type": "boolean"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "qualification_type": {
+                      "const": "privacy-compliance",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "required": [
+                "privacy_qualification"
+              ],
+              "type": "object"
+            },
+            {
+              "allOf": [
+                {
+                  "description": "资质材料（以 qualification_type 判别的联合类型；仅保存 app_features 时可为空）",
+                  "discriminator": {
+                    "propertyName": "qualification_type"
+                  },
+                  "properties": {
+                    "qualification_type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "safety_report_file": {
+                      "description": "安全评估报告文件列表",
+                      "items": {
+                        "description": "防沉迷说明视频",
+                        "properties": {
+                          "type": {
+                            "description": "文件类型（img / pdf / video）",
+                            "pattern": "img|pdf|video",
+                            "type": "string"
+                          },
+                          "url": {
+                            "description": "文件地址",
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "url"
+                        ],
+                        "type": "object"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "qualification_type": {
+                      "const": "security-assessment",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "required": [
+                "safety_report_file"
+              ],
+              "type": "object"
+            },
+            {
+              "allOf": [
+                {
+                  "description": "资质材料（以 qualification_type 判别的联合类型；仅保存 app_features 时可为空）",
+                  "discriminator": {
+                    "propertyName": "qualification_type"
+                  },
+                  "properties": {
+                    "qualification_type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "copyright_file": {
+                      "description": "防沉迷说明视频",
+                      "properties": {
+                        "type": {
+                          "description": "文件类型（img / pdf / video）",
+                          "pattern": "img|pdf|video",
+                          "type": "string"
+                        },
+                        "url": {
+                          "description": "文件地址",
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ],
+                      "type": "object"
+                    },
+                    "copyright_number": {
+                      "description": "软件著作权登记号",
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                {
+                  "properties": {
+                    "qualification_type": {
+                      "const": "software-copyright",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "qualification_type"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "required": [
+                "copyright_number"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "required": [
+        "app_id",
+        "developer_id"
+      ],
+      "type": "object"
+    },
+    "name": "qualification save-draft",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "properties": {
+            "qualification_type": {
+              "description": "当前操作的标准资质类型；仅保存 app_features 时为 null",
+              "enum": [
+                "game-license",
+                "icp-filing",
+                "privacy-compliance",
+                "anti-addiction",
+                "ai-declaration",
+                "software-copyright",
+                "authorization-letters",
+                "security-assessment"
+              ],
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "accepted"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "result",
+        "status"
+      ],
+      "type": "object"
+    }
+  },
+  "meta": {
+    "catalog": {
+      "source_version": "1.0.77",
+      "digest": "sha256:43382e54167f5515810ee3bba84f974cd5b5eb7e83b49c546c1de2682e6eb292",
+      "loaded_from": "cache"
+    }
+  },
+  "_notice": {
+    "update_check": {
+      "command": "taptap-cli update --check --json",
+      "message": "Automatic update check could not complete; run: taptap-cli update --check --json",
+      "reason": "timeout",
+      "status": "unavailable"
+    }
+  }
+}

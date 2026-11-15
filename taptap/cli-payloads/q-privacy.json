@@ -1,0 +1,9 @@
+{
+  "qualification": {
+    "qualification_type": "privacy-compliance",
+    "privacy_qualification": {
+      "privacy_policy_link": "https://telling890.github.io/zero-day-duty/privacy.html",
+      "use_general_privacy_policy": false
+    }
+  }
+}

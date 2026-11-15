@@ -1,0 +1,11 @@
+{
+  "qualification": {
+    "qualification_type": "ai-declaration",
+    "aigc_qualification": {
+      "provide_aigc_service": false,
+      "package_types": [
+        "windows"
+      ]
+    }
+  }
+}

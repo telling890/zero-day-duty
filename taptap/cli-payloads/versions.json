@@ -1,0 +1,46 @@
+{
+  "ok": true,
+  "data": {
+    "result": {
+      "list": [
+        {
+          "created_time": 1794725767,
+          "last_event": "draft_created",
+          "status": "draft",
+          "status_label": "未发布",
+          "status_value": 0,
+          "version": "V-20261115-1",
+          "version_id": "V-20261115-1"
+        },
+        {
+          "created_time": 1794717568,
+          "last_event": "published",
+          "status": "online",
+          "status_label": "已上线",
+          "status_value": 4,
+          "version": "V-20261115",
+          "version_id": "V-20261115"
+        }
+      ],
+      "page": 1,
+      "page_size": 100,
+      "total": 2
+    },
+    "status": "completed"
+  },
+  "meta": {
+    "catalog": {
+      "source_version": "1.0.77",
+      "digest": "sha256:43382e54167f5515810ee3bba84f974cd5b5eb7e83b49c546c1de2682e6eb292",
+      "loaded_from": "cache"
+    }
+  },
+  "_notice": {
+    "update_check": {
+      "command": "taptap-cli update --check --json",
+      "message": "Automatic update check could not complete; run: taptap-cli update --check --json",
+      "reason": "timeout",
+      "status": "unavailable"
+    }
+  }
+}

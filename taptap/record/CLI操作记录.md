@@ -105,6 +105,30 @@ warnings :
 3. 防沉迷：保持「未接入，审核后自动应用平台通用防沉迷」
 4. 内部测试：网页端「版本发布 → 测试 → 内部测试」创建（**不要用 CLI 建 CBT/OBT**，90 天只有 1 次配额）
 
+
+## 三之四、资质代填（已执行，2026-11-15 21:2x）
+
+三个 required 资质用 `qualification save-draft` 代填成功（`qualification get-status` 已全部 `uploaded`）：
+
+| 资质 | payload | 结果 |
+| --- | --- | --- |
+| privacy-compliance | `{"qualification":{"qualification_type":"privacy-compliance","privacy_qualification":{"privacy_policy_link":"https://telling890.github.io/zero-day-duty/privacy.html","use_general_privacy_policy":false}}}` | uploaded |
+| ai-declaration | `{"qualification":{"qualification_type":"ai-declaration","aigc_qualification":{"provide_aigc_service":false,"package_types":["windows"]}}}` | uploaded |
+| anti-addiction | `{"qualification":{"qualification_type":"anti-addiction","anti_addiction_status":1,"anti_addiction_read":true}}` | uploaded |
+
+可选资质（ISBN / 软著 / 授权书 / 安评 / ICP）全部保持 `pending_upload`，不影响上线。
+
+### 结果：商店页已上线
+
+```
+V-20261115      status=online   已上线   last_event=published
+V-20261115-1    status=draft    未发布   last_event=draft_created   ← 后续编辑的草稿
+应用审核状态：已上线
+```
+
+即：**审核通过，游戏页已对外可见**。但还有一个未发布的草稿版本（`version_id 1277426`），
+后续的系统配置等编辑在该草稿里，要「提交审核」并发布才会同步到线上页。
+
 ## 四、剩下要你做的（按顺序）
 
 ### 1. 资质事实（我可以代填，是客观事实）
