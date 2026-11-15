@@ -496,6 +496,7 @@
           <a href="https://telling890.github.io/zero-day-duty/" target="_blank" rel="noreferrer">项目主页</a>
           <a href="https://github.com/telling890/zero-day-duty" target="_blank" rel="noreferrer">GitHub 源码</a>
           <a href="https://github.com/telling890/zero-day-duty/releases/latest" target="_blank" rel="noreferrer">下载 Windows 版</a>
+          <a href="https://telling890.github.io/zero-day-duty/privacy.html" target="_blank" rel="noreferrer">隐私政策</a>
           <a href="README.md" target="_blank" rel="noreferrer">网页版说明</a>
         </nav>
         <div class="modal-actions">
