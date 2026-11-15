@@ -251,33 +251,56 @@
   function startGuide() {
     ui.guideStep = 0;
     ui.guideCompleted = false;
-    ui.guideBase = { terminal: game.terminalActions || 0, script: game.scriptActions || 0 };
+    ui.guideBase = { terminal: game.terminalActions || 0, script: game.scriptActions || 0, runs: game.scriptRuns || 0 };
     screens.renderGuide(0, game);
     const step = ZDD.GUIDE_STEPS[0];
     game.pushMessage(`${step.title}：${step.instruction}`, 'tutorial');
     scheduleRender();
   }
 
+  /** 带练第 5 步要用的脚本；编辑器空着就填进去（不自动打开面板）。 */
+  function tutorialScriptSource() {
+    const step = ZDD.GUIDE_STEPS && ZDD.GUIDE_STEPS[4];
+    return step && step.helper ? step.helper.source : '';
+  }
+
+  function ensureTutorialScript() {
+    if (!game.tutorialMode || ui.guideStep !== 4) return;
+    const stock = script.matchesStockTemplate && script.matchesStockTemplate();
+    if (!stock && script.hasContent && script.hasContent()) return;
+    script.prefill(tutorialScriptSource());
+    renderAll();
+  }
+
   function updateTutorial() {
     if (!game.tutorialMode || ui.guideCompleted || ui.tutorialOpen) return;
-    const base = ui.guideBase || { terminal: 0, script: 0 };
+    const base = ui.guideBase || { terminal: 0, script: 0, runs: 0 };
     const terminalHits = (game.terminalActions || 0) - base.terminal;
     const scriptHits = (game.scriptActions || 0) - base.script;
+    const scriptRuns = (game.scriptRuns || 0) - (base.runs || 0);
     let advance = false;
     if (ui.guideStep === 0 && game.selectedAlert) advance = true;
     else if (ui.guideStep === 1 && game.selectedAlert && game.selectedAlert.investigated) advance = true;
     // 第 3 步刻意要求「用命令」完成隔离：只看状态会被点按钮蒙混过去
     else if (ui.guideStep === 2 && terminalHits > 0 && game.events.events.some((event) => event.contained)) advance = true;
     else if (ui.guideStep === 3 && game.events.events.some((event) => event.eradicated)) advance = true;
-    // 第 5 步同理：必须由脚本释放隔离，才算经过「脚本」这条通道
-    else if (ui.guideStep === 4 && scriptHits > 0 && game.events.events.some((event) => (
+    // 第 5 步：设备已恢复 + 跑过脚本。允许「0 个操作」——
+    // 如果玩家已经手动解除隔离，脚本执行 release 会是 0 个操作，不应该卡死。
+    else if (ui.guideStep === 4 && scriptRuns > 0 && game.events.events.some((event) => (
       event.eradicated && game.devices[event.activeDeviceId] && !game.devices[event.activeDeviceId].isolated
     ))) advance = true;
     else if (ui.guideStep === 5 && game.turn >= 2) advance = true;
     if (!advance) return;
 
     ui.guideStep += 1;
-    ui.guideBase = { terminal: game.terminalActions || 0, script: game.scriptActions || 0 };
+    ui.guideBase = {
+      terminal: game.terminalActions || 0,
+      script: game.scriptActions || 0,
+      runs: game.scriptRuns || 0,
+    };
+    // 进入「用脚本恢复」这一步时，编辑器如果是空的就先填好，
+    // 否则玩家按 C 只会看到一个空面板，运行后 0 个操作、直接卡住。
+    if (ui.guideStep === 4) ensureTutorialScript();
     // 上一步用过的工具自动收起，否则聚光灯会打在覆盖层下面、点不到的按钮上
     if (ui.guideStep === 3 && terminal.isOpen) terminal.close();
     if (ui.guideStep === 5 && script.isOpen) script.close();
@@ -529,6 +552,7 @@
     });
     $('btn-script').addEventListener('click', () => {
       if (game.state !== 'playing' || activeModalKind()) return;
+      ensureTutorialScript();
       script.open();
     });
     refs.advance.addEventListener('click', () => {
@@ -649,11 +673,13 @@
         if (ui.terminalOpen) {
           event.preventDefault();
           terminal.close();
+          ensureTutorialScript();
           script.open();
           return;
         }
         if (game.state === 'playing' && !activeModalKind()) {
           event.preventDefault();
+          ensureTutorialScript();
           script.open();
           return;
         }

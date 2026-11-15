@@ -385,6 +385,36 @@
       this.saveSoon();
     }
 
+    /** 教程带练用：只把内容写进编辑器，不打开面板（按 C 时才有东西可跑）。 */
+    prefill(source) {
+      if (typeof source !== 'string' || !source) return false;
+      this.code.value = source;
+      this.activeLine = 0;
+      this.activeError = false;
+      this.renderGutter();
+      this.renderHighlight();
+      this.updateLineLabel();
+      this.exampleSelect.value = '-1';
+      this.saveSoon();
+      return true;
+    }
+
+    /** 当前内容是否只是内置模板（不是玩家自己写的）。 */
+    matchesStockTemplate() {
+      const value = String(this.code.value || "");
+      return TEMPLATES.some((template) => template.source === value);
+    }
+
+    /** 编辑器里是否已经有实际内容（空白/只有注释视为空）。 */
+    hasContent() {
+      const raw = String(this.code.value || '');
+      const meaningful = raw
+        .split('\n')
+        .map((line) => line.split('#')[0].trim())
+        .filter(Boolean);
+      return meaningful.length > 0;
+    }
+
     /** 教程带练用：打开剧本面板并填入一段示例，玩家只需要点运行。 */
     openWith(source) {
       if (typeof source === 'string' && source) {
@@ -560,6 +590,9 @@
       this.consoleEl.textContent = '';
       this.count = 0;
       this.updateCount();
+      // 教程按「通道」判定进度：运行过一次就算走过脚本通道，
+      // 不要求一定执行成功（目标状态可能已经满足，操作会是 0 个）。
+      this.game.scriptRuns = (this.game.scriptRuns || 0) + 1;
       this.setStatus(mode === 'step' ? '单步执行' : '运行中');
       this.print(`▶ ${mode === 'step' ? '单步执行' : '运行脚本'}…`, 'info');
       this.running = true;
