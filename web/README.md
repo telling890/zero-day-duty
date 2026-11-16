@@ -79,6 +79,8 @@ py -3.10 -m http.server 8000
 
 改主题只需要动两处：`:root` 里的深色值、`@media (prefers-color-scheme: light)` 里的浅色值。
 
+项目主页（`../docs/index.html`、`privacy.html`）用同一套思路但反过来：`docs/style.css` 就是浅色的「夜班事故报告」纸张肤，`docs/soc-theme.css` 整份包在 `@media (prefers-color-scheme: dark)` 里当深色覆盖层。两边占位同名 token（`--paper` / `--ink` / `--rule` / `--red` …），所以改浅色只动 `style.css` 的 `:root`，改深色只动 `soc-theme.css`。
+
 ## 四、与桌面版的关系
 
 | 项目 | 桌面版 | 网页版 |
@@ -165,6 +167,7 @@ node tools/browser-flow.mjs
 node tools/browser-extra.mjs
 node tools/browser-audio.mjs
 node tools/browser-theme.mjs
+node tools/browser-docs-theme.mjs   # 项目主页 docs/ 的深浅色
 
 # 想在「本机浅色」外观下跑上面任一浏览器测试，先设环境变量：
 #   PowerShell:  $env:ZDD_COLOR_SCHEME = 'light'
@@ -172,6 +175,7 @@ node tools/browser-theme.mjs
 ```
 
 - 主题测试覆盖：深浅两套外观下的页面底色、面板渐变、顶栏、弹窗与终端（终端按设计保持深色），以及正文 / 弹窗文字对比度 ≥ 7；截图输出到 `tests/screenshots/theme/`。
+- 主页主题测试覆盖：`docs/index.html`（纸张米白 ↔ SOC 深色）与 `docs/privacy.html` 在两种外观下的底色、强调色、正文与链接配色，另检查试玩区进度条在浅色下也有样式；截图输出到 `tests/screenshots/docs-theme/`。
 
 - 逻辑测试覆盖：数据加载、随机排期复现、调查前后操作可用性、完整处置链、误封、SLA、加固互斥、三档难度信息质量、隐藏/延迟决策、三选一、存读档与旧存档兼容、结算时间线、攻击者等待、风险区间收窄。
 - 剧本解释器测试覆盖：变量、if/elif/else、for/while、break/continue、列表与索引、比较与 in、属性访问、内置查询与操作调用、语法错误行号、步数上限。

@@ -1,9 +1,12 @@
 /* ==========================================================================
-   v1.7 · SOC 深色主题
-   把项目主页从“纸张事故报告”切换到游戏内的深色监控中心配色：
-   深底、青色主强调、橙色警报、绿色恢复；同时强化试玩区的交互反馈。
+   零日值班 · 项目主页：SOC 深色肤
+   只在系统外观为深色时生效（@media (prefers-color-scheme: dark)）。
+   浅色外观不加载这份覆盖，页面回到 style.css 里的「夜班事故报告」纸张主题，
+   两套皮肤共用同一批 token（--paper / --ink / --rule / --red ...）。
+   改这一份等于改深色模式；改 style.css 的 :root 等于改浅色模式。
    ========================================================================== */
 
+@media (prefers-color-scheme: dark) {
 :root {
   color-scheme: dark;
 
@@ -519,4 +522,5 @@ footer { color: var(--faint); border-top: 1px solid var(--rule); }
 @media (prefers-reduced-motion: reduce) {
   .aurora { animation: none; }
   .dbtn.is-wrong { animation: none; }
+}
 }

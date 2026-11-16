@@ -10,7 +10,8 @@
     "test:logic": "node tests/logic.test.mjs && node tests/zscript.test.mjs",
     "test:browser": "node tools/browser-smoke.mjs && node tools/browser-terminal.mjs && node tools/browser-script.mjs && node tools/browser-flow.mjs && node tools/browser-extra.mjs && node tools/browser-audio.mjs && node tools/browser-depth.mjs && node tools/browser-theme.mjs",
     "test:audio": "node tools/browser-audio.mjs",
-    "test:theme": "node tools/browser-theme.mjs"
+    "test:theme": "node tools/browser-theme.mjs",
+    "test:docs": "node tools/browser-docs-theme.mjs"
   },
   "engines": {
     "node": ">=18"

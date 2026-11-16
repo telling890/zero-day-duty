@@ -5,23 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>隐私政策 · 零日值班</title>
   <meta name="description" content="《零日值班》隐私政策：本作不收集、不上传任何个人信息，完全离线运行，仅在本机写入存档文件。">
-  <meta name="theme-color" content="#070b11">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#070b11" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F2EFE6" media="(prefers-color-scheme: light)">
   <link rel="icon" href="assets/icon.png">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="soc-theme.css">
   <style>
     .policy { max-width: 880px; margin: 0 auto; padding: 96px 22px 120px; position: relative; z-index: 2; }
     .policy h1 { font-size: clamp(26px, 4vw, 38px); margin-bottom: 8px; }
-    .policy .meta { color: #8aa0b8; font-size: 13px; line-height: 1.9; margin-bottom: 26px; }
-    .policy h2 { font-size: 18px; margin: 34px 0 10px; padding-left: 12px; border-left: 3px solid #00e0ff; }
-    .policy p, .policy li { font-size: 14.5px; line-height: 1.85; color: #c6d4e2; }
+    .policy .meta { color: var(--muted); font-size: 13px; line-height: 1.9; margin-bottom: 26px; }
+    .policy h2 { font-size: 18px; margin: 34px 0 10px; padding-left: 12px; border-left: 3px solid var(--red); }
+    .policy p, .policy li { font-size: 14.5px; line-height: 1.85; color: var(--ink-2); }
     .policy ul, .policy ol { margin: 10px 0 10px 22px; }
     .policy li { margin: 4px 0; }
-    .policy .box { margin: 22px 0; padding: 14px 16px; border-left: 3px solid #00e0ff;
-      background: rgba(0,224,255,.06); border-radius: 0 8px 8px 0; }
-    .policy .box strong { color: #eaf6ff; }
+    .policy .box { margin: 22px 0; padding: 14px 16px; border-left: 3px solid var(--red);
+      background: var(--red-soft); border-radius: 0 8px 8px 0; }
+    .policy .box strong { color: var(--ink); }
     .policy .back { display: inline-block; margin-top: 40px; font-size: 13px; }
-    .policy a { color: #00e0ff; }
+    .policy a { color: var(--red); }
   </style>
 </head>
 <body>
