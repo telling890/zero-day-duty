@@ -66,7 +66,20 @@ py -3.10 -m http.server 8000
 | 日志搜索 | 在右上角搜索框输入关键词（英文、数字最稳定） |
 | 移动端 | 选中告警后会自动滚到操作面板；顶栏与底栏保持吸顶 / 吸底 |
 
-## 三、与桌面版的关系
+## 三、主题：跟随本机深浅色
+
+页面用 `prefers-color-scheme` 跟随系统外观，不需要手动切换：
+
+| 本机外观 | 界面 |
+| --- | --- |
+| 深色（默认） | SOC 监控中心的深夜配色：近黑底、青色霓虹、暗色面板 |
+| 浅色 | 日间值班室：冷灰底、白面板、深青强调色，文字与状态色都换成满足对比度的一档 |
+
+实现方式：`css/style.css` 开头是 token 色板（`--panel-rgb`、`--accent-rgb` 等 RGB 三元组），所有半透明色统一写成 `rgb(var(--x-rgb) / a)`；文件末尾的 `@media (prefers-color-scheme: light)` 只替换这一层 token 并补少量组件级调整。终端与自动化剧本编辑区按设计保持深色（工具窗口），靠在该子树内重设 token 实现。
+
+改主题只需要动两处：`:root` 里的深色值、`@media (prefers-color-scheme: light)` 里的浅色值。
+
+## 四、与桌面版的关系
 
 | 项目 | 桌面版 | 网页版 |
 | --- | --- | --- |
@@ -79,7 +92,7 @@ py -3.10 -m http.server 8000
 
 规则实现与桌面版逐条对齐：指标初值、12 种操作的 AP / 资金与前置条件、三段式处置、战役节奏、风险区间、SLA 收入、结算权重与结局判定，都能在 `js/core/*.js` 中找到对应实现。
 
-## 四、目录结构
+## 五、目录结构
 
 ```
 web/
@@ -126,7 +139,7 @@ web/
     └── zscript.test.mjs       # 剧本解释器单元测试
 ```
 
-## 五、数据文件
+## 六、数据文件
 
 `../data/` 下的 5 个 JSON 是唯一数据源。修改后重新生成浏览器用的脚本：
 
@@ -136,7 +149,7 @@ node tools/build-data.mjs
 
 `js/data/game-data.js` 已提交，因此直接打开页面不需要 Node。数据校验在加载时进行（缺字段、重复 ID、引用不存在的设备等会给出明确错误）。
 
-## 六、测试
+## 七、测试
 
 ```powershell
 # 逻辑测试（Node，无需浏览器）
@@ -151,7 +164,14 @@ node tools/browser-depth.mjs
 node tools/browser-flow.mjs
 node tools/browser-extra.mjs
 node tools/browser-audio.mjs
+node tools/browser-theme.mjs
+
+# 想在「本机浅色」外观下跑上面任一浏览器测试，先设环境变量：
+#   PowerShell:  $env:ZDD_COLOR_SCHEME = 'light'
+#   bash:        ZDD_COLOR_SCHEME=light node tools/browser-flow.mjs
 ```
+
+- 主题测试覆盖：深浅两套外观下的页面底色、面板渐变、顶栏、弹窗与终端（终端按设计保持深色），以及正文 / 弹窗文字对比度 ≥ 7；截图输出到 `tests/screenshots/theme/`。
 
 - 逻辑测试覆盖：数据加载、随机排期复现、调查前后操作可用性、完整处置链、误封、SLA、加固互斥、三档难度信息质量、隐藏/延迟决策、三选一、存读档与旧存档兼容、结算时间线、攻击者等待、风险区间收窄。
 - 剧本解释器测试覆盖：变量、if/elif/else、for/while、break/continue、列表与索引、比较与 in、属性访问、内置查询与操作调用、语法错误行号、步数上限。
@@ -165,7 +185,7 @@ node tools/browser-audio.mjs
 1. 先点一次页面（浏览器要求一次手势才能播放音频），再点「播放测试音」。
 2. 看主菜单或顶栏是否显示「音效：关」——按 `M` 或点击开关重新打开。
 3. 检查系统音量、浏览器标签页是否被静音、以及是否在静音/无音频权限的 iframe 预览中；直接在浏览器新标签页打开 `play/index.html` 最稳。
-## 七、部署到 GitHub Pages
+## 八、部署到 GitHub Pages
 
 `docs/play/` 是网页版的发布副本，由本目录同步生成（仓库里已提交）：
 
@@ -179,7 +199,7 @@ node tools/sync-docs-play.mjs   # web/ → docs/play/
 
 其他静态托管只需要把 `web/` 目录整体上传即可。
 
-## 八、已知限制
+## 九、已知限制
 
 - 存档只保存在当前浏览器；清理站点数据、换浏览器或换设备都会丢失，也不会同步。
 - 桌面版仍是规则基准；网页版重写了渲染层，像素级布局与桌面版不同。
@@ -188,6 +208,6 @@ node tools/sync-docs-play.mjs   # web/ → docs/play/
 - 自动化剧本是内置的 Python 风格子集：支持变量、if/for/while、列表与属性访问；暂不支持 def / import / 文件或网络操作，只调用游戏内的 12 种操作。
 - 极端窗口尺寸（低于 360px 宽）下信息密度较高，建议横屏或桌面浏览。
 
-## 九、安全声明
+## 十、安全声明
 
 本项目只做游戏模拟与课程展示：不扫描真实网络、不连接真实服务器、不执行真实系统命令、不包含真实恶意代码；所有 IP、账号、域名与服务器均为虚构数据，示例 IP 使用文档保留地址段。

@@ -8,7 +8,7 @@
 */
 'use strict';
 
-const VERSION = 'zdd-v1.5.0-2';
+const VERSION = 'zdd-v1.6.1-1';
 const SHELL = [
   './',
   './index.html',

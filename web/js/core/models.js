@@ -8,27 +8,30 @@
   // ------------------------------------------------------------------
   // 常量
   // ------------------------------------------------------------------
+  // 颜色一律走 CSS 变量：浅色/深色主题在 css/style.css 里切换，
+  // 这里只引用 token，内联样式就会跟着系统外观变。
   const COLORS = {
-    accent: '#00e0ff',
-    accentDark: '#006e84',
-    green: '#40d082',
-    yellow: '#f0c43c',
-    orange: '#f08c32',
-    red: '#ec5854',
-    purple: '#a878e6',
-    tutorial: '#ae8eff',
-    tutorialLight: '#e0d6ff',
-    tutorialDark: '#684eb4',
-    blue: '#54a0f0',
-    text: '#e2ebf4',
-    dim: '#899cb2',
-    faint: '#58687c',
+    accent: 'var(--accent)',
+    accentDark: 'var(--accent-dark)',
+    green: 'var(--green)',
+    yellow: 'var(--yellow)',
+    orange: 'var(--orange)',
+    red: 'var(--red)',
+    purple: 'var(--purple)',
+    tutorial: 'var(--tutorial)',
+    tutorialLight: 'var(--tutorial-light)',
+    tutorialDark: 'var(--tutorial-dark)',
+    blue: 'var(--blue)',
+    critical: 'var(--critical)',
+    text: 'var(--text)',
+    dim: 'var(--dim)',
+    faint: 'var(--faint)',
     white: '#ffffff',
   };
 
   const LEVEL_ORDER = { 极危: 4, 高危: 3, 中危: 2, 低危: 1, 信息: 0 };
   const LEVEL_COLORS = {
-    极危: '#ff4060',
+    极危: COLORS.critical,
     高危: COLORS.red,
     中危: COLORS.orange,
     低危: COLORS.yellow,

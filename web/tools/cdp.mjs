@@ -125,6 +125,16 @@ export async function openSession(options = {}) {
     mobile,
   });
 
+  // 想跑「本机浅色」那一版界面：设 ZDD_COLOR_SCHEME=light 即可，
+  // 所有既有浏览器测试都会在浅色主题下跑一遍（截图同名覆盖）。
+  const scheme = options.colorScheme || process.env.ZDD_COLOR_SCHEME;
+  if (scheme === 'light' || scheme === 'dark') {
+    await send('Emulation.setEmulatedMedia', {
+      media: '',
+      features: [{ name: 'prefers-color-scheme', value: scheme }],
+    });
+  }
+
   async function waitReady() {
     if (options.skipReady) {
       await sleep(600);

@@ -19,7 +19,7 @@
 
   function levelColorVar(level) {
     return {
-      极危: '#ff4060',
+      极危: 'var(--critical)',
       高危: 'var(--red)',
       中危: 'var(--orange)',
       低危: 'var(--yellow)',

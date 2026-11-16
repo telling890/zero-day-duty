@@ -10,9 +10,17 @@
     return map[name] || map.green || '#40d082';
   }
 
-  // 把颜色名解析成 "r, g, b"，交给 CSS 的 --flash-rgb，让边缘红光跟着事件颜色走
+  // 把颜色名解析成 "r, g, b"，交给 CSS 的 --flash-rgb，让边缘红光跟着事件颜色走。
+  // 颜色本体是 CSS 变量（跟着浅色/深色主题走），这里读计算值再拆成三元组。
   function rgbTriplet(name) {
-    const hex = String(colorValue(name)).replace('#', '');
+    const key = `--${name}`;
+    let raw = '';
+    try {
+      raw = getComputedStyle(document.documentElement).getPropertyValue(key).trim();
+    } catch (error) {
+      raw = '';
+    }
+    const hex = raw.replace('#', '');
     const full = hex.length === 3 ? hex.split('').map((ch) => ch + ch).join('') : hex;
     const value = Number.parseInt(full, 16);
     if (full.length !== 6 || !Number.isFinite(value)) return '236, 88, 84';
