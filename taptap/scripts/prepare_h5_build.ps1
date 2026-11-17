@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 # 把网页版（docs/play）打成 TapTap「H5 在线玩」备选包。
 #
 # 用途：如果 TapTap 的防沉迷要求卡住 PC 包（官方 SDK 只有 Unity/C++，Python 接不了），
@@ -11,7 +11,7 @@
 #   taptap\h5-build\零日值班_h5_v1.6.0.zip   ← 网站根目录即 index.html
 #   taptap\h5-build\自测说明.txt
 
-param([string]$Version = "v1.6.0")
+param([string]$Version = "v1.8.0")
 
 $ErrorActionPreference = "Stop"
 

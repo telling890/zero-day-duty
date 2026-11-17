@@ -53,7 +53,7 @@ HISTORY_FILE = SAVE_DIR / "history.json"
 # 基本信息
 # ---------------------------------------------------------------------------
 GAME_TITLE = "零日值班：网络安全防御模拟器"
-GAME_VERSION = "v1.6.0"
+GAME_VERSION = "v1.8.0"
 COMPANY_NAME = "云栖示例科技（虚构）"
 
 SCREEN_WIDTH = 1280

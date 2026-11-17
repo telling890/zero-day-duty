@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 # 打一个 TapTap「PC 包体管理」可以直接上传的测试包。
 #
 # TapTap 要求：纯净包（不能有「下载 / 安装 / 获取」文案）、zip 或 7z、整目录打包、不用解压。
@@ -14,7 +14,7 @@
 
 param(
     [string]$Exe = "",
-    [string]$Version = "v1.6.0"
+    [string]$Version = "v1.8.0"
 )
 
 $ErrorActionPreference = "Stop"
