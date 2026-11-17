@@ -39,6 +39,30 @@ class ActionPanel:
         self._signature: tuple[object, ...] | None = None
         # A2：待确认的动作 (action_id, 过期时刻)
         self.pending: tuple[str, int] | None = None
+        # C2：就地反馈 (标题, 说明, 颜色, 过期时刻)——代替原来盖在屏幕中央的大字
+        self.feedback: tuple[str, str, tuple[int, int, int], int] | None = None
+
+    # ------------------------------------------------------------------
+    def set_feedback(
+        self,
+        title: str,
+        detail: str,
+        color: tuple[int, int, int],
+        duration_ms: int = 2800,
+    ) -> None:
+        self.feedback = (str(title), str(detail), color, pygame.time.get_ticks() + duration_ms)
+
+    def clear_feedback(self) -> None:
+        self.feedback = None
+
+    def active_feedback(self) -> tuple[str, str, tuple[int, int, int]] | None:
+        if self.feedback is None:
+            return None
+        title, detail, color, deadline = self.feedback
+        if pygame.time.get_ticks() >= deadline:
+            self.feedback = None
+            return None
+        return title, detail, color
 
     # ------------------------------------------------------------------
     def pending_action(self) -> str:
@@ -134,6 +158,7 @@ class ActionPanel:
         )
 
         small = draw_utils.get_font(settings.FONT_TINY)
+        feedback = self.active_feedback()
         if pending:
             # A2：待确认时这一行改写成提示，盖掉“目标：……”那一行
             hint_font = draw_utils.get_font(settings.FONT_TINY, True)
@@ -143,6 +168,9 @@ class ActionPanel:
                 self.rect.width - 26,
             )
             surface.blit(hint_font.render(hint, True, settings.ORANGE), (self.rect.x + 13, self.rect.y + 40))
+        elif feedback is not None:
+            # C2：结果就地显示在提示行里，不再盖住屏幕中央
+            self._draw_feedback(surface, feedback)
         else:
             if target is None:
                 caption = "目标：未选择 — 点击告警或设备查看可用操作"
@@ -186,6 +214,26 @@ class ActionPanel:
                     max_width=300,
                 )
                 break
+
+    # ------------------------------------------------------------------
+    def _draw_feedback(
+        self,
+        surface: pygame.Surface,
+        feedback: tuple[str, str, tuple[int, int, int]],
+    ) -> None:
+        """C2：标题用动作颜色、说明用暗色，右边放一个色条——就在按钮上方。"""
+        title, detail, color = feedback
+        x = self.rect.x + 13
+        y = self.rect.y + 40
+        pygame.draw.rect(surface, color, pygame.Rect(x - 5, y + 1, 2, 13))
+        title_font = draw_utils.get_font(settings.FONT_TINY, True)
+        detail_font = draw_utils.get_font(settings.FONT_TINY)
+        title_image = title_font.render(title, True, color)
+        surface.blit(title_image, (x, y))
+        room = self.rect.width - (x - self.rect.x) - title_image.get_width() - 24
+        if detail:
+            text = draw_utils.ellipsize(f"· {detail}", detail_font, room)
+            surface.blit(detail_font.render(text, True, settings.TEXT_DIM), (x + title_image.get_width() + 8, y))
 
     # ------------------------------------------------------------------
     def handle_event(self, event: pygame.event.Event, game: "object") -> bool:

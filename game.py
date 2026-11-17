@@ -53,6 +53,23 @@ class GameState(str, Enum):
     RESULT = "result"
 
 
+# C1：每种操作一个音色——同一个“做对了”，听起来必须不一样
+ACTION_SOUNDS: dict[str, str] = {
+    "investigate": "investigate",
+    "isolate": "isolate",
+    "unisolate": "restore",
+    "shutdown": "powerdown",
+    "startup": "powerup",
+    "eradicate": "clean",
+    "delete_mail": "mail",
+    "reset_password": "reset",
+    "patch": "patch",
+    "block_source": "block",
+    "restore_backup": "restore",
+    "protect_backup": "backup",
+}
+
+
 class Game:
     def __init__(
         self,
@@ -1306,17 +1323,14 @@ class Game:
         return result
 
     def _show_action_feedback(self, option: ActionOption, result: ActionResult) -> None:
-        """把“这一步为什么对/为什么无效”直接显示在画面顶部，而不只写进日志。"""
-        if not result.executed:
-            return
+        """把“这一步为什么对/为什么无效”写进操作面板的提示行，不只写进日志。"""
         action_id = option.action_id
+        if not result.executed:
+            self.audio.play("deny")
+            return
         if not result.success:
-            self.effects.show_feedback(
-                "操作未生效",
-                result.message,
-                color=settings.ORANGE,
-                correct=False,
-            )
+            self.audio.play("deny")
+            self.action_panel.set_feedback("操作未生效", result.message, settings.ORANGE)
             return
 
         stage = ""
@@ -1342,7 +1356,29 @@ class Game:
         else:
             title = "操作完成"
             detail = result.message
-        self.effects.show_feedback(title, detail, color=settings.GREEN, stage=stage)
+        # C1：每种操作一个音色，同一个“对了”听起来必须不一样
+        self.audio.play(ACTION_SOUNDS.get(action_id, "click"))
+        # C2：结果就地写在操作面板里，不再盖住屏幕中央
+        self.action_panel.set_feedback(title, detail, settings.GREEN)
+
+    # ------------------------------------------------------------------
+    def notify_complaint(self, device: Device, penalty: int) -> None:
+        """误封投诉：把“声誉 -5”换成一个人的一句话（只影响文案，不改判定）。"""
+        contact = dict(getattr(device, "contact", None) or {})
+        name = str(contact.get("name") or "业务方")
+        role = str(contact.get("role") or "")
+        line = str(contact.get("line") or f"你把 {device.name} 停了，我们这边做不了事。")
+        who = f"{name}（{role}）" if role else name
+        self.push_message(f"投诉 · {who}：{line}", settings.RED)
+        self.logs.add(
+            self.turn,
+            settings.clock_text(self.turn),
+            "情报",
+            f"业务投诉：{who}「{line}」（误封 {device.name}，声誉 -{penalty}）",
+            source=device.name,
+        )
+        self.effects.add_banner(f"投诉 · {who}", line, settings.RED)
+        self.effects.flash(settings.RED, 26)
 
     def push_message(self, text: str, color: tuple[int, int, int] | None = None) -> None:
         self.messages.append(

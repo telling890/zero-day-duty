@@ -12,6 +12,11 @@ from ui import draw_utils
 class DevicePanel:
     def __init__(self, rect: tuple[int, int, int, int] | pygame.Rect) -> None:
         self.rect = pygame.Rect(rect)
+        # C3：业务掉线红一下、恢复绿一下
+        self.last_states: dict[str, str] = {}
+        self.pulses: dict[str, tuple[int, bool]] = {}
+
+    PULSE_MS = 1400
 
     def draw(self, surface: pygame.Surface, game: "object") -> None:
         device = game.selected_device()
@@ -45,6 +50,7 @@ class DevicePanel:
 
             services = service_views
             column_width = content.width // 2
+            now = pygame.time.get_ticks()
             for index, view in enumerate(services[:6]):
                 column = index // 3
                 row = index % 3
@@ -56,6 +62,8 @@ class DevicePanel:
                     color = settings.YELLOW
                 else:
                     color = settings.RED
+                self._track_service(view, now)
+                self._draw_pulse(surface, view, (x - 2, y - 1), column_width - 8, now)
                 pygame.draw.circle(surface, color, (x + 4, y + 7), 3)
                 name = view.config.short_name
                 surface.blit(small.render(name, True, settings.TEXT_DIM), (x + 13, y))
@@ -109,9 +117,15 @@ class DevicePanel:
         vuln_text = small.render(f"漏洞：{len(device.vulnerabilities)} 个", True, settings.YELLOW if device.vulnerabilities else settings.TEXT_FAINT)
         surface.blit(vuln_text, (content.x + 500, row_two_y))
 
-        # 第三行：IP / 类型 / 相邻节点
+        # 第三行：IP / 类型 / 业务负责人 / 相邻节点
+        # C4：把“会伤到谁”写在误封之前——负责人排在相邻节点前面，省略时也先保住它
         neighbors = "、".join(device.neighbors) if device.neighbors else "无"
-        line = f"IP {device.ip}   ·   {device.device_type}   ·   相邻：{neighbors}"
+        contact = getattr(device, "contact", None) or {}
+        owner = ""
+        if contact.get("name"):
+            role = f"（{contact.get('role')}）" if contact.get("role") else ""
+            owner = f"   ·   负责人 {contact['name']}{role}"
+        line = f"IP {device.ip}   ·   {device.device_type}{owner}   ·   相邻：{neighbors}"
         line = draw_utils.ellipsize(line, small, content.width)
         surface.blit(small.render(line, True, settings.TEXT_FAINT), (content.x, content.y + 46))
 
@@ -133,6 +147,42 @@ class DevicePanel:
                     settings.TEXT_FAINT,
                 )
                 surface.blit(hint, (content.x, content.y + 68))
+
+    # ------------------------------------------------------------------
+    # C3：业务行的“掉线/恢复”脉冲
+    # ------------------------------------------------------------------
+    def _track_service(self, view: "object", now: int) -> None:
+        key = str(getattr(view.config, "short_name", "") or getattr(view, "service_id", ""))
+        previous = self.last_states.get(key)
+        self.last_states[key] = view.status
+        if previous is None or previous == view.status:
+            return
+        self.pulses[key] = (now, view.status != "正常")
+
+    def _draw_pulse(
+        self,
+        surface: pygame.Surface,
+        view: "object",
+        position: tuple[int, int],
+        width: int,
+        now: int,
+    ) -> None:
+        key = str(getattr(view.config, "short_name", "") or getattr(view, "service_id", ""))
+        pulse = self.pulses.get(key)
+        if pulse is None:
+            return
+        started, lost = pulse
+        age = now - started
+        if age >= self.PULSE_MS:
+            self.pulses.pop(key, None)
+            return
+        alpha = int(88 * (1.0 - age / self.PULSE_MS))
+        if alpha <= 0:
+            return
+        color = settings.RED if lost else settings.GREEN
+        layer = pygame.Surface((max(12, width), 18), pygame.SRCALPHA)
+        layer.fill((*color, alpha))
+        surface.blit(layer, position)
 
     @staticmethod
     def _recent_log(game: "object", device: "object"):

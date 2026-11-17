@@ -274,6 +274,124 @@ class ExperienceTest(unittest.TestCase):
         game._draw_collapse_warning()
         game.draw()
 
+    # ==================================================================
+    # C1 动作音色
+    # ==================================================================
+    def test_each_action_has_its_own_sound(self) -> None:
+        from game import ACTION_SOUNDS
+        from systems.audio_manager import AudioManager
+
+        audio = AudioManager()
+        if not audio.enabled:
+            self.skipTest("运行环境没有音频设备")
+        named = set(ACTION_SOUNDS.values())
+        self.assertTrue(named <= set(audio.sounds), f"缺少音色：{named - set(audio.sounds)}")
+        self.assertGreaterEqual(len(named), 10, "动作音色应该有足够区分度")
+        # 隔离与调查不能是同一个声音
+        isolate = audio.sounds["isolate"].get_raw()
+        investigate = audio.sounds["investigate"].get_raw()
+        self.assertNotEqual(isolate, investigate)
+        for action_id, sound in ACTION_SOUNDS.items():
+            game = self.game
+            game.audio.play(sound)
+            self.assertIn(sound, game.audio.sounds, action_id)
+
+    # ==================================================================
+    # C2 反馈改内联
+    # ==================================================================
+    def test_feedback_is_inline_not_center(self) -> None:
+        game = self.game
+        game.select_alert(game.events.alerts[0])
+        game.action_panel.sync(game)
+        options = game.actions.options_for(game, game.current_target())
+        investigate = next(option for option in options if option.action_id == "investigate")
+        game.perform_action(investigate, game.current_target())
+        self.assertIsNone(game.effects.feedback, "屏幕中央的大字反馈应当不再使用")
+        feedback = game.action_panel.active_feedback()
+        self.assertIsNotNone(feedback)
+        assert feedback is not None
+        self.assertEqual(feedback[0], "调查成功")
+        game.draw()  # 提示行必须真的画得出来
+
+    def test_feedback_expires(self) -> None:
+        panel = self.game.action_panel
+        panel.set_feedback("调查成功", "说明", settings.GREEN, duration_ms=0)
+        self.assertIsNone(panel.active_feedback())
+
+    # ==================================================================
+    # C3 损失具象
+    # ==================================================================
+    def test_metric_numbers_roll_and_flash(self) -> None:
+        game = self.game
+        dashboard = game.dashboard
+        dashboard._cells(game)  # 基线
+        game.player.security = max(0, game.player.security - 12)
+        cells = dashboard._cells(game)
+        cell = next(item for item in cells if item["label"] == "系统安全度")
+        self.assertIn("系统安全度", dashboard.tweens)
+        shown, color = dashboard._display(cell)
+        self.assertTrue(shown.endswith("%"))
+        self.assertEqual(color, settings.RED, "掉血时数字应当先变红")
+
+    def test_service_row_pulses_when_business_drops(self) -> None:
+        from types import SimpleNamespace
+
+        panel = self.game.device_panel
+        view = SimpleNamespace(config=SimpleNamespace(short_name="官网下单"), status="正常")
+        panel._track_service(view, 1000)
+        self.assertNotIn("官网下单", panel.pulses)
+        view.status = "中断"
+        panel._track_service(view, 2000)
+        self.assertIn("官网下单", panel.pulses)
+        self.assertTrue(panel.pulses["官网下单"][1])
+        assert SCREEN is not None
+        panel._draw_pulse(SCREEN, view, (0, 0), 120, 2100)
+
+    def test_isolated_link_is_cut(self) -> None:
+        game = self.game
+        game.devices["PC-01"].isolate()
+        game.network_view.draw(SCREEN, game)  # type: ignore[arg-type]
+        game.devices["PC-01"].restore()
+        game.network_view.draw(SCREEN, game)  # type: ignore[arg-type]
+
+    # ==================================================================
+    # C4 误封有个人
+    # ==================================================================
+    def test_devices_have_business_contacts(self) -> None:
+        contacts = 0
+        for device in self.game.devices.values():
+            if device.contact:
+                contacts += 1
+                self.assertTrue(device.contact.get("name"), device.device_id)
+                self.assertTrue(device.contact.get("line"), device.device_id)
+        self.assertEqual(contacts, len(self.game.devices))
+
+    def test_notify_complaint_names_a_person(self) -> None:
+        game = self.game
+        device = game.devices["PC-02"]
+        game.notify_complaint(device, 5)
+        text = game.messages[-1]["text"]
+        self.assertIn("投诉", text)
+        self.assertIn(device.contact["name"], text)
+        self.assertTrue(any("业务投诉" in entry.message for entry in game.logs.entries))
+        game.draw()
+
+    def test_false_isolation_creates_complaint(self) -> None:
+        game = self.game
+        game.new_game()
+        target_id = next(
+            device_id for device_id in game.devices if not game.has_event_relation(device_id)
+        )
+        device = game.devices[target_id]
+        game.select_device(target_id)
+        game.action_panel.sync(game)
+        option = next(option for option in game.actions.options_for(game, game.current_target()) if option.action_id == "isolate")
+        result = game.perform_action(option, game.current_target())
+        self.assertFalse(result.success)
+        joined = " ".join(message["text"] for message in game.messages)
+        self.assertIn(device.contact["name"], joined)
+        self.assertTrue(any("业务投诉" in entry.message for entry in game.logs.entries))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

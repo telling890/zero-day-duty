@@ -102,7 +102,52 @@ class NetworkView:
             color = (88, 78, 40)
         else:
             color = (40, 58, 78)
+        # C3：隔离不是“换个颜色”，是这条线真的断了——留断口，打一个叉
+        if device_a.isolated != device_b.isolated:
+            cut_rect = rect_a if device_a.isolated else rect_b
+            keep_rect = rect_b if device_a.isolated else rect_a
+            self._draw_cut_link(surface, keep_rect, cut_rect, (150, 110, 190))
+            return
         pygame.draw.line(surface, color, rect_a.center, rect_b.center, 2)
+
+    @staticmethod
+    def _edge_point(rect: pygame.Rect, toward: tuple[int, int]) -> tuple[float, float]:
+        """从矩形中心朝 toward 方向走到边框上的点。"""
+        dx = toward[0] - rect.centerx
+        dy = toward[1] - rect.centery
+        if not dx and not dy:
+            return float(rect.centerx), float(rect.centery)
+        scale_x = (rect.width / 2) / abs(dx) if dx else float("inf")
+        scale_y = (rect.height / 2) / abs(dy) if dy else float("inf")
+        scale = min(scale_x, scale_y)
+        return rect.centerx + dx * scale, rect.centery + dy * scale
+
+    @classmethod
+    def _draw_cut_link(
+        cls,
+        surface: pygame.Surface,
+        keep_rect: pygame.Rect,
+        cut_rect: pygame.Rect,
+        color: tuple[int, int, int],
+    ) -> None:
+        start = cls._edge_point(keep_rect, cut_rect.center)
+        edge = cls._edge_point(cut_rect, keep_rect.center)
+        dx = edge[0] - start[0]
+        dy = edge[1] - start[1]
+        distance = max(1.0, math.hypot(dx, dy))
+        ux, uy = dx / distance, dy / distance
+        gap = min(16.0, distance * 0.4)
+        tip = (int(edge[0] - ux * gap), int(edge[1] - uy * gap))
+        pygame.draw.line(surface, color, (int(start[0]), int(start[1])), tip, 2)
+        size = 6
+        pygame.draw.line(
+            surface, color,
+            (tip[0] - size, tip[1] - size), (tip[0] + size, tip[1] + size), 2,
+        )
+        pygame.draw.line(
+            surface, color,
+            (tip[0] + size, tip[1] - size), (tip[0] - size, tip[1] + size), 2,
+        )
 
     def _draw_attack_line(
         self,

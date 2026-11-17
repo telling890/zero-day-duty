@@ -18,6 +18,13 @@ class Dashboard:
     def __init__(self) -> None:
         self.rect = pygame.Rect(settings.LAYOUT["top_bar"])
         self.brand_width = 160
+        # C3：指标掉血要“疼”一下——从旧值滚到新值，同时闪一下颜色
+        self.values: dict[str, float] = {}
+        self.tweens: dict[str, tuple[float, float, int]] = {}
+        self.flashes: dict[str, tuple[int, bool]] = {}
+
+    TWEEN_MS = 520
+    FLASH_MS = 520
 
     def draw(self, surface: pygame.Surface, game: "object") -> None:
         player = game.player
@@ -70,6 +77,8 @@ class Dashboard:
             {
                 "label": "系统安全度",
                 "value": f"{player.security}%",
+                "num": player.security,
+                "fmt": lambda value: f"{value}%",
                 "delta": player.turn_delta(MetricKey.SECURITY),
                 "ratio": player.security / 100,
                 "color": settings.ACCENT,
@@ -79,6 +88,8 @@ class Dashboard:
             {
                 "label": "公司资金",
                 "value": settings.format_money(player.funds),
+                "num": player.funds,
+                "fmt": settings.format_money,
                 "delta": player.turn_delta(MetricKey.FUNDS),
                 "color": settings.RED if player.funds <= settings.FUNDS_WARN else settings.YELLOW,
             },
@@ -91,6 +102,8 @@ class Dashboard:
             {
                 "label": "公司声誉",
                 "value": f"{player.reputation}%",
+                "num": player.reputation,
+                "fmt": lambda value: f"{value}%",
                 "delta": player.turn_delta(MetricKey.REPUTATION),
                 "ratio": player.reputation / 100,
                 "color": settings.PURPLE,
@@ -98,6 +111,8 @@ class Dashboard:
             {
                 "label": "服务可用性",
                 "value": f"{player.availability}%",
+                "num": player.availability,
+                "fmt": lambda value: f"{value}%",
                 "delta": player.turn_delta(MetricKey.AVAILABILITY),
                 "ratio": player.availability / 100,
                 "color": settings.GREEN,
@@ -105,12 +120,57 @@ class Dashboard:
             {
                 "label": "数据完整度",
                 "value": f"{player.integrity}%",
+                "num": player.integrity,
+                "fmt": lambda value: f"{value}%",
                 "delta": player.turn_delta(MetricKey.INTEGRITY),
                 "ratio": player.integrity / 100,
                 "color": settings.BLUE,
             },
         ]
+        self._track(stats)
         return stats
+
+    # ------------------------------------------------------------------
+    def _track(self, cells: list[dict[str, object]]) -> None:
+        """记住每个数字指标的上一帧取值，变化时启动滚动与闪烁。"""
+        now = pygame.time.get_ticks()
+        for cell in cells:
+            num = cell.get("num")
+            if num is None:
+                continue
+            key = str(cell["label"])
+            previous = self.values.get(key)
+            self.values[key] = float(num)  # type: ignore[arg-type]
+            if previous is None or int(previous) == int(num):  # type: ignore[arg-type]
+                continue
+            self.tweens[key] = (previous, float(num), now)  # type: ignore[arg-type]
+            self.flashes[key] = (now, float(num) > previous)  # type: ignore[arg-type]
+
+    def _display(self, cell: dict[str, object]) -> tuple[str, tuple[int, int, int]]:
+        """滚动中的数字与闪色；动画结束后立刻回到真实值。"""
+        key = str(cell["label"])
+        color = cell.get("color", settings.TEXT)
+        text = str(cell.get("value", ""))
+        now = pygame.time.get_ticks()
+        tween = self.tweens.get(key)
+        if tween is not None:
+            start, end, started = tween
+            progress = min(1.0, (now - started) / self.TWEEN_MS)
+            if progress >= 1.0:
+                self.tweens.pop(key, None)
+            else:
+                eased = 1.0 - (1.0 - progress) ** 3
+                value = int(round(start + (end - start) * eased))
+                fmt = cell.get("fmt")
+                text = fmt(value) if callable(fmt) else str(value)
+        flash = self.flashes.get(key)
+        if flash is not None:
+            started_at, up = flash
+            if now - started_at >= self.FLASH_MS:
+                self.flashes.pop(key, None)
+            else:
+                color = settings.GREEN if up else settings.RED
+        return text, color  # type: ignore[return-value]
 
     # ------------------------------------------------------------------
     def security_trend(self, game: "object") -> dict[str, object] | None:
@@ -148,8 +208,7 @@ class Dashboard:
         label = label_font.render(str(cell["label"]), True, settings.TEXT_DIM)
         surface.blit(label, (x + 6, self.rect.y + 6))
 
-        color = cell.get("color", settings.TEXT)
-        value_text = str(cell.get("value", ""))
+        value_text, color = self._display(cell)
         value_image = value_font.render(value_text, True, color)  # type: ignore[arg-type]
         surface.blit(value_image, (x + 6, self.rect.y + 19))
 

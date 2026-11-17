@@ -663,6 +663,8 @@ class ActionManager:
             f"误封 {device.name}：声誉 -{max(5, penalty)}，业务受影响",
             device_id=device.device_id,
         )
+        # 误封不是一行“声誉 -5”，是有人打电话来骂你
+        game.notify_complaint(device, max(5, penalty))
         return ActionResult(
             False,
             f"{device.name} 已隔离，但没有发现该设备相关的活动事件，可能属于误封，声誉下降。",

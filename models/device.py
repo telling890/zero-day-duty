@@ -74,6 +74,8 @@ class Device:
     status_before_offline: str = DeviceStatus.NORMAL
     backup_protected: bool = False
     maintenance_turns: int = 0
+    # 业务负责人：误封时他会带着一句话来投诉（只影响文案，不参与判定）
+    contact: dict[str, str] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
     # 构造与校验
@@ -106,6 +108,11 @@ class Device:
             neighbors=[str(item) for item in config["neighbors"]],
             backups=bool(config["backups"]),
             pos=(max(0.0, min(1.0, px)), max(0.0, min(1.0, py))),
+            contact={
+                str(key): str(value)
+                for key, value in (config.get("contact") or {}).items()
+                if value is not None
+            },
         )
 
     # ------------------------------------------------------------------
