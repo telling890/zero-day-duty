@@ -563,6 +563,8 @@
       game.recordTimeline('false_isolation', `误封 ${device.name}：声誉 -${Math.max(5, penalty)}，业务受影响`, {
         deviceId: device.deviceId,
       });
+      // 误封不是一行“声誉 -5”，是有人打电话来骂你
+      game.notifyComplaint(device, Math.max(5, penalty));
       return {
         success: false,
         message: `${device.name} 已隔离，但没有发现该设备相关的活动事件，可能属于误封，声誉下降。`,

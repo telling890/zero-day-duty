@@ -31,6 +31,22 @@
     showFeedback() {},
   };
 
+  // 每种操作一个音色：同一个“对了”，听起来必须不一样
+  const ACTION_SOUNDS = {
+    investigate: 'investigate',
+    isolate: 'isolate',
+    unisolate: 'restore',
+    shutdown: 'powerdown',
+    startup: 'powerup',
+    eradicate: 'clean',
+    delete_mail: 'mail',
+    reset_password: 'reset',
+    patch: 'patch',
+    block_source: 'block',
+    restore_backup: 'restore',
+    protect_backup: 'backup',
+  };
+
   class Game {
     constructor(options) {
       const opts = options || {};
@@ -983,8 +999,11 @@
     }
 
     showActionFeedback(option, result) {
-      if (result.executed === false) return;
       const actionId = option.actionId;
+      if (result.executed === false) {
+        this.audio.play('deny');
+        return;
+      }
       let title;
       let detail;
       let stage = '';
@@ -1017,9 +1036,32 @@
         detail = result.message;
       }
       if (color === 'orange') this.audio.play('warn');
+      else if (result.success) this.audio.play(ACTION_SOUNDS[actionId] || 'click');
       if (this.onActionFeedback) {
         this.onActionFeedback({ title, detail, color, stage, correct: result.success && color === 'green' });
       }
+    }
+
+    /**
+     * 误封投诉：把“声誉 -5”换成一个人的一句话。
+     * 只是把已有的数据讲出来，不改任何判定。
+     */
+    notifyComplaint(device, penalty) {
+      const contact = device ? device.contact : null;
+      const who = contact ? `${contact.name}（${contact.role}）` : '业务方';
+      const line = contact && contact.line ? contact.line : `你把 ${device ? device.name : '业务'} 停了，我们这边做不了事。`;
+      const deviceName = device ? device.name : '业务';
+      this.pushMessage(`投诉 · ${who}：${line}`, 'red');
+      this.logs.add(
+        this.turn,
+        clockText(this.turn),
+        '情报',
+        `业务投诉：${who}「${line}」（误封 ${deviceName}，声誉 -${penalty}）`,
+        { source: deviceName },
+      );
+      this.effects.addBanner(`投诉 · ${who}`, line, 'red');
+      this.effects.flash('red', 26);
+      this.touch();
     }
 
     pushMessage(text, color) {

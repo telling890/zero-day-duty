@@ -113,6 +113,15 @@
       this.vulnerabilities = (config.vulnerabilities || []).map(String);
       this.neighbors = (config.neighbors || []).map(String);
       this.backups = Boolean(config.backups);
+      // 业务负责人：误封时由他把话说到玩家脸上（纯内容字段，不参与判定）
+      const contact = config.contact && typeof config.contact === 'object' ? config.contact : null;
+      this.contact = contact
+        ? {
+          name: String(contact.name || '业务负责人'),
+          role: String(contact.role || ''),
+          line: String(contact.line || ''),
+        }
+        : null;
       const pos = Array.isArray(config.pos) ? config.pos : [0.5, 0.5];
       this.pos = [clamp(Number(pos[0]), 0, 1), clamp(Number(pos[1]), 0, 1)];
 

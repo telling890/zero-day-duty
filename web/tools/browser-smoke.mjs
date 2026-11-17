@@ -233,7 +233,10 @@ async function main() {
 
   await clickText('.act', '解除隔离');
   await sleep(300);
-  check('解除隔离后出现恢复反馈', await evaluate(`document.querySelector('#fx-feedback .fb-title') && document.querySelector('#fx-feedback').classList.contains('show')`));
+  check('解除隔离后出现恢复反馈', await evaluate(`(() => {
+    const el = document.getElementById('action-hint');
+    return Boolean(el && el.classList.contains('is-feedback') && el.textContent.includes('恢复'));
+  })()`));
 
   // 日志滚动到最新
   const logState = await evaluate(`(() => { const l = document.getElementById('log-list'); return { top: Math.round(l.scrollTop), h: l.clientHeight, sh: l.scrollHeight, stick: __zdd.panels.logStickToBottom }; })()`);

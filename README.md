@@ -131,7 +131,7 @@
 
 ## 开始游戏
 
-- **网页版（v1.7.0）**：[在线试玩](https://telling890.github.io/zero-day-duty/play/)
+- **网页版（v1.8.0）**：[在线试玩](https://telling890.github.io/zero-day-duty/play/)
 - **Windows 免安装版**：[下载最新 Release](https://github.com/telling890/zero-day-duty/releases/latest)
 - **从源码运行**：Python 3.10+、Pygame；在项目目录执行 `py -3.10 main.py`
 

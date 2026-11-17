@@ -242,6 +242,14 @@
           if (device.isolated || other.isolated) cls += ' isolated';
           else if (device.status === '感染' || other.status === '感染') cls += ' infected';
           else if (device.status === '可疑' || other.status === '可疑') cls += ' suspicious';
+
+          // C3：隔离不是“换个颜色”，是这条线真的断了——留一个 16px 的断口和一道叉
+          if (device.isolated !== other.isolated) {
+            const from = device.isolated ? b : a;
+            const to = device.isolated ? a : b;
+            this.drawCutLink(from, to, cls);
+            continue;
+          }
           this.svg.appendChild(this.line({ x1: a.x, y1: a.y, x2: b.x, y2: b.y }, cls));
         }
       }
@@ -252,6 +260,29 @@
         if (event.targetId === event.activeDeviceId) continue;
         this.svg.appendChild(this.line({ x1: start.x, y1: start.y, x2: end.x, y2: end.y }, 'attack'));
       }
+    }
+
+    drawCutLink(from, to, className) {
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      const ux = dx / distance;
+      const uy = dy / distance;
+      const gap = Math.min(18, distance * 0.35);
+      const endX = to.x - ux * gap;
+      const endY = to.y - uy * gap;
+      this.svg.appendChild(this.line({ x1: from.x, y1: from.y, x2: endX, y2: endY }, className));
+
+      const size = 5.5;
+      const mark = document.createElementNS(SVG_NS, 'path');
+      mark.setAttribute(
+        'd',
+        `M${endX - size} ${endY - size}L${endX + size} ${endY + size}`
+          + `M${endX + size} ${endY - size}L${endX - size} ${endY + size}`,
+      );
+      mark.setAttribute('class', 'link-cut');
+      mark.setAttribute('vector-effect', 'non-scaling-stroke');
+      this.svg.appendChild(mark);
     }
 
     render() {

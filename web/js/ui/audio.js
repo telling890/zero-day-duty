@@ -105,6 +105,33 @@
       osc.stop(now + duration + 0.02);
     }
 
+    /** 一段短噪声：机械声、纸张声、继电器声都靠它起头。 */
+    noise(duration, options) {
+      if (!this.ctx || this.muted) return;
+      const opts = options || {};
+      const now = this.ctx.currentTime + (opts.delay || 0);
+      const frames = Math.max(1, Math.floor(this.ctx.sampleRate * duration));
+      const buffer = this.ctx.createBuffer(1, frames, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < frames; i += 1) {
+        const decay = 1 - i / frames;
+        data[i] = (Math.random() * 2 - 1) * decay * decay;
+      }
+      const source = this.ctx.createBufferSource();
+      source.buffer = buffer;
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = opts.type || 'bandpass';
+      filter.frequency.value = opts.freq || 1800;
+      filter.Q.value = opts.q === undefined ? 0.9 : opts.q;
+      const gain = this.ctx.createGain();
+      gain.gain.value = opts.gain === undefined ? 0.12 : opts.gain;
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.master);
+      source.start(now);
+      source.stop(now + duration + 0.02);
+    }
+
     schedule(name) {
       switch (name) {
         case 'click':
@@ -150,6 +177,74 @@
           [660, 880, 1320].forEach((freq, index) => {
             this.tone(freq, 0.16, { type: 'square', gain: 0.14, delay: index * 0.05 });
           });
+          break;
+        // ---------------- 动作音色：同一个“对了”，听起来必须不一样 ----------------
+        case 'investigate':
+          // 调查：键盘两下 + 一声“看清了”的上行短音
+          this.noise(0.014, { freq: 2600, gain: 0.07 });
+          this.noise(0.014, { freq: 2200, gain: 0.06, delay: 0.055 });
+          this.tone(1180, 0.06, { type: 'triangle', gain: 0.08, delay: 0.11 });
+          break;
+        case 'isolate':
+          // 隔离：机械咔哒 + 断电下行
+          this.noise(0.05, { freq: 2400, gain: 0.16, q: 1.2 });
+          this.tone(300, 0.2, { type: 'sine', gain: 0.2, slideTo: 110 });
+          this.tone(90, 0.16, { type: 'triangle', gain: 0.12, delay: 0.04 });
+          break;
+        case 'restore':
+          // 恢复：电流回升 + 继电器接合
+          this.tone(180, 0.24, { type: 'sine', gain: 0.16, slideTo: 560 });
+          this.noise(0.026, { freq: 3000, gain: 0.09, delay: 0.18 });
+          this.tone(880, 0.09, { type: 'triangle', gain: 0.07, delay: 0.2 });
+          break;
+        case 'clean':
+          // 清除：扫频 + 落定
+          this.tone(700, 0.18, { type: 'sawtooth', gain: 0.07, slideTo: 1500 });
+          this.tone(1500, 0.06, { type: 'triangle', gain: 0.06, delay: 0.18 });
+          break;
+        case 'patch':
+          // 补丁：两下卡扣 + 低频确认
+          this.noise(0.03, { freq: 2000, gain: 0.1 });
+          this.noise(0.03, { freq: 2000, gain: 0.1, delay: 0.07 });
+          this.tone(440, 0.13, { type: 'triangle', gain: 0.09, delay: 0.12 });
+          break;
+        case 'block':
+          // 封禁：一记闷响，像把门关上
+          this.tone(120, 0.13, { type: 'sine', gain: 0.22 });
+          this.noise(0.07, { freq: 900, gain: 0.12 });
+          break;
+        case 'backup':
+          // 备份保护：低频嗡 + 两声确认
+          this.tone(220, 0.3, { type: 'sine', gain: 0.07 });
+          this.tone(660, 0.08, { type: 'triangle', gain: 0.06, delay: 0.12 });
+          this.tone(880, 0.08, { type: 'triangle', gain: 0.05, delay: 0.2 });
+          break;
+        case 'powerdown':
+          // 关闭服务器：风扇停转
+          this.tone(420, 0.34, { type: 'sawtooth', gain: 0.14, slideTo: 60 });
+          this.noise(0.09, { freq: 700, gain: 0.09, delay: 0.24 });
+          break;
+        case 'powerup':
+          // 启动服务器：风扇起转
+          this.tone(70, 0.34, { type: 'sawtooth', gain: 0.12, slideTo: 460 });
+          this.tone(520, 0.1, { type: 'triangle', gain: 0.06, delay: 0.26 });
+          break;
+        case 'mail':
+          // 删除邮件：纸张两下
+          this.noise(0.04, { freq: 1400, gain: 0.1, q: 0.7 });
+          this.noise(0.04, { freq: 1200, gain: 0.08, q: 0.7, delay: 0.06 });
+          break;
+        case 'reset':
+          // 重置凭据：三连击，键盘输入的感觉
+          [0, 0.06, 0.12].forEach((delay) => {
+            this.noise(0.012, { freq: 2400, gain: 0.06, delay });
+          });
+          this.tone(990, 0.07, { type: 'triangle', gain: 0.06, delay: 0.17 });
+          break;
+        case 'deny':
+          // 操作未生效：一记下行的“不行”
+          this.tone(300, 0.1, { type: 'square', gain: 0.14 });
+          this.tone(200, 0.14, { type: 'square', gain: 0.12, delay: 0.08 });
           break;
         default:
           this.tone(720, 0.06, { type: 'sine', gain: 0.12 });

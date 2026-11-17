@@ -59,9 +59,53 @@ check('日志正文至少 14px（不再压小）', parseFloat(fontSizes.log) >= 
 check('时间戳比正文小一档（有层次）', parseFloat(fontSizes.clock) < parseFloat(fontSizes.log), `${fontSizes.clock} < ${fontSizes.log}`);
 check('关键数字 ≥ 18px', parseFloat(fontSizes.metric) >= 18, fontSizes.metric);
 
-/* ---------- A2 不可逆动作二次确认 ---------- */
+/* ---------- C4 设备详情里写出业务负责人（误封之前先知道会伤到谁） ---------- */
+const contact = await evaluate(`(() => {
+  const el = document.querySelector('.device-facts .contact');
+  return el ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+})()`);
+check('设备详情里有业务负责人', /负责人/.test(contact) && contact.length > 6, contact);
+
+/* ---------- C2 反馈改内联 ---------- */
+await clickText('.act', '调查告警');
+await sleep(220);
+check('操作结果就地显示在提示行', await evaluate(`(() => {
+  const el = document.getElementById('action-hint');
+  return Boolean(el && el.classList.contains('is-feedback') && el.textContent.includes('调查成功'));
+})()`));
+check('不再用屏幕中央的大字反馈', await evaluate("!document.getElementById('fx-feedback').classList.contains('show')"));
+await screenshot('06-inline-feedback');
+
+/* ---------- C3 损失具象 + 拓扑断口 ---------- */
 await clickText('.act', '隔离设备');
-await sleep(250);
+await sleep(300);
+check('隔离后拓扑连线断开并打叉', (await evaluate("document.querySelectorAll('.topo-links .link-cut').length")) > 0);
+check('指标掉血时闪一下（tick-down）', (await evaluate("document.querySelectorAll('.metric.tick-down, .metric.tick-up').length")) > 0);
+await screenshot('07-topology-cut');
+
+/* 数字滚动结束后必须落回真实数值（防止滚动动画把别的指标写花） */
+await sleep(700);
+const shown = await evaluate(`(() => {
+  const text = (sel) => document.querySelector(sel).textContent.replace(/\\s+/g, ' ').trim();
+  const g = __zdd.game;
+  return {
+    security: text('.metric.security .metric-value'),
+    ap: text('.metric.ap .metric-value'),
+    turn: text('.metric.turn .metric-value'),
+    expectSecurity: g.player.security + '%',
+    expectAp: g.player.actionPoints + ' / ' + g.player.maxActionPoints,
+    expectTurn: g.turn + ' / ' + g.player.totalTurns,
+  };
+})()`);
+check(
+  '数字滚动结束后与真实数值一致',
+  shown.security.startsWith(shown.expectSecurity)
+    && shown.ap === shown.expectAp
+    && shown.turn === shown.expectTurn,
+  JSON.stringify(shown),
+);
+
+/* ---------- A2 不可逆动作二次确认 ---------- */
 await clickText('.act', '解除隔离');
 await sleep(200);
 check('第一次点解除隔离只上膛', await evaluate(`(() => {
@@ -72,8 +116,28 @@ check('上膛时设备仍在隔离', await evaluate("__zdd.game.devices['PC-01']
 await screenshot('02-confirm');
 
 await clickText('.act', '解除隔离');
-await sleep(250);
+await sleep(300);
 check('第二次点击才真正解除隔离', await evaluate("__zdd.game.devices['PC-01'].isolated === false"));
+check('恢复结果同样就地显示', await evaluate(`(() => {
+  const el = document.getElementById('action-hint');
+  return Boolean(el && el.classList.contains('is-feedback') && el.textContent.includes('恢复'));
+})()`));
+
+/* ---------- C4 误封：会有一个具体的人来投诉 ---------- */
+await evaluate("__zdd.game.notifyComplaint(__zdd.game.devices['PC-02'], 5)");
+await evaluate('__zdd.renderAll()');
+await sleep(200);
+check('误封会有一条带名字的投诉横幅', await evaluate(`(() => {
+  const banner = document.querySelector('#fx-banners .banner');
+  const text = banner ? banner.textContent : '';
+  return /投诉/.test(text) && /（.+）/.test(text);
+})()`));
+check('投诉也进了消息与日志', await evaluate(`(() => {
+  const msg = document.getElementById('messages').textContent;
+  const log = document.getElementById('log-list').textContent;
+  return /投诉/.test(msg) && /业务投诉/.test(log);
+})()`));
+await screenshot('08-complaint');
 
 /* ---------- B2 夜色 ---------- */
 const tint = await evaluate(`(() => {

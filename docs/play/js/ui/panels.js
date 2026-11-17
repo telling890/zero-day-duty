@@ -37,6 +37,10 @@
       this.userScrollIntent = false;
       this.pinFrame = null;
       this.confirmIndex = -1;
+      this.feedback = null;
+      this.feedbackUntil = 0;
+      this.lastMetrics = {};
+      this.lastServiceStates = {};
       if (global.ResizeObserver) {
         this.logResizeObserver = new ResizeObserver(() => {
           if (this.logStickToBottom) this.refs.logList.scrollTop = this.refs.logList.scrollHeight;
@@ -48,6 +52,30 @@
     /** 高代价动作的“再点一次确认”状态；-1 表示没有待确认的动作。 */
     setConfirm(index) {
       this.confirmIndex = Number.isInteger(index) && index >= 0 ? index : -1;
+    }
+
+    /** 操作结果就地显示在提示行里（不再盖住屏幕中央）。 */
+    setFeedback(feedback, duration) {
+      if (!feedback) {
+        this.clearFeedback();
+        return;
+      }
+      this.feedback = feedback;
+      this.feedbackUntil = Date.now() + (duration || 2800);
+    }
+
+    clearFeedback() {
+      this.feedback = null;
+      this.feedbackUntil = 0;
+    }
+
+    activeFeedback() {
+      if (!this.feedback) return null;
+      if (Date.now() > this.feedbackUntil) {
+        this.clearFeedback();
+        return null;
+      }
+      return this.feedback;
     }
 
     markUserScrollIntent() {
@@ -166,6 +194,67 @@
           </div>
         `;
       }).join('');
+
+      this.markMetricChanges(cells);
+    }
+
+    numericValue(cell) {
+      const match = String(cell.value).match(/-?\d+/);
+      return match ? Number(match[0]) : null;
+    }
+
+    /** 只有“单个数字”的指标才做滚动；回合/威胁/行动点是分数形式，直接跳过。 */
+    metricFormat(key) {
+      const map = {
+        funds: { prefix: '¥', suffix: '' },
+        security: { prefix: '', suffix: '%' },
+        availability: { prefix: '', suffix: '%' },
+        integrity: { prefix: '', suffix: '%' },
+        reputation: { prefix: '', suffix: '%' },
+      };
+      return map[key] || null;
+    }
+
+    /** C3：指标掉了要“疼”一下——闪一下红，数字从旧值滚到新值。 */
+    markMetricChanges(cells) {
+      const previous = this.lastMetrics || {};
+      const next = {};
+      for (const cell of cells) {
+        const key = String(cell.cls).split(' ')[0];
+        next[key] = cell;
+        const format = this.metricFormat(key);
+        if (!format) continue;
+        const before = previous[key];
+        if (!before || before.value === cell.value) continue;
+        const from = this.numericValue(before);
+        const to = this.numericValue(cell);
+        if (from === null || to === null || from === to) continue;
+        const node = this.refs.metrics.querySelector(`.metric.${key}`);
+        if (!node) continue;
+        node.classList.add(to > from ? 'tick-up' : 'tick-down');
+        this.tweenMetric(node, format, from, to);
+      }
+      this.lastMetrics = next;
+    }
+
+    tweenMetric(node, format, from, to) {
+      const valueEl = node.querySelector('.metric-value');
+      const textNode = valueEl ? valueEl.firstChild : null;
+      if (!textNode || textNode.nodeType !== 3) return;
+      const raf = global.requestAnimationFrame;
+      if (!raf) {
+        textNode.nodeValue = `${format.prefix}${to}${format.suffix}`;
+        return;
+      }
+      const started = global.performance ? global.performance.now() : Date.now();
+      const step = (now) => {
+        const progress = Math.min(1, Math.max(0, (now - started) / 520));
+        const eased = 1 - (1 - progress) ** 3;
+        const value = Math.round(from + (to - from) * eased);
+        textNode.nodeValue = `${format.prefix}${value}${format.suffix}`;
+        if (progress < 1) raf(step);
+      };
+      raf(step);
     }
 
     /**
@@ -206,10 +295,20 @@
 
       if (!device) {
         const active = game.events.activeEvents().length;
+        const states = {};
         const services = views.slice(0, 6).map((view) => {
+          const key = String(view.config.id || view.config.shortName);
+          const previous = this.lastServiceStates[key];
+          states[key] = view.status;
+          // C3：业务刚掉线时红一下，刚恢复时绿一下
+          let pulse = '';
+          if (previous && previous !== view.status) {
+            if (view.status === '正常') pulse = ' back';
+            else pulse = ' lost';
+          }
           const loss = view.revenueLoss > 0 ? `<span class="loss">-¥${view.revenueLoss}</span>` : '';
           return `
-            <div class="service" data-status="${esc(view.status)}">
+            <div class="service${pulse}" data-status="${esc(view.status)}">
               <i class="dot"></i>
               <span class="name">${esc(view.config.shortName)}</span>
               <span class="state">${esc(view.status)}</span>
@@ -217,6 +316,7 @@
             </div>
           `;
         }).join('');
+        this.lastServiceStates = states;
         this.refs.devicePanel.innerHTML = `
           <p class="briefing-goal">夜班目标：在 08:00 前阻止全部攻击链，并尽量保持业务在线。</p>
           <p class="briefing-meta">威胁 ${game.threatLevel}/5 · 活跃 ${active} · 收入 ¥${game.services.income(game.devices)}/${ZDD.consts.TURN_INCOME}</p>
@@ -236,6 +336,7 @@
         <span>补丁：<b style="color:${device.patched ? 'var(--green)' : 'var(--red)'}">${device.patched ? '已安装' : '缺失'}</b></span>
         <span>备份：<b style="color:${device.backupProtected ? 'var(--purple)' : device.backups ? 'var(--green)' : 'var(--faint)'}">${backupLabel}</b></span>
         <span>漏洞：<b style="color:${device.vulnerabilities.length ? 'var(--yellow)' : 'var(--faint)'}">${device.vulnerabilities.length} 个</b></span>
+        ${device.contact ? `<span class="contact">负责人 <b>${esc(device.contact.name)}</b>${device.contact.role ? ` · ${esc(device.contact.role)}` : ''}</span>` : ''}
       `;
       const line = `IP ${device.ip} · ${device.deviceType} · 相邻：${device.neighbors.length ? device.neighbors.join('、') : '无'}`;
 
@@ -450,7 +551,7 @@
 
       if (!options.length) {
         this.refs.actionGrid.innerHTML = '<p class="empty">当前没有可执行的针对性操作。</p>';
-        this.refs.actionHint.textContent = '';
+        this.writeHint('');
         return;
       }
 
@@ -482,14 +583,38 @@
 
       if (confirming >= 0) {
         const option = options[confirming];
-        this.refs.actionHint.textContent = `${option.name}：这一步不可逆，再点一次确认执行；4 秒内不确认会自动取消。`;
+        this.writeHint(`${option.name}：这一步不可逆，再点一次确认执行；4 秒内不确认会自动取消。`);
+        return;
+      }
+
+      // C2：操作反馈显示在提示行里，就地、不挡屏幕
+      const feedback = this.activeFeedback();
+      if (feedback) {
+        this.writeFeedback(feedback);
         return;
       }
 
       const disabled = options.filter((option) => !option.enabled);
-      this.refs.actionHint.textContent = disabled.length === options.length && disabled[0]
+      this.writeHint(disabled.length === options.length && disabled[0]
         ? `${disabled[0].name}：${disabled[0].reason}`
-        : '操作后只完成一步：调查 → 控制 → 清除 → 恢复。键盘 1–6 可直接执行对应按钮。';
+        : '操作后只完成一步：调查 → 控制 → 清除 → 恢复。键盘 1–6 可直接执行对应按钮。');
+    }
+
+    writeHint(text) {
+      const hint = this.refs.actionHint;
+      hint.classList.remove('is-feedback');
+      hint.style.removeProperty('--fb-color');
+      hint.title = '';
+      hint.textContent = text;
+    }
+
+    writeFeedback(feedback) {
+      const hint = this.refs.actionHint;
+      const color = ZDD.colors[feedback.color] || 'var(--green)';
+      hint.classList.add('is-feedback');
+      hint.style.setProperty('--fb-color', color);
+      hint.title = `${feedback.title}${feedback.detail ? `：${feedback.detail}` : ''}`;
+      hint.innerHTML = `<b>${esc(feedback.title)}</b>${feedback.detail ? `<span>${esc(feedback.detail)}</span>` : ''}`;
     }
 
     renderMessages(game) {

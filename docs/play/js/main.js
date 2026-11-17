@@ -54,7 +54,7 @@
   });
   game.audio = audio;
   game.effects = effects;
-  game.onActionFeedback = (feedback) => effects.showFeedback(feedback);
+  game.onActionFeedback = (feedback) => showActionFeedback(feedback);
 
   const panels = new ZDD.Panels(refs);
   const screens = new ZDD.Screens({
@@ -167,6 +167,7 @@
   let confirmArm = null;
   let confirmTimer = null;
   let recapTimer = null;
+  let feedbackTimer = null;
   let lastRecapSeq = 0;
   let lastNightTurn = 0;
 
@@ -185,6 +186,21 @@
       global.clearTimeout(confirmTimer);
       confirmTimer = null;
     }
+  }
+
+  /**
+   * C2：操作结果写在操作面板的提示行里——就地、不挡日志、不挡告警。
+   * 正确时才在目标位置炸一小簇粒子，错误时只留文字。
+   */
+  function showActionFeedback(feedback) {
+    if (!feedback) return;
+    panels.setFeedback(feedback, 2800);
+    if (feedback.correct) effects.addBurst(null, feedback.color, 14);
+    if (feedbackTimer) global.clearTimeout(feedbackTimer);
+    feedbackTimer = global.setTimeout(() => {
+      panels.clearFeedback();
+      if (game.state === 'playing') renderAll();
+    }, 2800);
   }
 
   /** B1：推进回合后的 1.5 秒“呼吸”——这一小时发生了什么，以及下回合预警。 */
@@ -377,7 +393,7 @@
       game.pushMessage(`新手提示：${hint}`, 'orange');
       effects.addBanner('新手提示', hint.slice(0, 46), 'orange');
     }
-    audio.play('click');
+    // 点击音由动作自己的音色取代（调查是键盘、隔离是断电、清除是扫频）
     game.performAction(option, target);
     renderAll();
     return true;
@@ -696,6 +712,7 @@
     refs.advance.addEventListener('click', () => {
       if (game.state !== 'playing' || activeModalKind()) return;
       clearConfirm();
+      panels.clearFeedback();
       game.endTurn();
       renderAll();
     });
@@ -919,6 +936,7 @@
         if (interactive) return;
         event.preventDefault();
         clearConfirm();
+        panels.clearFeedback();
         game.endTurn();
         renderAll();
         return;
