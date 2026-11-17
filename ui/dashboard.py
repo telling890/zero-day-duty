@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pygame
 
 import settings
@@ -50,6 +52,7 @@ class Dashboard:
     # ------------------------------------------------------------------
     def _cells(self, game: "object") -> list[dict[str, object]]:
         player = game.player
+        trend = self.security_trend(game)
         stats = [
             {
                 "label": "回合 / 时间",
@@ -70,6 +73,8 @@ class Dashboard:
                 "delta": player.turn_delta(MetricKey.SECURITY),
                 "ratio": player.security / 100,
                 "color": settings.ACCENT,
+                "foot": trend["text"] if trend else "",
+                "foot_color": settings.RED if trend and trend["sharp"] else settings.ORANGE,
             },
             {
                 "label": "公司资金",
@@ -107,6 +112,36 @@ class Dashboard:
         ]
         return stats
 
+    # ------------------------------------------------------------------
+    def security_trend(self, game: "object") -> dict[str, object] | None:
+        """B3 趋势预判：按最近两回合安全度的平均跌幅，推算大约几点会失守。
+
+        只读 player.changes，不改任何数值；不足两回合的数据就不显示。
+        """
+        player = game.player
+        if game.turn <= 0:
+            return None
+        by_turn: dict[int, int] = {}
+        for change in player.changes:
+            if change.key != MetricKey.SECURITY or change.turn <= 0:
+                continue
+            by_turn[change.turn] = by_turn.get(change.turn, 0) + int(change.delta)
+        turns = sorted(by_turn)[-2:]
+        if len(turns) < 2:
+            return None
+        average = sum(by_turn[turn] for turn in turns) / len(turns)
+        if average > -0.5:
+            return None
+        turns_left = max(1, math.ceil(player.security / -average))
+        leak_turn = game.turn + turns_left
+        if leak_turn > player.total_turns:
+            return None
+        return {
+            "turn": leak_turn,
+            "sharp": turns_left <= 2,
+            "text": f"{settings.clock_text(leak_turn)} 失守",
+        }
+
     def _draw_cell(self, surface: pygame.Surface, x: int, width: int, cell: dict[str, object]) -> None:
         label_font = draw_utils.get_font(settings.FONT_TINY)
         value_font = draw_utils.get_font(18, True)
@@ -131,6 +166,19 @@ class Dashboard:
         if sub:
             sub_image = label_font.render(sub, True, settings.TEXT_FAINT)
             surface.blit(sub_image, (x + 10 + value_image.get_width(), self.rect.y + 24))
+
+        # B3：趋势预判贴在数值行右侧，放不下就省略，绝不挤到隔壁指标里去
+        foot = str(cell.get("foot", "") or "")
+        if foot:
+            foot_font = draw_utils.get_font(10, True)
+            used = 10 + value_image.get_width()
+            if delta:
+                used += label_font.size(f"{delta:+d}")[0] + 4
+            available = width - used - 16
+            if available > 42:
+                text = draw_utils.ellipsize(foot, foot_font, available)
+                image = foot_font.render(text, True, cell.get("foot_color", settings.ORANGE))
+                surface.blit(image, (x + width - 8 - image.get_width(), self.rect.y + 25))
 
         ratio = cell.get("ratio")
         if isinstance(ratio, (int, float)):

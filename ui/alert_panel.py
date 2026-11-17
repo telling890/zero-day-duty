@@ -15,6 +15,8 @@ class AlertPanel:
     def __init__(self, rect: tuple[int, int, int, int] | pygame.Rect) -> None:
         self.rect = pygame.Rect(rect)
         self.scroll = 0
+        # A3：值守空态的矩形，画出来时记录，测试与后续绘制都用它
+        self.idle_rect: pygame.Rect | None = None
 
     # ------------------------------------------------------------------
     def _ordered(self, game: "object") -> list["object"]:
@@ -66,6 +68,54 @@ class AlertPanel:
             max_scroll = max(1, total - rows)
             thumb_y = track.y + int((track.height - thumb_h) * self.scroll / max_scroll)
             pygame.draw.rect(surface, settings.ACCENT_DARK, (track.x, thumb_y, 3, thumb_h), border_radius=2)
+
+        # A3：只剩零星告警时，把下半截空黑填成“值守中”
+        idle_top = content.y + len(visible) * ROW_HEIGHT + 4
+        self.idle_rect = None
+        if unresolved <= 2 and idle_top < content.bottom - 44:
+            self.idle_rect = pygame.Rect(content.x, idle_top, content.width, content.bottom - idle_top)
+            self._draw_idle(surface, content, idle_top, len(alerts) - unresolved, game)
+
+    def _draw_idle(
+        self,
+        surface: pygame.Surface,
+        content: pygame.Rect,
+        top: int,
+        cleared: int,
+        game: "object",
+    ) -> None:
+        rect = pygame.Rect(content.x, top, content.width, content.bottom - top)
+        self._dashed_rect(surface, rect, settings.PANEL_BORDER)
+        title_font = draw_utils.get_font(settings.FONT_SMALL, True)
+        small = draw_utils.get_font(settings.FONT_TINY)
+        rows = [
+            ("监控持续运行", settings.TEXT_DIM, title_font),
+            (f"已清除 {cleared} 条 · 当前没有必须立刻处置的告警", settings.TEXT_FAINT, small),
+            (f"下一个巡检点 {settings.clock_text(game.turn + 1)}", settings.TEXT_FAINT, small),
+        ]
+        total = sum(font.get_height() + 4 for _text, _color, font in rows)
+        y = rect.centery - total // 2
+        for text, color, font in rows:
+            image = font.render(text, True, color)
+            surface.blit(image, (rect.centerx - image.get_width() // 2, y))
+            y += font.get_height() + 4
+        # 一条缓慢下移的扫描光，表示仍在轮询
+        phase = (pygame.time.get_ticks() // 26) % max(1, rect.height + 40)
+        glow = pygame.Surface((max(1, rect.width - 4), 18), pygame.SRCALPHA)
+        for offset in range(18):
+            alpha = max(0, int(8 * (1 - abs(offset - 9) / 9)))
+            pygame.draw.line(glow, (0, 224, 255, alpha), (0, offset), (glow.get_width(), offset))
+        surface.blit(glow, (rect.x + 2, rect.y + phase - 20))
+
+    @staticmethod
+    def _dashed_rect(surface: pygame.Surface, rect: pygame.Rect, color: tuple[int, int, int]) -> None:
+        step = 8
+        for x in range(rect.x, rect.right, step * 2):
+            pygame.draw.line(surface, color, (x, rect.y), (min(x + step, rect.right), rect.y))
+            pygame.draw.line(surface, color, (x, rect.bottom - 1), (min(x + step, rect.right), rect.bottom - 1))
+        for y in range(rect.y, rect.bottom, step * 2):
+            pygame.draw.line(surface, color, (rect.x, y), (rect.x, min(y + step, rect.bottom)))
+            pygame.draw.line(surface, color, (rect.right - 1, y), (rect.right - 1, min(y + step, rect.bottom)))
 
     def _draw_row(
         self,

@@ -841,6 +841,11 @@ class GameFlowTest(unittest.TestCase):
         unisolate = action_button("unisolate")
         self.assertIsNotNone(unisolate)
         assert unisolate is not None
+        # A2：解除隔离不可逆，第一次点击只上膛，第二次才执行
+        self._click(unisolate.rect.center, game)
+        game.update(0.016)
+        self.assertEqual(game.tutorial_guide.step, 4)
+        self.assertEqual(game.action_panel.pending_action(), "unisolate")
         self._click(unisolate.rect.center, game)
         game.update(0.016)
         self.assertEqual(game.tutorial_guide.step, 5)

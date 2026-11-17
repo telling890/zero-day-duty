@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 from collections import deque
 from enum import Enum
@@ -176,6 +177,11 @@ class Game:
         self.pending_delayed: list[dict[str, Any]] = []
         self.decision_history: list[dict[str, Any]] = []
 
+        # 体验包 B：回合结算摘要 + 夜色/失败预兆的全屏层缓存
+        self.turn_recap: dict[str, Any] | None = None
+        self.recap_until = 0
+        self._overlay_cache: dict[tuple[int, int, int, int], pygame.Surface] = {}
+
         self.background = self._build_background()
         self.logs.add(0, settings.clock_text(0), "系统", "监控中心启动，等待值班员开始游戏。")
 
@@ -192,6 +198,19 @@ class Game:
         glow = pygame.Surface(settings.SCREEN_SIZE, pygame.SRCALPHA)
         pygame.draw.circle(glow, (0, 60, 80, 26), (640, 90), 420)
         surface.blit(glow, (0, 0))
+        # B4 用的红色暗角：只在连续低可用性时叠加，按 alpha 呼吸
+        vignette = pygame.Surface(settings.SCREEN_SIZE, pygame.SRCALPHA)
+        for inset in range(56):
+            alpha = int(76 * (1 - inset / 56) ** 2)
+            if alpha <= 0:
+                continue
+            pygame.draw.rect(
+                vignette,
+                (236, 88, 84, alpha),
+                (inset, inset, settings.SCREEN_WIDTH - inset * 2, settings.SCREEN_HEIGHT - inset * 2),
+                1,
+            )
+        self._vignette = vignette
         return surface
 
     def new_game(self, tutorial: bool = False, briefing: bool = False, difficulty: str | None = None) -> None:
@@ -220,6 +239,8 @@ class Game:
         self.timeline = []
         self.pending_delayed = []
         self.decision_history = []
+        self.turn_recap = None
+        self.recap_until = 0
         self.effects = EffectsManager()
         self.state = GameState.PLAYING
         self.shop.close()
@@ -301,6 +322,13 @@ class Game:
             )
         self.adjust_metric(MetricKey.FUNDS, -settings.TURN_UPKEEP, "值班运维成本", push=False)
         self.audio.play("turn")
+        # B2：22/01/04/07 点各给一次整点节拍
+        beat = self.NIGHT_BEATS.get(self.turn)
+        if beat:
+            self.effects.add_banner(beat[0], beat[1], settings.PURPLE)
+            self.effects.flash((2, 6, 12), 40)
+            # 横幅会被后续事件覆盖，日志里再留一条，复盘时也能看到
+            self.logs.add(self.turn, settings.clock_text(self.turn), "系统", f"{beat[0]}　{beat[1]}")
         if self.player.funds <= settings.FUNDS_WARN:
             self.push_message("资金偏低：后续操作的可用选项会受限，请谨慎花费。", settings.ORANGE)
         self.events.start_turn(self)
@@ -333,6 +361,7 @@ class Game:
     def end_turn(self) -> None:
         if self.state != GameState.PLAYING:
             return
+        recap_before = self._recap_snapshot()
         self.events.advance_events(self)
         if self.state != GameState.PLAYING:
             return
@@ -380,6 +409,9 @@ class Game:
         else:
             self.low_availability_turns = 0
 
+        # B1：这一回合发生了什么，留给界面播 1.7 秒
+        self._set_turn_recap(recap_before)
+
         if self.player.security_failed():
             self.finish("security")
             return
@@ -393,6 +425,138 @@ class Game:
             self.finish("time")
             return
         self.start_turn()
+
+    # ==================================================================
+    # 体验包 B：回合结算摘要 / 夜色 / 失败预兆
+    # ==================================================================
+    RECAP_MS = 1700
+
+    NIGHT_TINTS = (
+        (1, (30, 78, 146, 10)),
+        (3, (24, 58, 122, 12)),
+        (5, (16, 34, 86, 15)),
+        (7, (22, 44, 94, 12)),
+        (9, (98, 76, 46, 8)),
+    )
+
+    NIGHT_BEATS = {
+        1: ("22:00 · 交接完毕", "值班开始，10 小时后早会。"),
+        4: ("01:00 · 深夜", "值班第 4 小时，还有 6 回合到早会。"),
+        7: ("04:00 · 最难熬的一段", "值班第 7 小时，还有 3 回合到早会。"),
+        10: ("07:00 · 天快亮了", "最后一次结算，再撑 1 小时。"),
+    }
+
+    def _recap_snapshot(self) -> dict[str, Any]:
+        """回合推进前的快照：只存摘要需要的字段，不参与任何判定。"""
+        player = self.player
+        return {
+            "turn": self.turn,
+            "security": player.security,
+            "availability": player.availability,
+            "integrity": player.integrity,
+            "reputation": player.reputation,
+            "funds": player.funds,
+            "alerts": len(self.events.alerts),
+            "stages": {event.event_id: event.stage_index for event in self.events.events},
+        }
+
+    def _build_turn_recap(self, before: dict[str, Any]) -> dict[str, Any]:
+        """把“本回合的因果”压成 3~5 条短句，外加一条下回合预警。"""
+        items: list[tuple[str, tuple[int, int, int]]] = []
+
+        def add(text: str, color: tuple[int, int, int]) -> None:
+            if text and len(items) < 5:
+                items.append((text, color))
+
+        labels = (
+            ("security", "系统安全度"),
+            ("availability", "服务可用性"),
+            ("integrity", "数据完整度"),
+            ("reputation", "公司声誉"),
+        )
+        for key, label in labels:
+            delta = int(getattr(self.player, key)) - int(before[key])
+            if delta:
+                add(f"{label} {delta:+d}", settings.GREEN if delta > 0 else settings.RED)
+        funds = self.player.funds - int(before["funds"])
+        if funds:
+            add(f"资金 {funds:+d}", settings.GREEN if funds > 0 else settings.RED)
+
+        new_alerts = len(self.events.alerts) - int(before["alerts"])
+        if new_alerts > 0:
+            add(f"新增告警 {new_alerts} 条", settings.ORANGE)
+
+        for event in self.events.events:
+            previous = before["stages"].get(event.event_id)
+            if previous is None or not event.is_active:
+                continue
+            if event.stage_index > previous:
+                add(f"「{event.name}」推进到“{event.stage_name}”", settings.ORANGE)
+                break
+
+        next_lines: list[str] = []
+        left = settings.AVAILABILITY_FAIL_TURNS - self.low_availability_turns
+        if self.low_availability_turns > 0 and self.state == GameState.PLAYING:
+            next_lines.append(
+                f"可用性已连续 {self.low_availability_turns} 回合不足 "
+                f"{settings.AVAILABILITY_FAIL}%，再 {left} 回合触发「过度防御」"
+            )
+        for event in self.events.active_events():
+            if not event.next_device_id:
+                continue
+            target = self.devices.get(event.next_device_id)
+            next_lines.append(
+                f"「{event.name}」可能向 "
+                f"{target.short_name if target else event.next_device_id} 横向移动"
+            )
+            break
+        if self.threat_level >= 4:
+            next_lines.append(f"威胁等级 {self.threat_level}/5，攻击已进入扩散期")
+
+        return {
+            "turn": before["turn"],
+            "clock": settings.clock_text(before["turn"]),
+            "items": items,
+            "next": next_lines[:2],
+        }
+
+    def _set_turn_recap(self, before: dict[str, Any]) -> None:
+        self.turn_recap = self._build_turn_recap(before)
+        self.recap_until = pygame.time.get_ticks() + self.RECAP_MS
+
+    def recap_visible(self) -> bool:
+        return self.turn_recap is not None and pygame.time.get_ticks() < self.recap_until
+
+    def _overlay(self, color: tuple[int, int, int, int]) -> pygame.Surface:
+        """按颜色缓存整屏半透明层，避免每帧都新建 Surface。"""
+        layer = self._overlay_cache.get(color)
+        if layer is None:
+            layer = pygame.Surface(settings.SCREEN_SIZE, pygame.SRCALPHA)
+            layer.fill(color)
+            self._overlay_cache[color] = layer
+        return layer
+
+    def _night_color(self) -> tuple[int, int, int, int]:
+        color = self.NIGHT_TINTS[0][1]
+        for turn, value in self.NIGHT_TINTS:
+            if self.turn >= turn:
+                color = value
+        return color
+
+    def _draw_night_tint(self) -> None:
+        """B2：夜色随时钟走，22 点偏冷、03 点最沉、06 点回温。"""
+        if self.state not in (GameState.PLAYING, GameState.PAUSED):
+            return
+        self.screen.blit(self._overlay(self._night_color()), (0, 0))
+
+    def _draw_collapse_warning(self) -> None:
+        """B4：连续两回合可用性不足，画面发灰、边缘红光加重。"""
+        if self.state != GameState.PLAYING or self.low_availability_turns < 2:
+            return
+        pulse = (math.sin(pygame.time.get_ticks() / 620.0) + 1.0) / 2.0
+        self.screen.blit(self._overlay((24, 28, 38, int(12 + 12 * pulse))), (0, 0))
+        self._vignette.set_alpha(int(90 + 90 * pulse))
+        self.screen.blit(self._vignette, (0, 0))
 
     def finish_tutorial(self, start: bool) -> None:
         self.tutorial_guide.reset()
@@ -1430,12 +1594,15 @@ class Game:
             self.menu.draw(self.screen, self)
         else:
             self._draw_play()
+            self._draw_night_tint()
+            self._draw_collapse_warning()
             if self.state == GameState.PLAYING:
                 self.effects.draw(self.screen)
             if self.state == GameState.PAUSED:
                 self._draw_pause()
             elif self.state == GameState.RESULT and self.report is not None:
                 self.result_screen.draw(self.screen, self.report, self)
+        self._draw_turn_recap()
         if self.decision_screen.visible:
             self.decision_screen.draw(self.screen, self)
         if self.shop.visible:
@@ -1483,6 +1650,74 @@ class Game:
         self.log_panel.draw(self.screen, self)
         self.action_panel.draw(self.screen, self)
         self._draw_bottom()
+
+    def _draw_turn_recap(self) -> None:
+        """B1：推进回合后的 1.7 秒“呼吸”，压在拓扑图上，不挡告警列表。"""
+        if self.state != GameState.PLAYING or not self.recap_visible():
+            return
+        recap = self.turn_recap or {}
+        items: list[tuple[str, tuple[int, int, int]]] = list(recap.get("items", []))
+        next_lines: list[str] = list(recap.get("next", []))
+
+        title_font = draw_utils.get_font(13, True)
+        body_font = draw_utils.get_font(11)
+        small_font = draw_utils.get_font(10)
+        width = 576
+        inner = width - 24
+        line_height = 16
+
+        # 先按行宽把条目排成若干行，再算卡片高度
+        lines: list[list[tuple[str, tuple[int, int, int], int]]] = [[]]
+        used = 0
+        sep_w = body_font.size("  ·  ")[0]
+        for text, color in items:
+            text_w = body_font.size(text)[0]
+            advance = text_w + (sep_w if lines[-1] else 0)
+            if lines[-1] and used + advance > inner:
+                lines.append([])
+                used = 0
+                advance = text_w
+            lines[-1].append((text, color, sep_w))
+            used += advance
+        if not items:
+            lines = [[("这一小时风平浪静，没有任何指标变化。", settings.TEXT_FAINT, 0)]]
+
+        wrapped_next: list[str] = []
+        for text in next_lines:
+            wrapped_next.extend(draw_utils.wrap_text(f"预警 · {text}", small_font, inner))
+
+        height = 12 + 20 + len(lines) * line_height + (len(wrapped_next) * 14 + 4 if wrapped_next else 0) + 8
+        rect = pygame.Rect(20, 72, width, height)
+        panel = self._overlay((11, 18, 27, 236))
+        self.screen.blit(panel, (rect.x, rect.y), pygame.Rect(0, 0, rect.width, rect.height))
+        pygame.draw.rect(self.screen, settings.ACCENT_DARK, rect, 1, border_radius=8)
+        pygame.draw.rect(
+            self.screen, settings.ACCENT, (rect.x, rect.y + 8, 3, rect.height - 16), border_radius=2
+        )
+
+        title = title_font.render(f"第 {recap.get('turn', self.turn)} 回合结算", True, settings.ACCENT)
+        self.screen.blit(title, (rect.x + 12, rect.y + 8))
+        clock = small_font.render(f"{recap.get('clock', '')} 结束", True, settings.TEXT_FAINT)
+        self.screen.blit(clock, (rect.x + 20 + title.get_width(), rect.y + 11))
+
+        y = rect.y + 30
+        for line in lines:
+            x = rect.x + 12
+            for index, (text, color, sep) in enumerate(line):
+                if index and sep:
+                    self.screen.blit(body_font.render("  ·  ", True, settings.TEXT_FAINT), (x, y))
+                    x += sep
+                image = body_font.render(text, True, color)
+                self.screen.blit(image, (x, y))
+                x += image.get_width()
+            y += line_height
+
+        if wrapped_next:
+            y += 2
+            for line in wrapped_next:
+                image = small_font.render(line, True, settings.ORANGE)
+                self.screen.blit(image, (rect.x + 12, y))
+                y += 14
 
     def _draw_bottom(self) -> None:
         rect = pygame.Rect(settings.LAYOUT["bottom"])

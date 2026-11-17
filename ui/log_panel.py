@@ -33,9 +33,14 @@ class LogPanel:
         self.chip_rects: list[tuple[pygame.Rect, str]] = []
         self.search_rect = pygame.Rect(self.rect.right - 258, self.rect.y + 6, 246, 23)
         self._cache_key: tuple[str, str, int, int] | None = None
-        self._rows: list[tuple[str, tuple[int, int, int], list[str]]] = []
+        self._rows: list[dict[str, object]] = []
+        self._gutter = 0
         self._total_height = 0
         self._max_scroll = 0
+
+    # A4：正文比时间戳大一号，时间戳/分类退到左边一列，日志才有层次
+    LINE_HEIGHT = 17
+    PREFIX_GAP = 8
 
     # ------------------------------------------------------------------
     # 数据
@@ -44,18 +49,31 @@ class LogPanel:
         return game.logs.search(self.keyword, self.category)
 
     def _build_rows(self, entries: list["object"], width: int) -> None:
-        font = draw_utils.get_font(settings.FONT_TINY)
-        rows: list[tuple[str, tuple[int, int, int], list[str]]] = []
+        font = draw_utils.get_font(12)
+        prefix_font = draw_utils.get_font(10)
+        prefixes = [f"[{entry.clock}] {entry.category}" for entry in entries]
+        gutter = 0
+        for prefix in prefixes:
+            gutter = max(gutter, prefix_font.size(prefix)[0])
+        gutter = min(150, gutter + self.PREFIX_GAP)
+        rows: list[dict[str, object]] = []
         total = 0
-        for entry in entries:
-            text = f"[{entry.clock}] [{entry.category}] {entry.message}"
+        for entry, prefix in zip(entries, prefixes):
+            body = entry.message
             if entry.source:
-                text += f"  ({entry.source})"
-            lines = draw_utils.wrap_text(text, font, width)
-            rows.append((entry.category, CATEGORY_COLORS.get(entry.category, settings.TEXT_DIM), lines))
-            total += len(lines) * 15 + 4
+                body += f"  ({entry.source})"
+            lines = draw_utils.wrap_text(body, font, max(80, width - gutter))
+            rows.append(
+                {
+                    "prefix": prefix,
+                    "color": CATEGORY_COLORS.get(entry.category, settings.TEXT_DIM),
+                    "lines": lines,
+                }
+            )
+            total += len(lines) * self.LINE_HEIGHT + 5
         self._rows = rows
-        self._total_height = max(0, total - 4)
+        self._gutter = gutter
+        self._total_height = max(0, total - 5)
 
     # ------------------------------------------------------------------
     # 绘制
@@ -124,7 +142,8 @@ class LogPanel:
             x += width + 6
 
         # 日志内容
-        font = draw_utils.get_font(settings.FONT_TINY)
+        font = draw_utils.get_font(12)
+        prefix_font = draw_utils.get_font(10)
         if not entries:
             surface.blit(
                 font.render("没有匹配的日志。清空搜索或切换分类试试。", True, settings.TEXT_DIM),
@@ -141,16 +160,19 @@ class LogPanel:
 
         surface.set_clip(view)
         y = start_y
-        for _category, color, lines in self._rows:
-            row_height = len(lines) * 15 + 4
+        for row in self._rows:
+            lines = row["lines"]  # type: ignore[assignment]
+            row_height = len(lines) * self.LINE_HEIGHT + 5
             if y < view.y:
                 y += row_height
                 continue
             if y > view.bottom:
                 break
+            prefix_image = prefix_font.render(str(row["prefix"]), True, settings.TEXT_FAINT)
+            surface.blit(prefix_image, (view.x, y + 2))
             for index, line in enumerate(lines):
-                image = font.render(line, True, color)
-                surface.blit(image, (view.x, y + index * 15))
+                image = font.render(line, True, row["color"])  # type: ignore[arg-type]
+                surface.blit(image, (view.x + self._gutter, y + index * self.LINE_HEIGHT))
             y += row_height
         surface.set_clip(None)
 
