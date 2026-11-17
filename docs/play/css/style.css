@@ -4050,3 +4050,312 @@ body.script-open #fx-feedback {
     box-shadow: none;
   }
 }
+
+/* ==========================================================================
+   体验包 A+B（2026-11）：把界面反馈做得更准，而不是更多
+   A1 禁用理由可见 · A2 二次确认 · A3 空态 · A4 字号分级
+   B1 回合结算摘要 · B2 夜色与整点 · B3 趋势预判 · B4 失败预兆
+   ========================================================================== */
+
+/* ---------------------------- A4 字号分级 ---------------------------- */
+/* 日志正文本来就是 14px，别再压小；要分级的是“时间戳/分类”这一档辅助信息 */
+#log-list {
+  line-height: 1.55;
+}
+
+.log-line {
+  padding: 2px 0;
+}
+
+.log-line .clock,
+.log-line .cat {
+  font-size: 12px;
+}
+
+.metric-label {
+  font-size: 10.5px;
+}
+
+/* 提示行原来 10px，投影上读不清 */
+.action-hint {
+  font-size: 11px;
+}
+
+/* 趋势预判：挂在安全度下面单独一行，绝不挤到隔壁指标里去 */
+.metric {
+  overflow: hidden;
+}
+
+.metric-foot {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 9.5px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: var(--orange);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.metric-foot.sharp {
+  color: var(--red);
+}
+
+.metric-foot.calm {
+  color: var(--faint);
+  font-family: var(--font-mono);
+}
+
+/* ---------------------------- A1 禁用理由 ---------------------------- */
+.act:disabled {
+  opacity: 0.58;
+  filter: saturate(0.55);
+}
+
+.act .act-cost {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.32;
+}
+
+.act:disabled .act-cost {
+  color: var(--orange);
+  opacity: 1;
+}
+
+/* A2 二次确认：同一张卡变成橙色待确认，再点一次才执行 */
+.act.is-confirm {
+  border-color: var(--orange);
+  background: linear-gradient(180deg, rgb(var(--orange-rgb) / 0.16), rgb(var(--surface-2-rgb) / 0.92));
+  opacity: 1;
+  animation: actConfirmPulse 900ms ease-in-out infinite;
+}
+
+.act.is-confirm .act-cost {
+  color: var(--orange);
+  font-weight: 700;
+}
+
+@keyframes actConfirmPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--orange-rgb) / 0.24); }
+  50% { box-shadow: 0 0 0 3px rgb(var(--orange-rgb) / 0.06); }
+}
+
+/* ---------------------------- A3 告警空态 ---------------------------- */
+#alert-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.alert-idle {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 76px;
+  margin-top: 8px;
+  padding: 14px 16px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  border: 1px dashed rgb(var(--border-rgb) / 0.85);
+  border-radius: 8px;
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.alert-idle strong {
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.alert-idle .idle-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 46px;
+  background: linear-gradient(180deg, transparent, rgb(var(--accent-rgb) / 0.07), transparent);
+  animation: idleScan 5.4s linear infinite;
+}
+
+@keyframes idleScan {
+  from { transform: translateY(-60px); }
+  to { transform: translateY(220px); }
+}
+
+/* ---------------------------- B1 回合结算摘要 ---------------------------- */
+/* 挂在左上、压在拓扑图上：拓扑是“画面”，告警列表才是“新信息”，宁可盖画面 */
+.turn-recap {
+  position: fixed;
+  top: calc(var(--topbar-h, 66px) + 8px);
+  left: 12px;
+  z-index: 62;
+  width: min(600px, calc(43vw - 12px));
+  padding: 9px 16px 11px;
+  border: 1px solid rgb(var(--accent-rgb) / 0.35);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgb(var(--panel-head-rgb) / 0.97), rgb(var(--panel-rgb) / 0.97));
+  box-shadow: 0 16px 40px rgb(var(--shadow-rgb) / 0.5), inset 0 0 0 1px rgb(var(--accent-rgb) / 0.05);
+  color: var(--text);
+  font-size: 11.5px;
+  line-height: 1.55;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(0.2, 0.9, 0.2, 1), visibility 0s linear 220ms;
+}
+
+.turn-recap.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition: opacity 160ms ease, transform 200ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.turn-recap .recap-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 3px;
+}
+
+.turn-recap .recap-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.turn-recap .recap-clock {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+.turn-recap .recap-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--dim);
+}
+
+.turn-recap .recap-item {
+  white-space: nowrap;
+}
+
+.turn-recap .recap-item.good { color: var(--green); }
+.turn-recap .recap-item.bad { color: var(--red); }
+.turn-recap .recap-item.warn { color: var(--orange); }
+.turn-recap .recap-item.calm { color: var(--dim); }
+
+.turn-recap .recap-next {
+  margin-top: 4px;
+  color: var(--orange);
+  font-size: 11px;
+}
+
+.turn-recap .recap-next::before {
+  content: "预警 · ";
+  color: var(--faint);
+}
+
+.turn-recap .recap-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  transform-origin: left center;
+  background: linear-gradient(90deg, rgb(var(--accent-rgb) / 0.8), rgb(var(--accent-rgb) / 0.15));
+  animation: recapBar 1.6s linear forwards;
+}
+
+@keyframes recapBar {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+/* 摘要出现时，把顶部横幅往下让，避免两层叠在一起 */
+.app.recap-open .banners {
+  top: calc(var(--topbar-h, 66px) + 104px);
+}
+
+/* 窄屏上左侧那一栏就是整个屏幕了，摘要改成整行 */
+@media (max-width: 980px) {
+  .turn-recap {
+    right: 12px;
+    width: auto;
+  }
+}
+
+/* ---------------------------- B2 夜色与整点 ---------------------------- */
+.night-tint {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background-color: transparent;
+  transition: background-color 900ms ease;
+}
+
+.night-beat {
+  position: fixed;
+  inset: 0;
+  z-index: 41;
+  pointer-events: none;
+  background: #03060b;
+  opacity: 0;
+  transition: opacity 420ms ease;
+}
+
+.night-beat.on {
+  opacity: 0.34;
+  transition: opacity 120ms ease;
+}
+
+/* 到点的节拍之外，夜越深整体越冷 */
+@media (prefers-color-scheme: light) {
+  .night-tint,
+  .night-beat {
+    display: none;
+  }
+}
+
+/* ---------------------------- B4 失败预兆 ---------------------------- */
+/* 连续两回合可用性不足：画面降饱和、轻微发抖——不是报错，是撑不住了 */
+.app.is-collapse .workspace {
+  filter: saturate(0.7) brightness(0.94);
+}
+
+.app.is-collapse .alarm-vignette {
+  opacity: 1;
+  animation: dangerBreathe 1.8s ease-in-out infinite;
+}
+
+.app.is-collapse .col-right {
+  animation: collapseShiver 5.4s ease-in-out infinite;
+}
+
+@keyframes collapseShiver {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  37% { transform: translate3d(0, 0.6px, 0); }
+  71% { transform: translate3d(-0.6px, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app.is-collapse .col-right,
+  .app.is-collapse .alarm-vignette,
+  .alert-idle .idle-scan,
+  .act.is-confirm {
+    animation: none !important;
+  }
+}

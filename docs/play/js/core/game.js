@@ -84,6 +84,10 @@
       this.pendingDelayed = [];
       this.decisionHistory = [];
 
+      // 回合结算摘要：每次 endTurn 生成一份，UI 只在“刚推进过”时播一次
+      this.turnRecap = null;
+      this.recapSeq = 0;
+
       this.audio = noopAudio;
       this.effects = noopEffects;
       this.onActionFeedback = null;
@@ -130,6 +134,10 @@
       this.timeline = [];
       this.pendingDelayed = [];
       this.decisionHistory = [];
+
+      // 回合结算摘要：每次 endTurn 生成一份，UI 只在“刚推进过”时播一次
+      // 重开一局只清空摘要本身，recapSeq 保持递增——否则 UI 会以为自己已经播过
+      this.turnRecap = null;
 
       this.logs.add(
         0,
@@ -213,6 +221,7 @@
 
     endTurn() {
       if (this.state !== 'playing') return;
+      const before = this.snapshotForRecap();
       this.events.advanceEvents(this);
       if (this.state !== 'playing') return;
       this.events.advanceCampaigns(this);
@@ -244,6 +253,9 @@
         this.lowAvailabilityTurns = 0;
       }
 
+      // 这一回合发生了什么：给 UI 播一次 1.5 秒的摘要（B1）
+      this.turnRecap = this.buildTurnRecap(before);
+
       if (this.player.securityFailed()) {
         this.finish('security');
         return;
@@ -261,6 +273,83 @@
         return;
       }
       this.startTurn();
+    }
+
+    /** 回合推进前的快照：只存摘要需要的字段，不参与任何判定。 */
+    snapshotForRecap() {
+      return {
+        turn: this.turn,
+        security: this.player.security,
+        availability: this.player.availability,
+        integrity: this.player.integrity,
+        reputation: this.player.reputation,
+        funds: this.player.funds,
+        alertCount: this.events.alerts.length,
+        stages: this.events.events.map((event) => [event.eventId, event.stageIndex]),
+        threat: this.threatLevel,
+        lowAvailabilityTurns: this.lowAvailabilityTurns,
+      };
+    }
+
+    /** 把“本回合的因果”压成 3~5 条短句，外加一条下回合预警。 */
+    buildTurnRecap(before) {
+      const items = [];
+      const add = (text, tone) => {
+        if (text && items.length < 5) items.push({ text: String(text), tone: tone || 'calm' });
+      };
+      const delta = (key) => Number(this.player[key]) - Number(before[key]);
+
+      const labels = {
+        security: '系统安全度',
+        availability: '服务可用性',
+        integrity: '数据完整度',
+        reputation: '公司声誉',
+      };
+      for (const key of ['security', 'availability', 'integrity', 'reputation']) {
+        const value = delta(key);
+        if (value) add(`${labels[key]} ${value > 0 ? '+' : ''}${value}`, value > 0 ? 'good' : 'bad');
+      }
+      const funds = delta('funds');
+      if (funds) add(`资金 ${funds > 0 ? '+' : '−'}¥${Math.abs(funds)}`, funds > 0 ? 'good' : 'bad');
+
+      const newAlerts = this.events.alerts.length - before.alertCount;
+      if (newAlerts > 0) add(`新增告警 ${newAlerts} 条`, 'warn');
+
+      const stageBefore = new Map(before.stages);
+      for (const event of this.events.events) {
+        const previous = stageBefore.get(event.eventId);
+        if (previous === undefined || !event.isActive) continue;
+        if (event.stageIndex > previous) {
+          add(`「${event.name}」推进到“${event.stageName}”`, 'warn');
+          break;
+        }
+      }
+
+      const next = [];
+      const left = consts.AVAILABILITY_FAIL_TURNS - this.lowAvailabilityTurns;
+      if (this.lowAvailabilityTurns > 0 && this.state === 'playing') {
+        next.push(
+          `可用性已连续 ${this.lowAvailabilityTurns} 回合不足 ${consts.AVAILABILITY_FAIL}%，`
+            + `再 ${left} 回合触发「过度防御」`,
+        );
+      }
+      for (const event of this.events.activeEvents()) {
+        if (!event.nextDeviceId) continue;
+        const target = this.devices[event.nextDeviceId];
+        next.push(`「${event.name}」可能向 ${target ? target.shortName : event.nextDeviceId} 横向移动`);
+        break;
+      }
+      if (this.threatLevel >= 4) next.push(`威胁等级 ${this.threatLevel}/5，攻击已进入扩散期`);
+
+      this.recapSeq += 1;
+      return {
+        seq: this.recapSeq,
+        turn: before.turn,
+        clock: clockText(before.turn),
+        items,
+        next: next.slice(0, 2),
+        spread: before.threat >= 3,
+      };
     }
 
     finish(reason) {
@@ -988,6 +1077,8 @@
       this.selectedAlert = null;
       this.selectedDeviceId = null;
       this.pendingDecision = null;
+      // 读档时不要播上一局留下的回合摘要
+      this.turnRecap = null;
       this.tutorialMode = false;
       this.state = 'playing';
       this.touch();

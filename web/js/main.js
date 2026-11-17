@@ -35,6 +35,9 @@
     topoWrap: $('topo-wrap'),
     topoSvg: $('topo-links'),
     topoNodes: $('topo-nodes'),
+    recap: $('turn-recap'),
+    nightTint: $('night-tint'),
+    nightBeat: $('night-beat'),
   };
 
   const game = new ZDD.Game({ data: ZDD.data, seed: ZDD.randomSeed(), storage: global.localStorage });
@@ -68,6 +71,7 @@
     layer: refs.topoNodes,
     game,
     onSelect: (deviceId) => {
+      clearConfirm();
       game.selectDevice(deviceId);
       effects.setFocusElement(topology.nodeElement(deviceId));
       renderAll();
@@ -140,6 +144,93 @@
   let pendingRender = true;
 
   // ------------------------------------------------------------------
+  // 体验包 A+B：确认、回合结算、夜色、失败预兆
+  // ------------------------------------------------------------------
+  const RECAP_MS = 1700;
+  const CONFIRM_MS = 4000;
+  const CONFIRM_ACTIONS = new Set(['shutdown', 'unisolate']);
+  const NIGHT_BEATS = {
+    1: { title: '22:00 · 交接完毕', detail: '值班开始，10 小时后早会。' },
+    4: { title: '01:00 · 深夜', detail: '值班第 4 小时，还有 6 回合到早会。' },
+    7: { title: '04:00 · 最难熬的一段', detail: '值班第 7 小时，还有 3 回合到早会。' },
+    10: { title: '07:00 · 天快亮了', detail: '最后一次结算，再撑 1 小时。' },
+  };
+  const NIGHT_TINTS = [
+    [1, 'rgba(30, 78, 146, 0.09)'],
+    [3, 'rgba(24, 58, 122, 0.11)'],
+    [5, 'rgba(16, 34, 86, 0.14)'],
+    [7, 'rgba(22, 44, 94, 0.11)'],
+    [9, 'rgba(98, 76, 46, 0.07)'],
+    [10, 'rgba(122, 92, 50, 0.06)'],
+  ];
+
+  let confirmArm = null;
+  let confirmTimer = null;
+  let recapTimer = null;
+  let lastRecapSeq = 0;
+  let lastNightTurn = 0;
+
+  function escapeHtml(value) {
+    return String(value === undefined || value === null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function clearConfirm() {
+    confirmArm = null;
+    panels.setConfirm(-1);
+    if (confirmTimer) {
+      global.clearTimeout(confirmTimer);
+      confirmTimer = null;
+    }
+  }
+
+  /** B1：推进回合后的 1.5 秒“呼吸”——这一小时发生了什么，以及下回合预警。 */
+  function showRecap(recap) {
+    if (!refs.recap || !recap) return;
+    const items = (recap.items || [])
+      .map((item) => `<span class="recap-item ${escapeHtml(item.tone || 'calm')}">${escapeHtml(item.text)}</span>`)
+      .join('');
+    const next = recap.next && recap.next.length
+      ? `<div class="recap-next">${escapeHtml(recap.next.join(' · '))}</div>`
+      : '';
+    refs.recap.innerHTML = `
+      <div class="recap-head">
+        <span class="recap-title">第 ${recap.turn} 回合结算</span>
+        <span class="recap-clock">${escapeHtml(recap.clock)} 结束</span>
+      </div>
+      <div class="recap-items">${items || '<span class="recap-item calm">这一小时风平浪静，没有任何指标变化。</span>'}</div>
+      ${next}
+      <i class="recap-bar"></i>
+    `;
+    refs.recap.classList.add('show');
+    refs.app.classList.add('recap-open');
+    global.clearTimeout(recapTimer);
+    recapTimer = global.setTimeout(() => {
+      refs.recap.classList.remove('show');
+      refs.app.classList.remove('recap-open');
+    }, RECAP_MS);
+  }
+
+  /** B2：夜色随时钟走，22 点偏冷、03 点最沉、06 点回温。 */
+  function applyNight(turn) {
+    if (!refs.nightTint) return;
+    let color = NIGHT_TINTS[0][1];
+    for (const [at, value] of NIGHT_TINTS) {
+      if (turn >= at) color = value;
+    }
+    refs.nightTint.style.backgroundColor = color;
+  }
+
+  function pulseNightBeat() {
+    if (!refs.nightBeat) return;
+    refs.nightBeat.classList.add('on');
+    global.setTimeout(() => refs.nightBeat.classList.remove('on'), 460);
+  }
+
+  // ------------------------------------------------------------------
   // 模态优先级
   // ------------------------------------------------------------------
   function activeModalKind() {
@@ -162,6 +253,27 @@
     if (game.pendingDecision && ui.modal) ui.modal = null;
     if (game.state !== 'playing' && terminal.isOpen) terminal.hide();
 
+    // B1：只有“刚推进过”的回合才播摘要，读档/重开不会误播
+    if (game.turnRecap && game.turnRecap.seq !== lastRecapSeq) {
+      lastRecapSeq = game.turnRecap.seq;
+      if (game.state === 'playing') showRecap(game.turnRecap);
+    }
+
+    // B2：夜色随时钟走；22/01/04/07 点给一次整点节拍
+    if (game.state === 'playing' && game.turn !== lastNightTurn) {
+      lastNightTurn = game.turn;
+      applyNight(game.turn);
+      const beat = NIGHT_BEATS[game.turn];
+      if (beat) {
+        pulseNightBeat();
+        effects.addBanner(beat.title, beat.detail, 'purple');
+      }
+    } else if (game.state === 'menu') {
+      lastNightTurn = 0;
+      clearConfirm();
+      if (refs.nightTint) refs.nightTint.style.backgroundColor = 'transparent';
+    }
+
     panels.render(game, ui);
     terminal.refresh();
     script.refresh();
@@ -172,6 +284,10 @@
       || game.player.availability <= 40
     );
     refs.app.classList.toggle('is-danger', danger);
+
+    // B4：连续两回合可用性不足 → 画面降饱和、轻微发抖
+    const collapse = game.state !== 'menu' && game.lowAvailabilityTurns >= 2;
+    refs.app.classList.toggle('is-collapse', collapse);
 
     if (game.state !== 'menu') {
       const topbar = document.getElementById('topbar');
@@ -233,6 +349,28 @@
     const option = panels.lastOptions[index];
     const target = game.currentTarget();
     if (!option || !target || !option.enabled) return false;
+
+    // A2：关闭服务器 / 解除隔离不可逆，点第一次只“上膛”，点第二次才执行
+    if (CONFIRM_ACTIONS.has(option.actionId)) {
+      const armed = confirmArm
+        && confirmArm.index === index
+        && confirmArm.actionId === option.actionId
+        && confirmArm.label === target.label;
+      if (!armed) {
+        confirmArm = { index, actionId: option.actionId, label: target.label };
+        panels.setConfirm(index);
+        if (confirmTimer) global.clearTimeout(confirmTimer);
+        confirmTimer = global.setTimeout(() => {
+          clearConfirm();
+          if (game.state === 'playing') renderAll();
+        }, CONFIRM_MS);
+        audio.play('click');
+        renderAll();
+        return true;
+      }
+    }
+    clearConfirm();
+
     effects.setFocusElement(target.device ? topology.nodeElement(target.device.deviceId) : null);
     const hint = game.consumeActionHint(option, target);
     if (hint) {
@@ -557,6 +695,7 @@
     });
     refs.advance.addEventListener('click', () => {
       if (game.state !== 'playing' || activeModalKind()) return;
+      clearConfirm();
       game.endTurn();
       renderAll();
     });
@@ -566,6 +705,7 @@
       if (!row) return;
       const alert = game.events.alerts.find((item) => item.alertId === row.dataset.alertId);
       if (!alert) return;
+      clearConfirm();
       game.selectAlert(alert);
       effects.setFocusElement(topology.nodeElement(alert.targetId));
       renderAll();
@@ -612,6 +752,7 @@
 
     refs.topoWrap.addEventListener('click', (event) => {
       if (event.target.closest('[data-device]')) return;
+      clearConfirm();
       game.clearSelection();
       effects.setFocusElement(null);
       renderAll();
@@ -777,6 +918,7 @@
         // 焦点在按钮上时交给按钮自身的空格/回车行为，避免重复触发
         if (interactive) return;
         event.preventDefault();
+        clearConfirm();
         game.endTurn();
         renderAll();
         return;

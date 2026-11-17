@@ -219,6 +219,18 @@ async function main() {
   await screenshot('05-eradicated');
   check('清除后安全度上升', (await evaluate(`document.querySelector('.metric.security .metric-value').textContent`)).match(/\d+%/)[0].replace('%', '') > 74);
 
+  // A2：解除隔离不可逆，第一次点击只上膛，第二次才执行
+  await clickText('.act', '解除隔离');
+  await sleep(150);
+  check(
+    '不可逆动作第一次点击只上膛',
+    await evaluate(`(() => {
+      const el = Array.from(document.querySelectorAll('.act')).find((node) => node.textContent.includes('解除隔离'));
+      return Boolean(el && el.classList.contains('is-confirm') && el.textContent.includes('再点一次确认'));
+    })()`),
+  );
+  check('上膛时还处于隔离状态', await evaluate(`__zdd.game.devices['PC-01'].isolated === true`));
+
   await clickText('.act', '解除隔离');
   await sleep(300);
   check('解除隔离后出现恢复反馈', await evaluate(`document.querySelector('#fx-feedback .fb-title') && document.querySelector('#fx-feedback').classList.contains('show')`));

@@ -36,12 +36,18 @@
       this.logStickToBottom = true;
       this.userScrollIntent = false;
       this.pinFrame = null;
+      this.confirmIndex = -1;
       if (global.ResizeObserver) {
         this.logResizeObserver = new ResizeObserver(() => {
           if (this.logStickToBottom) this.refs.logList.scrollTop = this.refs.logList.scrollHeight;
         });
         this.logResizeObserver.observe(this.refs.logList);
       }
+    }
+
+    /** 高代价动作的“再点一次确认”状态；-1 表示没有待确认的动作。 */
+    setConfirm(index) {
+      this.confirmIndex = Number.isInteger(index) && index >= 0 ? index : -1;
     }
 
     markUserScrollIntent() {
@@ -73,14 +79,15 @@
     renderMetrics(game) {
       const player = game.player;
       const threat = game.threatLevel;
+      const trend = this.securityTrend(game);
       const cells = [
         {
           cls: 'turn',
           label: '回合 / 时间',
           value: `${game.turn} / ${player.totalTurns}`,
-          sub: `· ${ZDD.clockText(game.turn)}`,
+          foot: ZDD.clockText(game.turn),
+          footClass: 'calm',
           color: 'var(--accent)',
-          ratio: game.turn / Math.max(1, player.totalTurns),
         },
         {
           cls: `threat${threat >= 4 ? ' high' : ''}`,
@@ -96,6 +103,8 @@
           delta: player.turnDelta('security'),
           color: 'var(--accent)',
           ratio: player.security / 100,
+          foot: trend ? `约 ${ZDD.clockText(trend.turn)} 失守` : '',
+          footClass: trend && trend.sharp ? 'sharp' : '',
         },
         {
           cls: `funds${player.funds <= ZDD.consts.FUNDS_WARN ? ' low' : ''}`,
@@ -142,18 +151,46 @@
         const deltaHtml = delta
           ? `<span class="metric-delta ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '+' : ''}${delta}</span>`
           : '';
-        const sub = cell.sub ? `<span class="metric-sub">${esc(cell.sub)}</span>` : '';
+        const sub = cell.sub ? `<span class="metric-sub ${cell.subClass || ''}">${esc(cell.sub)}</span>` : '';
         const bar = typeof cell.ratio === 'number'
           ? `<div class="metric-bar" style="color:${cell.color}"><i style="width:${Math.max(0, Math.min(1, cell.ratio)) * 100}%"></i></div>`
           : '<div class="metric-bar" style="visibility:hidden"></div>';
+        const foot = cell.foot
+          ? `<span class="metric-foot ${cell.footClass || ''}">${esc(cell.foot)}</span>`
+          : '';
         return `
           <div class="metric ${cell.cls}" role="listitem" title="${esc(cell.label)}">
             <div class="metric-label">${esc(cell.label)}</div>
             <div class="metric-value">${esc(cell.value)}${deltaHtml}${sub}</div>
-            ${bar}
+            ${bar}${foot}
           </div>
         `;
       }).join('');
+    }
+
+    /**
+     * B3 趋势预判：按最近两回合安全度的平均跌幅，推算“大约几点会失守”。
+     * 只读 player.changes，不动任何数值；不足两回合的数据就不显示。
+     */
+    securityTrend(game) {
+      if (game.state !== 'playing') return null;
+      const player = game.player;
+      const byTurn = new Map();
+      for (const change of player.changes) {
+        if (change.key !== 'security') continue;
+        byTurn.set(change.turn, (byTurn.get(change.turn) || 0) + change.delta);
+      }
+      const turns = [...byTurn.keys()]
+        .filter((turn) => turn > 0)
+        .sort((a, b) => b - a)
+        .slice(0, 2);
+      if (turns.length < 2) return null;
+      const average = turns.reduce((sum, turn) => sum + Number(byTurn.get(turn) || 0), 0) / turns.length;
+      if (average > -0.5) return null;
+      const turnsLeft = Math.max(1, Math.ceil(player.security / -average));
+      const leakTurn = game.turn + turnsLeft;
+      if (leakTurn > player.totalTurns) return null;
+      return { turn: leakTurn, sharp: turnsLeft <= 2 };
     }
 
     renderDevice(game) {
@@ -292,7 +329,7 @@
       }
 
       const selectedId = game.selectedAlert ? game.selectedAlert.alertId : null;
-      list.innerHTML = alerts.map((alert) => {
+      let html = alerts.map((alert) => {
         const target = game.devices[alert.targetId];
         const targetName = target ? target.shortName : alert.targetId;
         const related = game.relatedAlerts(alert);
@@ -324,6 +361,20 @@
           </button>
         `;
       }).join('');
+
+      // A3 空态：只剩零星告警时，把大块空黑填成“值守中”，而不是留白
+      if (unresolved <= 2) {
+        const cleared = alerts.length - unresolved;
+        html += `
+          <div class="alert-idle" aria-hidden="true">
+            <span class="idle-scan"></span>
+            <strong>监控持续运行</strong>
+            <span>已清除 ${cleared} 条 · 当前没有必须立刻处置的告警</span>
+            <span>下一个巡检点 ${esc(ZDD.clockText(game.turn + 1))}</span>
+          </div>
+        `;
+      }
+      list.innerHTML = html;
 
       // 选中行滚动到可见区域
       const selected = list.querySelector('[data-selected="true"]');
@@ -403,16 +454,37 @@
         return;
       }
 
-      this.refs.actionGrid.innerHTML = options.map((option, index) => `
-        <button type="button" class="act" data-action-index="${index}"
+      const confirmIndex = this.confirmIndex;
+      const confirming = confirmIndex >= 0 && options[confirmIndex] && options[confirmIndex].enabled
+        ? confirmIndex
+        : -1;
+
+      this.refs.actionGrid.innerHTML = options.map((option, index) => {
+        const isConfirm = index === confirming;
+        // A1：不可用时直接把原因写在按钮上——触屏没有 hover，藏 title 等于没写
+        const cost = option.enabled
+          ? (isConfirm ? '再点一次确认' : `AP ${option.apCost} · ¥${option.moneyCost}`)
+          : (option.reason || '不可用');
+        const title = option.enabled
+          ? `${option.name} · AP ${option.apCost} · ¥${option.moneyCost}${isConfirm ? '（再点一次确认执行）' : ''}`
+          : `${option.name}：${option.reason}`;
+        return `
+        <button type="button" class="act${isConfirm ? ' is-confirm' : ''}" data-action-index="${index}"
           data-action-id="${esc(option.actionId)}" data-style="${esc(option.style)}"
           ${option.enabled ? '' : 'disabled aria-disabled="true"'}
-          title="${esc(option.enabled ? `${option.name} · AP ${option.apCost} · ¥${option.moneyCost}` : `${option.name}：${option.reason}`)}">
+          title="${esc(title)}">
           ${index < 9 ? `<span class="act-key" aria-hidden="true">${index + 1}</span>` : ''}
           <span class="act-name">${esc(option.name)}</span>
-          <span class="act-cost">${option.enabled ? `AP ${option.apCost} · ¥${option.moneyCost}` : '不可用'}</span>
+          <span class="act-cost">${esc(cost)}</span>
         </button>
-      `).join('');
+      `;
+      }).join('');
+
+      if (confirming >= 0) {
+        const option = options[confirming];
+        this.refs.actionHint.textContent = `${option.name}：这一步不可逆，再点一次确认执行；4 秒内不确认会自动取消。`;
+        return;
+      }
 
       const disabled = options.filter((option) => !option.enabled);
       this.refs.actionHint.textContent = disabled.length === options.length && disabled[0]

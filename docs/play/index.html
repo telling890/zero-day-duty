@@ -24,6 +24,8 @@
     <div class="bg-grid" aria-hidden="true"></div>
     <div class="scanline" aria-hidden="true"></div>
     <div class="alarm-vignette" id="alarm-vignette" aria-hidden="true"></div>
+    <div class="night-tint" id="night-tint" aria-hidden="true"></div>
+    <div class="night-beat" id="night-beat" aria-hidden="true"></div>
 
     <!-- ============================ 主菜单 ============================ -->
     <section id="menu-screen" class="screen screen-menu" aria-label="主菜单">
@@ -68,7 +70,7 @@
           <a href="https://telling890.github.io/zero-day-duty/privacy.html" target="_blank" rel="noreferrer">隐私政策</a>
           <a href="README.md" target="_blank" rel="noreferrer">网页版说明</a>
         </nav>
-        <p class="menu-foot">课程演示项目 · 不使用真实恶意代码 · IP 均为文档保留地址 · <a href="https://telling890.github.io/zero-day-duty/privacy.html" target="_blank" rel="noreferrer">本作不收集任何个人信息</a> <span id="version">v1.6.0-web</span></p>
+        <p class="menu-foot">课程演示项目 · 不使用真实恶意代码 · IP 均为文档保留地址 · <a href="https://telling890.github.io/zero-day-duty/privacy.html" target="_blank" rel="noreferrer">本作不收集任何个人信息</a> <span id="version">v1.7.0-web</span></p>
       </div>
     </section>
 
@@ -89,6 +91,9 @@
           <button class="icon-btn" id="btn-pause" title="暂停（Esc）" aria-label="暂停">暂停</button>
         </div>
       </header>
+
+      <!-- 回合结算摘要：推进回合后 1.5 秒的“呼吸”，不挡正文 -->
+      <div id="turn-recap" class="turn-recap" role="status" aria-live="polite"></div>
 
       <div class="workspace">
         <div class="col col-left">
