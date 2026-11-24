@@ -1,4 +1,4 @@
-# 打包「桌面完整版」：WebView2 原生窗口 + 和网页版同一套 UI（终端 / 剧本 / 生活线 / 教程）。
+﻿# 打包「桌面完整版」：WebView2 原生窗口 + 和网页版同一套 UI（终端 / 剧本 / 生活线 / 教程）。
 #
 # 用法（在项目根目录）：
 #   powershell -ExecutionPolicy Bypass -File .\build_webview.ps1
@@ -36,13 +36,15 @@ $versionText = $versionText.Replace("1, 8, 0, 0", "1, 9, 0, 0")
 $versionText = $versionText.Replace("'1.8.0.0'", "'1.9.0.0'")
 $versionText = $versionText.Replace("'零日值班.exe'", "'零日值班-桌面完整版.exe'")
 $versionText = $versionText.Replace("'零日值班：网络安全防御模拟器'", "'零日值班：网络安全防御模拟器（桌面完整版）'")
-Set-Content -Path $versionOut -Value $versionText -Encoding utf8NoBOM
+Set-Content -Path $versionOut -Value $versionText -Encoding UTF8
+# Windows PowerShell 5.1 的 Set-Content 会带 BOM；PyInstaller 的版本文件改成无 BOM 更稳
+[IO.File]::WriteAllText($versionOut, [IO.File]::ReadAllText($versionOut), (New-Object Text.UTF8Encoding($false)))
 
 Write-Host "== PyInstaller 打包（单文件、无控制台） ==" -ForegroundColor Cyan
 $iconIco = Join-Path $root "assets\icon.ico"
 $iconPng = Join-Path $root "assets\icon.png"
 $mainPy = Join-Path $root "desktop_webview.py"
-$distOut = Join-Path $root "dist\webview"
+$distOut = Join-Path $tmp "dist"
 $workOut = Join-Path $tmp "work"
 $specOut = Join-Path $tmp "spec"
 & py -3.10 -m PyInstaller --noconfirm --clean --onefile --windowed `
@@ -61,17 +63,26 @@ $specOut = Join-Path $tmp "spec"
     $mainPy
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller 打包失败" }
 
-$exe = Join-Path $root "dist\webview\ZeroDayDutyDesktop.exe"
+$builtExe = Join-Path $distOut "ZeroDayDutyDesktop.exe"
 Write-Host "== 运行 exe 自检 ==" -ForegroundColor Cyan
-$process = Start-Process -FilePath $exe -ArgumentList "--selftest" -Wait -PassThru -WindowStyle Hidden
+$process = Start-Process -FilePath $builtExe -ArgumentList "--selftest" -PassThru -WindowStyle Hidden
+if (-not $process.WaitForExit(60000)) {
+    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    throw "打包后的 exe 自检超时（60 秒）"
+}
 Write-Host "自检退出码：$($process.ExitCode)"
 if ($process.ExitCode -ne 0) { throw "打包后的 exe 自检失败" }
 
-$size = [math]::Round((Get-Item $exe).Length / 1MB, 1)
-$hash = (Get-FileHash $exe -Algorithm SHA256).Hash
+$finalDir = Join-Path $root "dist\webview"
+New-Item -ItemType Directory -Force -Path $finalDir | Out-Null
+$finalExe = Join-Path $finalDir "ZeroDayDutyDesktop.exe"
+Copy-Item $builtExe $finalExe -Force
+
+$size = [math]::Round((Get-Item $finalExe).Length / 1MB, 1)
+$hash = (Get-FileHash $finalExe -Algorithm SHA256).Hash
 Write-Host ""
 Write-Host "打包完成" -ForegroundColor Green
-Write-Host "  可执行文件：$exe"
+Write-Host "  可执行文件：$finalExe"
 Write-Host "  大小：$size MB"
 Write-Host "  SHA256：$hash"
 Write-Host "  需要 Windows 10/11 自带的 WebView2 运行时（Edge 同源）。" -ForegroundColor Yellow
