@@ -123,6 +123,9 @@
       this.decisions = ((data.decisions && data.decisions.decisions) || []).filter(
         (item) => item && item.id,
       );
+      this.randomEventConfigs = ((data.random_events && data.random_events.events) || []).filter(
+        (item) => item && item.id && Array.isArray(item.choices) && item.choices.length,
+      );
       this.difficultySet = new ZDD.DifficultySet(data.difficulty || {});
       this.difficultyId = this.difficultySet.defaultId;
       this.saveManager = new ZDD.SaveManager(opts.storage);
@@ -203,6 +206,8 @@
       this.seenDecisions = new Set();
       this.report = null;
       this.pendingDecision = null;
+      this.randomActive = [];
+      this.randomUsed = new Set();
       this.runModifier = null;
       this.modifierChoices = briefing && !tutorial ? modifierChoicesFor(this.seed) : [];
       this.showBriefing = briefing;
@@ -304,7 +309,9 @@
       }
       this.events.startTurn(this);
       this.processDelayedEffects();
+      this.expireRandomEvents();
       this.maybeTriggerDecision();
+      this.maybeRandomEvent();
       this.touch();
     }
 
@@ -396,6 +403,81 @@
         this.pushMessage(`紧急决策：${decision.title || ''}`, 'orange');
         return;
       }
+    }
+
+    // ------------------------------------------------------------------
+    // 随机事件：手机通知，不阻塞回合，不碰主事件 RNG
+    // ------------------------------------------------------------------
+    randomSignal(turn) {
+      const h = (((this.seed * 1664525 + turn * 1013904223) >>> 0) ^ 0x9e3779b9) >>> 0;
+      return h;
+    }
+
+    spawnRandomEvent(id) {
+      const config = this.randomEventConfigs.find((item) => item.id === id);
+      if (!config || this.randomActive.length) return null;
+      this.randomUsed.add(config.id);
+      const active = { id: config.id, config, expiresTurn: this.turn + 1 };
+      this.randomActive.push(active);
+      this.logs.add(this.turn, clockText(this.turn), '系统', `手机通知：${config.title}`);
+      this.pushMessage(`手机收到一条通知：${config.title}`, 'purple');
+      if (this.effects && this.effects.addBanner) {
+        this.effects.addBanner('手机通知', config.title, 'purple');
+      }
+      this.touch();
+      return active;
+    }
+
+    maybeRandomEvent() {
+      if (this.state !== 'playing') return null;
+      if (this.turn < 3 || this.turn > 9) return null;
+      if (this.randomActive.length || !this.randomEventConfigs.length) return null;
+      const h = this.randomSignal(this.turn);
+      if (h % 100 >= 55) return null;
+      const pool = this.randomEventConfigs.filter((item) => !this.randomUsed.has(item.id));
+      if (!pool.length) return null;
+      return this.spawnRandomEvent(pool[h % pool.length].id);
+    }
+
+    applyRandomEffects(effects, reason) {
+      const lifeKeys = ['energy', 'mood', 'family'];
+      for (const [key, value] of Object.entries(effects || {})) {
+        const delta = Number(value) || 0;
+        if (!delta) continue;
+        if (key === 'action_points') this.applyActionPointDelta(delta, reason);
+        else if (lifeKeys.includes(key)) this.adjustLife(key, delta, reason);
+        else this.adjustMetric(key, delta, reason);
+      }
+    }
+
+    resolveRandomEvent(id, index) {
+      const active = this.randomActive.find((item) => item.id === id);
+      if (!active) return null;
+      const choice = (active.config.choices || [])[index];
+      if (!choice) return null;
+      const reason = `随机事件「${active.config.title}」`;
+      this.applyRandomEffects(choice.effects, reason);
+      this.randomActive = this.randomActive.filter((item) => item.id !== id);
+      this.logs.add(this.turn, clockText(this.turn), '系统', `随机事件：${active.config.title} — ${choice.result}`);
+      this.recordTimeline('random', `随机事件「${active.config.title}」：${choice.label}`);
+      this.pushMessage(`手机：${choice.result}`, 'accent');
+      this.touch();
+      return { label: choice.label, result: choice.result, effects: choice.effects || {} };
+    }
+
+    expireRandomEvents() {
+      const remain = [];
+      for (const active of this.randomActive) {
+        if (active.expiresTurn > this.turn) {
+          remain.push(active);
+          continue;
+        }
+        const text = (active.config.expire && active.config.expire.text) || '这条消息你没回，机会过去了。';
+        this.logs.add(this.turn, clockText(this.turn), '系统', `错过随机事件：${active.config.title} — ${text}`);
+        this.recordTimeline('random_expire', `错过随机事件「${active.config.title}」`);
+        this.pushMessage(`手机：${text}`, 'dim');
+      }
+      this.randomActive = remain;
     }
 
     endTurn() {
@@ -1340,6 +1422,11 @@
       this.combo = Number(data.combo || 0);
       this.bestCombo = Number(data.bestCombo || 0);
       this.seenDecisions = data.seenDecisions || new Set();
+      this.randomActive = (data.randomActive || []).map((item) => {
+        const config = this.randomEventConfigs.find((event) => event.id === item.id);
+        return config ? { id: config.id, config, expiresTurn: Number(item.expiresTurn) || this.turn } : null;
+      }).filter(Boolean);
+      this.randomUsed = data.randomUsed || new Set();
       this.difficultyId = this.difficultySet.get(data.difficultyId).id;
       this.hintsUsed = Math.max(0, Number(data.hintsUsed || 0));
       this.timeline = (data.timeline || []).map((item) => Object.assign({}, item));

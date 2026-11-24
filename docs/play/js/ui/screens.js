@@ -201,6 +201,7 @@
         '家庭 → 结局：家庭 ≤25 触发「没守住家」；家庭 ≥70 且体力 ≥50 会「带回了早饭」。',
         '第 2/3/6/9/10 回合会出现生活场景：工资到账、老板发火、家里视频、天亮回家、早会。它们以手机微信/短信出现，按 P 随时打开。',
         '手机里还能主动做事：给家里转账、点宵夜、买咖啡、打视频通话——花资金或行动点换体力 / 心情 / 家庭。',
+        '第 3–9 回合手机还可能收到随机通知：物业断电、可疑短信、快递、房东、供应商……不处理会自然过期，不会偷偷扣数值。',
         '开局还有三张「今晚的状况」可选：发薪日、暴雨夜、实习生跟班……选一张，改变这一局的资源或规则。',
       ],
       note: '值班员不是机器。',
@@ -576,13 +577,43 @@
       return '微信';
     }
 
+    phoneRandomChatHtml(event) {
+      const config = event.config || {};
+      const prompt = String(config.prompt || '');
+      const parts = prompt.match(/[^。！？\n]+[。！？]?/g) || [prompt];
+      const choices = Array.isArray(config.choices) ? config.choices : [];
+      return `
+        <div class="phone-chat">
+          <div class="phone-contact"><b>${esc(config.title || '手机通知')}</b><span>${esc(config.speaker || '')}</span></div>
+          <div class="phone-thread">
+            ${parts.map((text, index) => `<div class="bubble them" style="--i:${index}">${esc(text.trim())}</div>`).join('')}
+            <div class="phone-typing"><i></i><i></i><i></i> 等你处理…</div>
+          </div>
+          <div class="phone-replies">
+            ${choices.slice(0, 3).map((choice, index) => `
+              <button type="button" data-act="phone-random-choose" data-id="${esc(event.id)}" data-index="${index}">
+                <b>${esc(choice.label || '处理')}</b>
+                <span>${esc(choice.hint || '')}</span>
+              </button>
+            `).join('')}
+          </div>
+          <p class="phone-note">这条通知不处理就会自然错过；不会拖住回合推进。</p>
+        </div>
+      `;
+    }
+
     phoneHtml(game, ui) {
       const pending = game.pendingDecision && game.pendingDecision.kind === 'life' ? game.pendingDecision : null;
+      const random = ui.phoneRandomId
+        ? (game.randomActive || []).find((item) => item.id === ui.phoneRandomId)
+        : null;
       const result = ui.phoneResult || null;
       let screen;
-      if (result) screen = this.phoneResultHtml(result);
+      if (random) screen = this.phoneRandomChatHtml(random);
+      else if (result) screen = this.phoneResultHtml(result);
       else if (pending) screen = this.phoneChatHtml(pending);
       else screen = this.phoneHomeHtml(game, ui);
+      const appName = random ? '通知' : this.phoneAppName(pending);
       return `
         <div class="phone-shell">
           <div class="phone-status">
@@ -591,7 +622,7 @@
             <b>${Math.max(12, 100 - game.turn * 5)}%</b>
           </div>
           <div class="phone-head">
-            <span class="phone-app-title">${esc(pending ? this.phoneAppName(pending) : '生活')}</span>
+            <span class="phone-app-title">${esc(pending ? appName : (random ? '通知' : '生活'))}</span>
             <button class="phone-close" data-act="phone-close" aria-label="收起手机">×</button>
           </div>
           ${this.phoneStatsHtml(game.player)}
@@ -657,6 +688,18 @@
         <div class="phone-home">
           ${toast}
           <p class="phone-greeting">${esc(ZDD.clockText(game.turn))} · 距离 08:00 交接还有 ${Math.max(0, p.totalTurns - game.turn + 1)} 小时</p>
+
+          ${(game.randomActive || []).length ? `
+            <div class="phone-app phone-notices">
+              <h4>通知 <span>${(game.randomActive || []).length}</span></h4>
+              ${(game.randomActive || []).map((event) => `
+                <button type="button" data-act="phone-random-open" data-id="${esc(event.id)}">
+                  <b>${esc(event.config.title)}</b>
+                  <span>${esc(event.config.speaker || '')} · 点开处理</span>
+                </button>
+              `).join('')}
+            </div>
+          ` : ''}
 
           <div class="phone-app">
             <h4>钱包 <span>${ZDD.formatMoney(p.funds)}</span></h4>

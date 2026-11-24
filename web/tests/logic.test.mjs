@@ -661,6 +661,52 @@ test('生活线：生活逻辑不消耗 RNG，同种子复现同一局', () => {
   assert.deepEqual(b.events.spawnSchedule, spawnA);
 });
 
+test('随机事件：生成、处理、生效、移除', () => {
+  const game = newGame(2024);
+  game.turn = 3;
+  const active = game.spawnRandomEvent('phishing_sms');
+  assert.ok(active, '应生成随机事件');
+  assert.equal(game.randomActive.length, 1);
+  const before = game.player.security;
+  const result = game.resolveRandomEvent('phishing_sms', 0);
+  assert.ok(result);
+  assert.equal(game.player.security, before + 3, '举报应 +3 安全度');
+  assert.equal(game.randomActive.length, 0, '处理完应移除');
+  assert.ok(game.randomUsed.has('phishing_sms'));
+});
+
+test('随机事件：不处理只过期，不偷偷扣数值', () => {
+  const game = newGame(2024);
+  game.turn = 3;
+  game.spawnRandomEvent('phishing_sms');
+  const before = game.player.security;
+  game.turn = 4;
+  game.expireRandomEvents();
+  assert.equal(game.randomActive.length, 0);
+  assert.equal(game.player.security, before, '过期不应改变数值');
+  assert.ok(game.logs.entries.some((entry) => String(entry.message || '').includes('错过随机事件')));
+});
+
+test('随机事件：不推进主事件 RNG，不改变攻击链', () => {
+  const a = newGame(2024);
+  const b = newGame(2024);
+  b.turn = 3;
+  b.spawnRandomEvent('phishing_sms');
+  b.resolveRandomEvent('phishing_sms', 0);
+  assert.equal(b.rng.getState(), a.rng.getState(), '随机事件不应碰主 RNG');
+  assert.deepEqual(b.events.spawnSchedule, a.events.spawnSchedule);
+});
+
+test('随机事件：同种子自动抽取一致', () => {
+  const a = newGame(2024);
+  const b = newGame(2024);
+  a.turn = 5;
+  b.turn = 5;
+  const first = a.maybeRandomEvent();
+  const second = b.maybeRandomEvent();
+  assert.equal(first ? first.id : null, second ? second.id : null);
+});
+
 let passed = 0;
 const failures = [];
 for (const [name, fn] of tests) {

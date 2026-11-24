@@ -23,6 +23,7 @@ const files = {
   upgrades: 'upgrades.json',
   decisions: 'decisions.json',
   difficulty: 'difficulty.json',
+  random_events: 'random_events.json',
 };
 
 const datasets = {};
@@ -44,6 +45,7 @@ const out = `/* 自动生成，请勿手改；来源：../data/*.json
   ZDD.data.upgrades = ${JSON.stringify(datasets.upgrades)};
   ZDD.data.decisions = ${JSON.stringify(datasets.decisions)};
   ZDD.data.difficulty = ${JSON.stringify(datasets.difficulty)};
+  ZDD.data.random_events = ${JSON.stringify(datasets.random_events)};
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 `;
 

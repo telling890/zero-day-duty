@@ -94,6 +94,7 @@
     phoneUsed: {},
     phoneToast: '',
     phoneResult: null,
+    phoneRandomId: null,
   };
 
   const terminal = new ZDD.Terminal({
@@ -285,9 +286,10 @@
     }
     const phoneBadge = $('phone-badge');
     if (phoneBadge) {
-      const unread = game.pendingDecision && game.pendingDecision.kind === 'life';
-      phoneBadge.hidden = !unread;
-      phoneBadge.textContent = unread ? '1' : '';
+      const unread = (game.pendingDecision && game.pendingDecision.kind === 'life' ? 1 : 0)
+        + ((game.randomActive && game.randomActive.length) || 0);
+      phoneBadge.hidden = unread === 0;
+      phoneBadge.textContent = unread ? String(unread) : '';
     }
 
     // B1：只有“刚推进过”的回合才播摘要，读档/重开不会误播
@@ -613,6 +615,7 @@
       }
       case 'phone-after':
         ui.phoneResult = null;
+        ui.phoneRandomId = null;
         ui.phoneToast = '';
         ui.modal = null;
         renderAll();
@@ -624,10 +627,33 @@
           break;
         }
         ui.phoneResult = null;
+        ui.phoneRandomId = null;
         ui.phoneToast = '';
         ui.modal = null;
         renderAll();
         break;
+      case 'phone-random-open':
+        ui.phoneRandomId = String(target.dataset.id || '');
+        ui.modal = 'phone';
+        renderAll();
+        break;
+      case 'phone-random-choose': {
+        const id = String(target.dataset.id || '');
+        const index = Number(target.dataset.index);
+        const resolved = game.resolveRandomEvent(id, index);
+        if (!resolved) break;
+        const deltas = {};
+        ['energy', 'mood', 'family'].forEach((key) => {
+          const value = Number((resolved.effects || {})[key] || 0);
+          if (value) deltas[key] = value;
+        });
+        ui.phoneRandomId = null;
+        ui.phoneResult = { label: resolved.label, result: resolved.result, deltas };
+        ui.modal = 'phone';
+        audio.play('click');
+        renderAll();
+        break;
+      }
       case 'phone-do':
         phoneDo(target.dataset.kind);
         break;
@@ -830,6 +856,7 @@
       if (ui.modal === 'phone') {
         ui.modal = null;
         ui.phoneResult = null;
+        ui.phoneRandomId = null;
         ui.phoneToast = '';
       } else {
         ui.modal = 'phone';
@@ -992,6 +1019,7 @@
         if (ui.modal === 'phone') {
           ui.modal = null;
           ui.phoneResult = null;
+          ui.phoneRandomId = null;
           ui.phoneToast = '';
         } else {
           ui.modal = 'phone';
@@ -1053,6 +1081,7 @@
           }
           ui.modal = null;
           ui.phoneResult = null;
+          ui.phoneRandomId = null;
           ui.phoneToast = '';
           renderAll();
           return;
@@ -1171,3 +1200,4 @@
     init();
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this);
+

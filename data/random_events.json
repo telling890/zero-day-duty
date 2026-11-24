@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "note": "随机事件：只在第 3–9 回合按种子抽取，作为手机通知出现；不消耗主事件 RNG，不影响攻击链复现。effects 支持公司指标 / energy / mood / family / action_points。",
+  "events": [
+    {
+      "id": "property_power",
+      "title": "物业通知：凌晨断电",
+      "speaker": "物业群 · 短信",
+      "prompt": "物业在群里发通知：凌晨 02:00 配电检修，机房会断电约 10 分钟。",
+      "choices": [
+        { "label": "提前切到 UPS，通知运维盯着", "hint": "资金 -50，安全度 +2", "effects": { "funds": -50, "security": 2 }, "result": "UPS 顶住了，监控只丢了半分钟；运维在群里说了句“稳”。" },
+        { "label": "让物业改到白天", "hint": "声誉 -2，安全度 -2", "effects": { "reputation": -2, "security": -2 }, "result": "物业说改不了。你只能把关键服务提前做了快照，心里没底。" },
+        { "label": "先不管，继续盯告警", "hint": "可用性 -6", "effects": { "availability": -6 }, "result": "02:00 机房黑了 10 分钟；UPS 撑住了，但交换机重启后掉了几条日志。" }
+      ],
+      "expire": { "text": "你没理物业的通知。02:00 机房断了 10 分钟电，UPS 撑住了，但监控丢了 3 条日志。" }
+    },
+    {
+      "id": "courier",
+      "title": "快递被保洁收走了",
+      "speaker": "快递员 · 电话",
+      "prompt": "快递员说包裹放在门口，被保洁当成纸箱收走了。里面有你的新键盘。",
+      "choices": [
+        { "label": "下楼去垃圾房找回来", "hint": "行动点 -1，心情 +4", "effects": { "action_points": -1, "mood": 4 }, "result": "你在纸箱堆里翻了十分钟，键盘还在，只是包装湿了。值。" },
+        { "label": "算了，明天再买一个", "hint": "资金 -80，心情 -3", "effects": { "funds": -80, "mood": -3 }, "result": "你重新下单，心里把这笔钱记在了“夜班成本”上。" },
+        { "label": "让保安帮忙找", "hint": "心情 +2", "effects": { "mood": 2 }, "result": "保安在群里问了一圈，最后保洁把包裹送了回来。你欠了个人情。" }
+      ],
+      "expire": { "text": "快递最后也没找回来。你盯着旧键盘上的油光，叹了口气。" }
+    },
+    {
+      "id": "colleague_help",
+      "title": "同事借权限",
+      "speaker": "同事 · 企业微信",
+      "prompt": "同事说客户临时要一份报表，他账号登不上，想借你的管理员权限用一下。",
+      "choices": [
+        { "label": "帮他重置密码，让他自己登", "hint": "行动点 -1，声誉 +3", "effects": { "action_points": -1, "reputation": 3 }, "result": "你远程帮他重置了密码，他发来一个“救大命了”的表情。" },
+        { "label": "让他走工单，明天处理", "hint": "声誉 +1，心情 -2", "effects": { "reputation": 1, "mood": -2 }, "result": "他回了句“行吧”，但你知道客户那边不会太高兴。" },
+        { "label": "把自己的权限借给他", "hint": "安全度 -5，声誉 +4", "effects": { "security": -5, "reputation": 4 }, "result": "报表赶出来了，客户很满意；只是你的账号在别人的电脑上登过。" }
+      ],
+      "expire": { "text": "同事最后自己找了别人。他没再说什么，但关系冷了一点。" }
+    },
+    {
+      "id": "phishing_sms",
+      "title": "可疑短信：账户异常",
+      "speaker": "1069**** · 短信",
+      "prompt": "手机弹出一条短信：“您的账户存在异常登录，请点击链接验证身份。”链接不是公司域名。",
+      "choices": [
+        { "label": "截图举报，顺手拉黑", "hint": "安全度 +3，心情 +1", "effects": { "security": 3, "mood": 1 }, "result": "你把号码和链接交给了安全群，行政说已经有人收到同款。" },
+        { "label": "直接删掉", "hint": "安全度 +1", "effects": { "security": 1 }, "result": "短信删了，但号码还在某个群发名单里。" },
+        { "label": "点开看看是什么", "hint": "安全度 -7，心情 -2", "effects": { "security": -7, "mood": -2 }, "result": "页面做得几乎和真的一样。你退出来时，手机浏览器已经多了一个陌生书签。" }
+      ],
+      "expire": { "text": "那条短信还躺在收件箱里。你没点，但也没举报。" }
+    },
+    {
+      "id": "intern_link",
+      "title": "实习生点了附件",
+      "speaker": "实习生 · 企业微信",
+      "prompt": "实习生发来一句：“哥，我点了个邮件附件，电脑突然好卡，是不是中招了？”",
+      "choices": [
+        { "label": "立刻隔离他的电脑", "hint": "行动点 -1，安全度 +4，声誉 +2", "effects": { "action_points": -1, "security": 4, "reputation": 2 }, "result": "隔离及时，宏只跑了一半。实习生吓得不轻，但记住了这次。" },
+        { "label": "先跑一遍杀毒看看", "hint": "安全度 +2", "effects": { "security": 2 }, "result": "杀毒软件报了两个 PUA，清掉了；你让他今晚别再点邮件。" },
+        { "label": "让他重启一下", "hint": "安全度 -5", "effects": { "security": -5 }, "result": "他重启了，电脑不卡了。你没看到的是，启动项里多了一个计划任务。" }
+      ],
+      "expire": { "text": "实习生以为只是电脑卡，自己重启继续干活。那条附件在临时目录里留了一夜。" }
+    },
+    {
+      "id": "vendor_remote",
+      "title": "供应商要开远程",
+      "speaker": "供应商 · 邮件",
+      "prompt": "供应商说今晚要紧急升级，需要你临时开一个 VPN 账号，最好给管理员权限。",
+      "choices": [
+        { "label": "只给只读账号，操作全程录屏", "hint": "安全度 +2，声誉 +1", "effects": { "security": 2, "reputation": 1 }, "result": "升级做完了，录屏也留了。供应商嫌麻烦，但没再说什么。" },
+        { "label": "临时开管理员 VPN", "hint": "安全度 -4，声誉 +3", "effects": { "security": -4, "reputation": 3 }, "result": "升级很快，客户很满意；账号在凌晨 04:00 才被收回。" },
+        { "label": "拒绝，明天白天再说", "hint": "声誉 -3，安全度 +1", "effects": { "reputation": -3, "security": 1 }, "result": "供应商回了句“那你们自己承担风险”，把邮件抄送给了你的经理。" }
+      ],
+      "expire": { "text": "供应商没等到回复，升级改到了明天。客户在群里问了一句进度。" }
+    },
+    {
+      "id": "landlord",
+      "title": "房东要涨租",
+      "speaker": "房东 · 微信",
+      "prompt": "房东发来消息：下季度房租涨 300，理由是“附近都涨了”。",
+      "choices": [
+        { "label": "答应下来，省得折腾", "hint": "心情 -4", "effects": { "mood": -4 }, "result": "你回了个“好”。放下手机，突然觉得今晚的夜班更长了。" },
+        { "label": "讲讲价，说年底再涨", "hint": "心情 -2，家庭 +2", "effects": { "mood": -2, "family": 2 }, "result": "房东松口说“那涨 150”。你把这事跟家里说了，反而没那么堵。" },
+        { "label": "先装没看见", "hint": "心情 -6，家庭 -3", "effects": { "mood": -6, "family": -3 }, "result": "消息一直挂在未读里。你知道它不会自己消失。" }
+      ],
+      "expire": { "text": "房东又发来一条“在吗”。你把它划掉了，房租的事留到了明天。" }
+    },
+    {
+      "id": "cat_water",
+      "title": "猫打翻了水杯",
+      "speaker": "家里 · 微信",
+      "prompt": "爱人发来一张照片：猫把水杯打翻在键盘上，配文“你的键盘还好吗”。",
+      "choices": [
+        { "label": "让她先擦干，回去再说", "hint": "体力 -2，心情 +2", "effects": { "energy": -2, "mood": 2 }, "result": "她一边擦一边笑，你在值班室里也笑了一下。" },
+        { "label": "直接下单一个新键盘", "hint": "资金 -80，心情 +4", "effects": { "funds": -80, "mood": 4 }, "result": "下单成功的提示音，比今晚任何一条告警都让人舒服。" },
+        { "label": "让她拍照发我，先乐一下", "hint": "体力 -1，心情 +6", "effects": { "energy": -1, "mood": 6 }, "result": "猫蹲在湿键盘旁边一脸无辜。你把照片设成了聊天背景。" }
+      ],
+      "expire": { "text": "键盘晾了一夜。第二天你发现有几个键不太灵。" }
+    },
+    {
+      "id": "cleaner_plug",
+      "title": "保洁拔了插排",
+      "speaker": "保安 · 对讲机",
+      "prompt": "保安说保洁阿姨为了用吸尘器，把机房门口的插排拔了，现在还没插回去。",
+      "choices": [
+        { "label": "自己下楼插回去，顺便检查", "hint": "行动点 -1，安全度 +2", "effects": { "action_points": -1, "security": 2 }, "result": "你插回插排，顺手把松动的网线也按紧了。监控恢复正常。" },
+        { "label": "让保安去处理", "hint": "安全度 -1", "effects": { "security": -1 }, "result": "保安答应得好好的，但十分钟后才去。中间那台交换机一直是离线状态。" },
+        { "label": "先不管，应该没事", "hint": "可用性 -4", "effects": { "availability": -4 }, "result": "备用交换机掉电，业务切过去时抖了一下；客户那边有两条超时。" }
+      ],
+      "expire": { "text": "插排一直没插回去。备用交换机离线了一整夜，直到早班发现。" }
+    },
+    {
+      "id": "usb_found",
+      "title": "停车场捡到 U 盘",
+      "speaker": "保安 · 电话",
+      "prompt": "保安在停车场捡到一个 U 盘，上面贴着“工资表 2026”。问你要不要看看是谁的。",
+      "choices": [
+        { "label": "交安全封存，别插", "hint": "安全度 +3", "effects": { "security": 3 }, "result": "你把 U 盘封进证物袋，登记了时间地点。保安说“你们搞安全的真谨慎”。" },
+        { "label": "插自己电脑看看是谁的", "hint": "安全度 -8，心情 +2", "effects": { "security": -8, "mood": 2 }, "result": "U 盘里只有一个伪装成工资表的 exe。你拔得太快，但 Autorun 已经跑过了。" },
+        { "label": "直接丢掉", "hint": "安全度 +1", "effects": { "security": 1 }, "result": "你让保安扔了。省事，但如果真是同事丢的，也找不回来了。" }
+      ],
+      "expire": { "text": "U 盘最后被放在了前台抽屉里，没人认领。" }
+    },
+    {
+      "id": "client_scope",
+      "title": "客户临时加需求",
+      "speaker": "客户经理 · 电话",
+      "prompt": "客户说演示要加一个字段，今晚就得上线，“不然明天没法讲”。",
+      "choices": [
+        { "label": "接下来，今晚改完", "hint": "行动点 -2，声誉 +4，安全度 -2", "effects": { "action_points": -2, "reputation": 4, "security": -2 }, "result": "需求上线了，演示没问题；但这次变更没走完整测试。" },
+        { "label": "拒绝，明天再排", "hint": "声誉 -2", "effects": { "reputation": -2 }, "result": "客户经理不太高兴，把电话挂了。你知道明天还得解释。" },
+        { "label": "先评估，给一个折中方案", "hint": "行动点 -1，声誉 +1", "effects": { "action_points": -1, "reputation": 1 }, "result": "你给了一个只改配置的替代方案，客户勉强接受，风险小了很多。" }
+      ],
+      "expire": { "text": "客户没等到回复，自己在会上用旧版本讲了。客户经理在群里@了你。" }
+    },
+    {
+      "id": "phone_battery",
+      "title": "手机只剩 8%",
+      "speaker": "手机 · 系统通知",
+      "prompt": "值班手机只剩 8% 电量，充电器被同事借走了。手机里还有未读消息。",
+      "choices": [
+        { "label": "找同事借个充电宝", "hint": "资金 -30，体力 +2", "effects": { "funds": -30, "energy": 2 }, "result": "充电宝救急，手机回到 60%。你顺手把通知都看了一遍。" },
+        { "label": "开省电模式，少看手机", "hint": "心情 -2", "effects": { "mood": -2 }, "result": "省电模式把屏幕调得很暗，消息也延迟了。你错过了家里的一条晚安。" },
+        { "label": "插电脑 USB 口慢慢充", "hint": "体力 -1", "effects": { "energy": -1 }, "result": "电脑 USB 充电很慢，但至少不会关机。你继续盯着告警。" }
+      ],
+      "expire": { "text": "手机在 04:12 自动关机。再开机时，已经是早上。" }
+    }
+  ]
+}

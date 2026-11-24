@@ -95,6 +95,8 @@
           combo: game.combo,
           best_combo: game.bestCombo,
           seen_decisions: Array.from(game.seenDecisions).sort(),
+          random_active: game.randomActive.map((item) => ({ id: item.id, expiresTurn: item.expiresTurn })),
+          random_used: Array.from(game.randomUsed),
         },
       };
       const ok = this.write(SAVE_KEY, JSON.stringify(data));
@@ -186,6 +188,8 @@
           combo: Number(flags.combo || 0),
           bestCombo: Number(flags.best_combo || 0),
           seenDecisions: new Set((flags.seen_decisions || []).map(String)),
+          randomActive: Array.isArray(flags.random_active) ? flags.random_active.filter((item) => item && typeof item === 'object') : [],
+          randomUsed: new Set((flags.random_used || []).map(String)),
         });
         game.pushMessage(`已读取存档：第 ${turn} 回合，继续值班。`, 'accent');
         return [true, `已读取存档（第 ${turn} 回合）`];
