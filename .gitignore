@@ -12,6 +12,12 @@ exe_screen.png
 web/tests/screenshots/
 web/node_modules/
 
+# Electron 便携版：生成的运行时、依赖和打包产物
+desktop_electron/web/
+desktop_electron/assets/
+desktop_electron/node_modules/
+desktop_electron/release/
+
 # Steam 上架：内容目录与构建日志是生成物，别进仓库
 steam/content/
 steam/build/output/

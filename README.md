@@ -193,19 +193,23 @@
 - **Windows 免安装版**：[下载最新 Release](https://github.com/telling890/zero-day-duty/releases/latest)
 - **从源码运行**：Python 3.10+、Pygame；在项目目录执行 `py -3.10 main.py`
 
-### 桌面完整版（WebView2）
+### 桌面便携版（Electron，自带 Chromium）
 
-原生窗口，直接运行和网页版同一套 UI——**处置终端、自动化剧本、生活线、教程与主题全部一致**。
-和 Pygame 桌面版（鼠标点击为主）相比，它多了命令行与脚本能力；两套桌面形态可以并存。
+单文件 exe，目标电脑**不需要 Python、不需要 WebView2、不需要联网**；插 U 盘就能在不同 Windows 电脑上演示。
+
+- 和网页版**同一套 UI**：处置终端、自动化剧本、生活线、16 页教程、主题全部一致；
+- 约 105 MB，首次启动先解压，之后正常开窗；
+- 存档写在 exe 同目录的 `saves` 里。
 
 ```powershell
-py -3.10 -m pip install -r requirements-webview.txt
-powershell -ExecutionPolicy Bypass -File .\build_webview.ps1
-# 产物：dist\webview\ZeroDayDutyDesktop.exe
+cd desktop_electron
+npm install
+npx electron-builder --win portable --x64
+# 产物：release\零日值班-便携版.exe（复制/改名为 ZeroDayDuty.exe）
 ```
 
-需要 Windows 10/11 自带的 WebView2 运行时（与 Edge 同源，通常已经装好）。
-源码入口：`desktop_webview.py`；网页改动后重新打包即可同步，不需要再改桌面 UI。
+源码入口：`desktop_electron/`（`main.js` + `package.json`）；网页版更新后重新执行上面的构建即可同步。
+> 旧的 WebView2 方案仍保留在 `desktop_webview.py` / `build_webview.ps1`，但交付以 Electron 便携版为准。
 
 > 游戏内所有公司、人物、账号、IP 与事件均为虚构。  
 > 它的目标是让你理解防御决策的取舍，而不是教你攻击。

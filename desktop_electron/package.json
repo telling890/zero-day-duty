@@ -1,0 +1,42 @@
+{
+  "name": "zero-day-duty-portable",
+  "version": "1.9.0",
+  "description": "零日值班：网络安全防御模拟器 · 单文件便携版",
+  "main": "main.js",
+  "author": "ZeroDayDuty",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.telling890.zerodayduty",
+    "productName": "零日值班",
+    "asar": true,
+    "compression": "maximum",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "web/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "零日值班-便携版.exe",
+      "requestExecutionLevel": "user"
+    }
+  }
+}
