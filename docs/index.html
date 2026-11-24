@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>零日值班 · 网络安全防御模拟器</title>
-  <meta name="description" content="零日值班：一款回合制的网络安全防御模拟。你是公司今晚唯一的安全值班员，10 个回合、6 条攻击链（分属两个攻击者战役）、7 项三线两层加固、每回合 6 点行动点——先控制、再清除、最后恢复业务。Windows 免安装版可下载。">
+  <meta name="description" content="零日值班：一款回合制的网络安全防御模拟。你是公司今晚唯一的安全值班员，10 个回合、6 条攻击链（分属两个攻击者战役）、7 项三线两层加固、每回合 6 点行动点——先控制、再清除、最后恢复业务。v1.9.0 加入生活线：体力、心情、家庭会被夜班消耗，也会影响行动点、判断力与结局。Windows 免安装版可下载。">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#070b11" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#F2EFE6" media="(prefers-color-scheme: light)">
   <meta property="og:title" content="零日值班 · 网络安全防御模拟器">
-  <meta property="og:description" content="10 个回合，6 条攻击链，7 项加固，每回合 6 点行动点。两个攻击者会连着出手——守到早上八点，别把公司业务一起关掉。">
+  <meta property="og:description" content="10 个回合，6 条攻击链，7 项加固，每回合 6 点行动点。两个攻击者会连着出手——守到早上八点，别把公司业务一起关掉。v1.9.0 还有生活线：体力、心情、家庭。">
   <meta property="og:image" content="assets/gameplay.png">
   <link rel="icon" href="assets/icon.png">
   <link rel="preload" as="image" href="assets/gameplay.png">
@@ -82,7 +82,7 @@
           <span class="tag">回合制</span>
           <span class="tag">策略模拟</span>
           <span class="tag">一局约 15 分钟</span>
-          <span class="tag tag-ver">v1.7.0 · Web</span>
+          <span class="tag tag-ver">v1.9.0 · Web</span>
         </p>
         <h1 class="reveal" style="--i:1">守到<br><em>早上八点。</em></h1>
         <p class="lead reveal" style="--i:2">
@@ -90,7 +90,7 @@
           6 条攻击链会轮流推进，其中 5 条属于两个攻击者——同一家的两次告警会标成「同源」，
           你放着不管，对方就提前投放下一环，而你每回合只有 <strong>6 点行动点</strong>。
           调查、控制、清除、恢复——顺序错了，公司要么被打穿，要么被你自己关停。
-          这次还多了三档难度和会“等你犯错”的攻击者。
+          这次还多了三档难度、会等你犯错的攻击者，以及一条生活线：体力、心情、家庭会被夜班消耗，也会反过来影响行动点、判断力与结局。
         </p>
         <div class="cta reveal" style="--i:3">
           <a class="btn primary" href="https://github.com/telling890/zero-day-duty/releases/latest/download/ZeroDayDuty-Windows-x64.zip">
@@ -108,7 +108,7 @@
           <li>Windows 10 / 11</li>
           <li>免安装 · 无需 Python</li>
           <li>1280 × 720 固定窗口</li>
-          <li>63 项自动化测试</li>
+          <li>300+ 项自动化检查</li>
         </ul>
         <p class="dl-hint reveal" style="--i:5">
           国内下载慢？<a href="#download">换加速镜像 ↓</a>（同一个文件，可校验 SHA256）
@@ -325,6 +325,19 @@
           <p>钓鱼、异地登录、内部导出其实是同一个「夜鸦行动」。同源告警会标出攻击者，节奏压力攒满就提前投放下一环，或者直接加速推进。</p>
           <div class="card-meta">2 个战役 · 3 回合压力</div>
         </article>
+
+        <article class="card reveal" style="--i:5">
+          <span class="card-glow" aria-hidden="true"></span>
+          <header>
+            <span class="card-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-9a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 4.6-7 9-7 9Z"/></svg>
+            </span>
+            <span class="card-index">06</span>
+          </header>
+          <h3>生活线：体力 / 心情 / 家庭</h3>
+          <p>第 2 / 3 / 6 / 9 / 10 回合插入生活场景：工资到账、老板发火、家里视频、天亮回家、早会。体力影响行动点，心情影响判断力，家庭影响结算评语。</p>
+          <div class="card-meta">5 个生活场景 · 3 条生活数值</div>
+        </article>
       </div>
     </section>
 
@@ -333,17 +346,17 @@
       <div class="section-head reveal">
         <p class="section-kicker">SCREENSHOTS</p>
         <h2>深色 SOC，点开看大图</h2>
-        <p>教程、交接简报、服务面板、加固商店、剧情决策、结算——都是真实游戏画面，没有补拍。</p>
+        <p>教程、交接简报、服务面板、加固商店、剧情决策、生活场景、结算——都是真实游戏画面，没有补拍。</p>
       </div>
 
       <div class="gallery">
         <figure class="reveal">
           <div class="shot">
             <img src="assets/tutorial.png" alt="新手教程第 1 页「一分钟看懂」：五条基本规则写在中央" width="1280" height="720" loading="lazy" decoding="async">
-            <button class="shot-zoom" type="button" data-src="assets/tutorial.png" data-cap="新手教程 1/12：一分钟看懂五条规则" aria-label="放大查看：新手教程"></button>
+            <button class="shot-zoom" type="button" data-src="assets/tutorial.png" data-cap="新手教程：一分钟看懂五条规则" aria-label="放大查看：新手教程"></button>
           </div>
           <figcaption>
-            <strong>12 页教程 + 6 步演练</strong>
+            <strong>完整教程 + 6 步演练</strong>
             <span>第一次进游戏，背景就是真实界面。</span>
           </figcaption>
         </figure>
@@ -393,6 +406,17 @@
         </figure>
 
         <figure class="reveal" style="--i:5">
+          <div class="shot">
+            <img src="assets/life.png" alt="生活场景：第 2 回合工资到账，三个选项分别标注家庭、心情、资金代价" width="1280" height="720" loading="lazy" decoding="async">
+            <button class="shot-zoom" type="button" data-src="assets/life.png" data-cap="第 2 回合 · 工资到账：生活选择会改变体力 / 心情 / 家庭" aria-label="放大查看：生活场景"></button>
+          </div>
+          <figcaption>
+            <strong>生活线</strong>
+            <span>工资、老板、家人、天亮后的早会——夜班不只对着屏幕。</span>
+          </figcaption>
+        </figure>
+
+        <figure class="reveal" style="--i:6">
           <div class="shot">
             <img src="assets/result.png" alt="结算界面：成功但损失严重 64 分 C，含得分、等级、值班风格与统计" width="1280" height="720" loading="lazy" decoding="async">
             <button class="shot-zoom" type="button" data-src="assets/result.png" data-cap="结算：64 分 · C · 值班风格「反应迟缓型」" aria-label="放大查看：结算界面"></button>
