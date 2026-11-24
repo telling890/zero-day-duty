@@ -193,5 +193,19 @@
 - **Windows 免安装版**：[下载最新 Release](https://github.com/telling890/zero-day-duty/releases/latest)
 - **从源码运行**：Python 3.10+、Pygame；在项目目录执行 `py -3.10 main.py`
 
+### 桌面完整版（WebView2）
+
+原生窗口，直接运行和网页版同一套 UI——**处置终端、自动化剧本、生活线、教程与主题全部一致**。
+和 Pygame 桌面版（鼠标点击为主）相比，它多了命令行与脚本能力；两套桌面形态可以并存。
+
+```powershell
+py -3.10 -m pip install -r requirements-webview.txt
+powershell -ExecutionPolicy Bypass -File .\build_webview.ps1
+# 产物：dist\webview\ZeroDayDutyDesktop.exe
+```
+
+需要 Windows 10/11 自带的 WebView2 运行时（与 Edge 同源，通常已经装好）。
+源码入口：`desktop_webview.py`；网页改动后重新打包即可同步，不需要再改桌面 UI。
+
 > 游戏内所有公司、人物、账号、IP 与事件均为虚构。  
 > 它的目标是让你理解防御决策的取舍，而不是教你攻击。
