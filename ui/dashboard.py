@@ -22,6 +22,9 @@ class Dashboard:
         self.values: dict[str, float] = {}
         self.tweens: dict[str, tuple[float, float, int]] = {}
         self.flashes: dict[str, tuple[int, bool]] = {}
+        # 生活指标格：悬停提示用
+        self.life_rect: pygame.Rect | None = None
+        self._tooltip_pos: tuple[int, int] | None = None
 
     TWEEN_MS = 520
     FLASH_MS = 520
@@ -55,6 +58,17 @@ class Dashboard:
             (rect.x, rect.bottom - 1),
             (rect.right, rect.bottom - 1),
         )
+        # 值班员状态格：悬停解释三条数值各自影响什么（真正绘制在 draw_tooltip 里，
+        # 这样提示框不会被后画的面板盖住）
+        mouse = pygame.mouse.get_pos()
+        self._tooltip_pos = (
+            mouse if self.life_rect is not None and self.life_rect.collidepoint(mouse) else None
+        )
+
+    def draw_tooltip(self, surface: pygame.Surface) -> None:
+        """在所有底部面板之后调用，保证悬停提示压在最上层。"""
+        if self._tooltip_pos is not None:
+            draw_utils.draw_tooltip(surface, settings.LIFE_TOOLTIP, self._tooltip_pos, max_width=260)
 
     # ------------------------------------------------------------------
     def _cells(self, game: "object") -> list[dict[str, object]]:
@@ -125,6 +139,15 @@ class Dashboard:
                 "delta": player.turn_delta(MetricKey.INTEGRITY),
                 "ratio": player.integrity / 100,
                 "color": settings.BLUE,
+            },
+            {
+                # 生活线：三种数值合成一格，避免顶栏被拆成 3 格后溢出
+                "label": "值班员状态",
+                "kind": "life",
+                "life": [
+                    (key, int(getattr(player, key))) for key in settings.LIFE_KEYS
+                ],
+                "color": settings.ORANGE,
             },
         ]
         self._track(stats)
@@ -203,6 +226,9 @@ class Dashboard:
         }
 
     def _draw_cell(self, surface: pygame.Surface, x: int, width: int, cell: dict[str, object]) -> None:
+        if str(cell.get("kind", "")) == "life":
+            self._draw_life_cell(surface, x, width, cell)
+            return
         label_font = draw_utils.get_font(settings.FONT_TINY)
         value_font = draw_utils.get_font(18, True)
         label = label_font.render(str(cell["label"]), True, settings.TEXT_DIM)
@@ -247,6 +273,55 @@ class Dashboard:
                 bar_rect,
                 float(ratio),
                 color,  # type: ignore[arg-type]
+                background=(30, 42, 58),
+            )
+        pygame.draw.line(
+            surface,
+            (26, 36, 50),
+            (x, self.rect.y + 14),
+            (x, self.rect.bottom - 14),
+        )
+
+    # ------------------------------------------------------------------
+    def _draw_life_cell(self, surface: pygame.Surface, x: int, width: int, cell: dict[str, object]) -> None:
+        """值班员状态：三行「体 / 心 / 家 + 数值 + 细条」，压进 56px 顶栏。"""
+        self.life_rect = pygame.Rect(x, self.rect.y, width, self.rect.height)
+        label_font = draw_utils.get_font(settings.FONT_TINY)
+        value_font = draw_utils.get_font(11, True)
+        label = label_font.render(str(cell.get("label", "值班员状态")), True, settings.TEXT_DIM)
+        surface.blit(label, (x + 6, self.rect.y + 1))
+
+        rows = cell.get("life") or []
+        if not isinstance(rows, (list, tuple)):
+            rows = []
+        number_width = max(18, value_font.size("100")[0])
+        label_width = max(value_font.size(short)[0] for short in settings.LIFE_SHORT_LABELS.values())
+        number_x = x + 6 + label_width + 4
+        bar_x = number_x + number_width + 5
+        for index, row in enumerate(rows[:3]):
+            try:
+                key, value = row  # type: ignore[misc]
+            except (TypeError, ValueError):
+                continue
+            key = str(key)
+            try:
+                number = int(value)
+            except (TypeError, ValueError):
+                number = 0
+            color = settings.life_color(key, number)
+            y = self.rect.y + 15 + index * 12
+            short = settings.LIFE_SHORT_LABELS.get(key, "?")
+            surface.blit(value_font.render(short, True, color), (x + 6, y))
+            number_image = value_font.render(str(number), True, color)
+            surface.blit(
+                number_image,
+                (number_x + number_width - number_image.get_width(), y),
+            )
+            draw_utils.draw_bar(
+                surface,
+                pygame.Rect(bar_x, y + 4, max(10, x + width - 12 - bar_x), 4),
+                number / 100.0,
+                color,
                 background=(30, 42, 58),
             )
         pygame.draw.line(

@@ -194,7 +194,14 @@ async function main() {
   await sleep(300);
   await screenshot('03-playing');
   check('值班界面可见', await evaluate(`!document.getElementById('play-screen').hidden`));
-  check('顶部 8 项指标', (await evaluate(`document.querySelectorAll('#metrics .metric').length`)) === 8);
+  check('顶部 9 项指标（含值班员状态）', (await evaluate(`document.querySelectorAll('#metrics .metric').length`)) === 9);
+  check('顶栏「值班员状态」一格三行', (await evaluate(`document.querySelectorAll('#metrics .metric.life .life-row').length`)) === 3);
+  check('生活格有细进度条与数字', await evaluate(`(() => {
+    const rows = Array.from(document.querySelectorAll('#metrics .metric.life .life-row'));
+    return rows.length === 3 && rows.every((row) => row.querySelector('.life-num') && row.querySelector('.life-track i'))
+      && rows.map((row) => row.querySelector('.life-num').textContent).join('/') === '72/70/60';
+  })()`));
+  check('生活格悬停提示写清三条影响', (await evaluate(`(document.querySelector('#metrics .metric.life') || {}).title || ''`)).includes('体力影响每回合行动点'));
   check('拓扑 8 个节点', (await evaluate(`document.querySelectorAll('.topo-node').length`)) === 8);
   check('至少一条告警', (await evaluate(`document.querySelectorAll('.alert-row').length`)) >= 1);
 
@@ -250,7 +257,31 @@ async function main() {
   await key(' ', 'Space');
   await sleep(400);
   check('空格推进到第 2 回合', (await evaluate(`document.querySelector('.metric.turn .metric-value').textContent`)).includes('2 / 10'));
+  // 第 2 回合会先弹出生活场景：眉题改成「生活场景」、暖色标题、说明行换成生活说明
+  check('第 2 回合弹出生活场景', await evaluate(`(() => {
+    const d = __zdd.game.pendingDecision;
+    const kicker = document.querySelector('.modal-kicker');
+    const title = document.querySelector('.modal-title.decision-card.life');
+    const note = document.querySelector('.modal-note');
+    return Boolean(d && d.kind === 'life')
+      && Boolean(kicker && kicker.textContent.includes('生活场景'))
+      && Boolean(title) && Boolean(note && note.textContent.includes('体力影响每回合行动点'));
+  })()`));
+  check('生活场景浮层用暖色', await evaluate(`(() => {
+    const card = document.getElementById('modal-card');
+    const title = document.querySelector('.modal-title.life');
+    if (!card || !title) return false;
+    return card.classList.contains('life-decision') && getComputedStyle(title).borderLeftColor !== 'rgba(0, 0, 0, 0)';
+  })()`));
   await screenshot('06-turn2');
+  // 选掉生活场景（选 0），才能继续测暂停
+  await click('[data-act="decision-choose"][data-index="0"]');
+  await sleep(350);
+  check('生活场景选完后关闭', await evaluate(`__zdd.game.pendingDecision === null`));
+  check(
+    '生活场景改变生活数值（家庭 57 → 71）',
+    (await evaluate(`document.querySelector('.metric.life .life-row[data-key="family"] .life-num').textContent`)) === '71',
+  );
 
   // 暂停 / 恢复（Esc）
   await key('Escape', 'Escape');

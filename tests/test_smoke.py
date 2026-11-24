@@ -96,7 +96,13 @@ class GameFlowTest(unittest.TestCase):
         tree = self.game.upgrade_tree
         self.assertEqual(len(self.game.upgrade_catalog), 7)
         self.assertEqual(len(tree.tracks), 3)
-        self.assertEqual(len(self.game.decisions), 3)
+        # v1.9.0：3 条剧情决策 + 5 条生活场景
+        story = [item for item in self.game.decisions if item.get("kind") != "life"]
+        life = [item for item in self.game.decisions if item.get("kind") == "life"]
+        self.assertEqual(len(story), 3)
+        self.assertEqual(len(life), 5)
+        self.assertEqual(len(self.game.decisions), 8)
+        self.assertEqual(sorted(int(item["turn"]) for item in life), [2, 3, 6, 9, 10])
         configs = self.game.events.event_configs
         self.assertEqual(len(configs), 6)
         self.assertTrue(all(config.get("enabled") for config in configs))
@@ -747,6 +753,9 @@ class GameFlowTest(unittest.TestCase):
         game.update(0.016)
         self._click(game.bottom_buttons["advance"].rect.center, game)
         self.assertEqual(game.turn, 2)
+        # v1.9.0：第 2 回合会弹出生活场景浮层，先做选择，否则 Esc 会被浮层吃掉
+        if game.decision_screen.visible:
+            game.choose_decision(0)
         game.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE, mod=0, unicode=""))
         self.assertEqual(game.state, GameState.PAUSED)
         game.update(0.016)
@@ -798,7 +807,9 @@ class GameFlowTest(unittest.TestCase):
         self.assertEqual(len(game.events.events), 1)
         self.assertEqual(len(game.events.alerts), 1)
 
-        for _ in range(12):
+        from ui.tutorial_screen import PAGES
+
+        for _ in range(len(PAGES)):
             if not game.tutorial_screen.visible:
                 break
             button = game.tutorial_screen.buttons[-1][0]

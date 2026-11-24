@@ -58,8 +58,24 @@
   const TOTAL_TURNS = 10;
   const START_HOUR = 22;
   const ACTION_POINTS_PER_TURN = 6;
+  const ACTION_POINTS_MIN = 3;
   const TURN_INCOME = 120;
   const TURN_UPKEEP = 40;
+
+  // ------------------------------------------------------------------
+  // 生活线（v1.9.0）：值班员是有身体、有情绪、有家的人。
+  // 体力 → 每回合行动点；心情 → 调查判断力；家庭 → 结局评价。
+  // 全部是整数常量与整数运算，不碰随机数——同种子必须复现同一局。
+  // ------------------------------------------------------------------
+  const LIFE_INITIAL = { energy: 72, mood: 70, family: 60 };
+  const LIFE_DECAY = { energy: -3, mood: -2, family: -3 };
+  const LIFE_KEYS = ['energy', 'mood', 'family'];
+  const LIFE_LABELS = { energy: '体力', mood: '心情', family: '家庭' };
+  const LIFE_SHORT = { energy: '体', mood: '心', family: '家' };
+  // 体力 ≥55 满 AP；30–54 扣 1 点；<30 扣 2 点
+  const LIFE_AP_TIERS = { full: 55, low: 30 };
+  // 顶栏变红的阈值：体力 <30、心情 <40、家庭 ≤25
+  const LIFE_ALERT = { energy: 30, mood: 40, family: 25 };
   const INITIAL = {
     security: 74,
     funds: 1200,
@@ -81,7 +97,7 @@
     integrity: '数据完整度',
   };
 
-  const LOG_CATEGORIES = ['邮件', '登录', '网络', '告警', '操作', '情报', '系统'];
+  const LOG_CATEGORIES = ['邮件', '登录', '网络', '告警', '操作', '情报', '生活', '系统'];
 
   function clockText(turn) {
     const hour = (START_HOUR + Math.max(0, Number(turn) - 1)) % 24;
@@ -94,6 +110,27 @@
 
   function clamp(value, low, high) {
     return Math.max(low, Math.min(high, value));
+  }
+
+  /** 生活数值统一成 0–100 的整数；缺字段（旧存档）时用初始值。 */
+  function lifeValue(value, fallback) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return fallback;
+    return clamp(Math.round(num), 0, 100);
+  }
+
+  /** 体力 → 行动点惩罚：≥55 无惩罚；30–54 扣 1 点；<30 扣 2 点。 */
+  function lifeActionPenalty(energy) {
+    const value = Number(energy);
+    if (!Number.isFinite(value)) return 0;
+    if (value >= LIFE_AP_TIERS.full) return 0;
+    if (value >= LIFE_AP_TIERS.low) return 1;
+    return 2;
+  }
+
+  /** 行动点上限：以基础 AP（6）为基数减体力惩罚，下限 3 点。 */
+  function maxActionPointsFor(energy) {
+    return Math.max(ACTION_POINTS_MIN, ACTION_POINTS_PER_TURN - lifeActionPenalty(energy));
   }
 
   // ------------------------------------------------------------------
@@ -642,7 +679,12 @@
       this.reputation = Number(options.reputation ?? INITIAL.reputation);
       this.availability = Number(options.availability ?? INITIAL.availability);
       this.integrity = Number(options.integrity ?? INITIAL.integrity);
+      // 生活线：体力 / 心情 / 家庭（0–100）
+      this.energy = lifeValue(options.energy, LIFE_INITIAL.energy);
+      this.mood = lifeValue(options.mood, LIFE_INITIAL.mood);
+      this.family = lifeValue(options.family, LIFE_INITIAL.family);
       this.actionPoints = Number(options.actionPoints ?? ACTION_POINTS_PER_TURN);
+      // 分母始终是基础 6 点：体力不足时是「5 / 6」，而不是把上限也改小
       this.maxActionPoints = ACTION_POINTS_PER_TURN;
       this.turn = 0;
       this.totalTurns = TOTAL_TURNS;
@@ -697,7 +739,38 @@
 
     refreshTurn(turn) {
       this.turn = turn;
-      this.actionPoints = this.maxActionPoints;
+      // 体力档位只决定本回合「拿到几点」，分母仍是 6（第 1 回合体力 72 → 6 / 6）
+      this.maxActionPoints = ACTION_POINTS_PER_TURN;
+      this.actionPoints = maxActionPointsFor(this.energy);
+      return this.actionPoints;
+    }
+
+    // ------------------------------------------------------------------
+    // 生活线：体力 / 心情 / 家庭
+    // ------------------------------------------------------------------
+    /** 生活数值变化：clamp 0–100，变化记入 changes 供面板使用。 */
+    adjustLife(key, delta, reason) {
+      if (!LIFE_KEYS.includes(key)) return 0;
+      return this.adjust(key, delta, reason);
+    }
+
+    /** 夜班消耗：体力 −3 · 心情 −2 · 家庭 −3（第 1 回合由调用方跳过）。 */
+    decayLife() {
+      const applied = {};
+      for (const key of LIFE_KEYS) {
+        applied[key] = this.adjustLife(key, LIFE_DECAY[key], '夜班消耗');
+      }
+      return applied;
+    }
+
+    /** 体力档位带来的行动点惩罚（0 / 1 / 2）。 */
+    get lifePenalty() {
+      return lifeActionPenalty(this.energy);
+    }
+
+    /** 生活分：三条数值的平均值，四舍五入取整。 */
+    get lifeScore() {
+      return Math.round((this.energy + this.mood + this.family) / 3);
     }
 
     securityFailed() {
@@ -723,6 +796,9 @@
         reputation: this.reputation,
         availability: this.availability,
         integrity: this.integrity,
+        energy: this.energy,
+        mood: this.mood,
+        family: this.family,
         action_points: this.actionPoints,
         max_action_points: this.maxActionPoints,
         turn: this.turn,
@@ -741,9 +817,14 @@
         reputation: Number(source.reputation ?? INITIAL.reputation),
         availability: Number(source.availability ?? INITIAL.availability),
         integrity: Number(source.integrity ?? INITIAL.integrity),
+        // 旧存档没有生活字段：按初始值补齐，版本号不变（仍是 1）
+        energy: source.energy ?? LIFE_INITIAL.energy,
+        mood: source.mood ?? LIFE_INITIAL.mood,
+        family: source.family ?? LIFE_INITIAL.family,
         actionPoints: Number(source.action_points ?? ACTION_POINTS_PER_TURN),
       });
-      player.maxActionPoints = Number(source.max_action_points ?? ACTION_POINTS_PER_TURN);
+      // 存档版本仍是 1；分母固定为 6，旧的 5/5 存档读回来也会变成 5/6
+      player.maxActionPoints = ACTION_POINTS_PER_TURN;
       player.turn = Number(source.turn || 0);
       player.totalTurns = Number(source.total_turns ?? TOTAL_TURNS);
       if (Array.isArray(source.changes)) {
@@ -769,6 +850,9 @@
         reputation: this.reputation,
         availability: this.availability,
         integrity: this.integrity,
+        energy: this.energy,
+        mood: this.mood,
+        family: this.family,
         action_points: this.actionPoints,
         turn: this.turn,
       };
@@ -800,10 +884,20 @@
   ZDD.STATUS_SEVERITY = STATUS_SEVERITY;
   ZDD.METRIC_LABELS = METRIC_LABELS;
   ZDD.LOG_CATEGORIES = LOG_CATEGORIES;
+  ZDD.LIFE_INITIAL = LIFE_INITIAL;
+  ZDD.LIFE_DECAY = LIFE_DECAY;
+  ZDD.LIFE_KEYS = LIFE_KEYS;
+  ZDD.LIFE_LABELS = LIFE_LABELS;
+  ZDD.LIFE_SHORT = LIFE_SHORT;
+  ZDD.LIFE_AP_TIERS = LIFE_AP_TIERS;
+  ZDD.LIFE_ALERT = LIFE_ALERT;
+  ZDD.lifeActionPenalty = lifeActionPenalty;
+  ZDD.maxActionPointsFor = maxActionPointsFor;
   ZDD.consts = {
     TOTAL_TURNS,
     START_HOUR,
     ACTION_POINTS_PER_TURN,
+    ACTION_POINTS_MIN,
     TURN_INCOME,
     TURN_UPKEEP,
     INITIAL,
@@ -812,6 +906,8 @@
     AVAILABILITY_FAIL,
     AVAILABILITY_FAIL_TURNS,
     FUNDS_WARN,
+    LIFE_INITIAL,
+    LIFE_DECAY,
   };
   ZDD.clockText = clockText;
   ZDD.formatMoney = formatMoney;

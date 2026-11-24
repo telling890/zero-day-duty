@@ -17,7 +17,7 @@ import pygame
 
 import settings
 from models.device import Device, validate_device_configs
-from models.player_state import METRIC_LABELS, MetricKey, PlayerState
+from models.player_state import ALL_LABELS, METRIC_LABELS, MetricKey, PlayerState
 from systems.action_manager import ActionResult, ActionManager, ActionOption, Target
 from systems.audio_manager import get_audio
 from systems.difficulty import DifficultySet
@@ -303,6 +303,10 @@ class Game:
     # ==================================================================
     def start_turn(self) -> None:
         self.turn += 1
+        # 生活线：先结算夜班消耗（第 1 回合不消耗），再按体力档位恢复行动点
+        self.player.turn = self.turn
+        if self.turn >= settings.LIFE_DECAY_START_TURN:
+            self._apply_life_decay()
         self.player.refresh_turn(self.turn)
         self.logs.add(
             self.turn,
@@ -314,6 +318,7 @@ class Game:
             f"第 {self.turn} 回合开始（{settings.clock_text(self.turn)}），行动点已重置。",
             settings.ACCENT,
         )
+        self._announce_ap_penalty()
         service_income = self.services.income(
             self.devices, int(self.modifiers.get("income_floor", 0))
         )
@@ -372,7 +377,9 @@ class Game:
             self.seen_decisions.add(decision_id)
             self.decision_screen.open(decision)
             self.audio.play("alert")
-            self.push_message(f"紧急决策：{decision.get('title', '')}", settings.ORANGE)
+            kind = str(decision.get("kind", "") or "")
+            prefix = "生活场景" if kind == "life" else "紧急决策"
+            self.push_message(f"{prefix}：{decision.get('title', '')}", settings.ORANGE)
             return
 
     def end_turn(self) -> None:
@@ -473,6 +480,9 @@ class Game:
             "integrity": player.integrity,
             "reputation": player.reputation,
             "funds": player.funds,
+            "energy": player.energy,
+            "mood": player.mood,
+            "family": player.family,
             "alerts": len(self.events.alerts),
             "stages": {event.event_id: event.stage_index for event in self.events.events},
         }
@@ -498,6 +508,14 @@ class Game:
         funds = self.player.funds - int(before["funds"])
         if funds:
             add(f"资金 {funds:+d}", settings.GREEN if funds > 0 else settings.RED)
+
+        for key in settings.LIFE_KEYS:
+            delta = int(getattr(self.player, key)) - int(before.get(key, getattr(self.player, key)))
+            if delta:
+                add(
+                    f"{settings.LIFE_LABELS[key]} {settings.format_signed(delta)}",
+                    settings.GREEN if delta > 0 else settings.ORANGE,
+                )
 
         new_alerts = len(self.events.alerts) - int(before["alerts"])
         if new_alerts > 0:
@@ -591,6 +609,8 @@ class Game:
         self.process_delayed_effects(force=True)
         self.state = GameState.RESULT
         self.briefing.close()
+        # 结算时如果还有决策浮层挂着（例如回合开始就判负），必须先关掉，否则它会盖住结算页
+        self.decision_screen.close()
         self.audio.stop_ambient()
         summary = self.build_summary(reason)
         self.report = self.score_system.evaluate(summary)
@@ -643,6 +663,11 @@ class Game:
             "reputation": self.player.reputation,
             "availability": self.player.availability,
             "integrity": self.player.integrity,
+            # 生活线：体力 / 心情 / 家庭与生活分
+            "energy": self.player.energy,
+            "mood": self.player.mood,
+            "family": self.player.family,
+            "life_score": self.player.life_score,
             "total_events": len(events),
             "resolved": len(resolved),
             "controlled_only": len(controlled_only),
@@ -777,7 +802,11 @@ class Game:
 
     @property
     def confidence_bonus(self) -> float:
-        return float(self.modifiers.get("confidence_bonus", 0.0))
+        bonus = float(self.modifiers.get("confidence_bonus", 0.0))
+        # 心情 < 40：判断力下降，在原加成上再 -0.10（置信度降低 → 风险区间变宽）
+        if self.player.mood < settings.LIFE_MOOD_FOCUS:
+            bonus += settings.LIFE_MOOD_CONFIDENCE_PENALTY
+        return bonus
 
     def buy_upgrade(self, upgrade_id: str) -> tuple[bool, str]:
         item = self.upgrade_tree.get(upgrade_id)
@@ -819,28 +848,30 @@ class Game:
         label = str(choice.get("label", "选择"))
         decision_id = str(decision.get("id", ""))
         title = str(decision.get("title", "值班决策"))
+        kind = str(decision.get("kind", "") or "")
+        scene = "life" if kind == "life" else "decision"
         # 直接成本：玩家在选项上能合理预知的代价，正常记录
         effects = choice.get("effects", {})
         if isinstance(effects, dict):
-            for key, value in effects.items():
-                if key not in ("security", "funds", "reputation", "availability", "integrity"):
-                    continue
-                try:
-                    delta = int(value)
-                except (TypeError, ValueError):
-                    continue
-                self.adjust_metric(key, delta, f"值班决策「{title}」")
+            self._apply_choice_effects(effects, title, scene)
         # 隐藏影响：立即生效但不写入精确数值日志，避免变成算术题；
         # 只进入结算时间线，由最终复盘解释。
         hidden = choice.get("hidden_effects", {})
         hidden_actual: dict[str, int] = {}
         if isinstance(hidden, dict):
             for key, value in hidden.items():
-                if key not in ("security", "funds", "reputation", "availability", "integrity"):
+                if key not in METRIC_LABELS and key not in settings.LIFE_KEYS and key != "action_points":
                     continue
                 try:
                     delta = int(value)
                 except (TypeError, ValueError):
+                    continue
+                if key == "action_points":
+                    old = int(self.player.action_points)
+                    new = max(0, min(99, old + delta))
+                    if new != old:
+                        self.player.action_points = new
+                        hidden_actual[key] = new - old
                     continue
                 actual = self.player.adjust(key, delta, f"值班决策「{title}」的隐性影响")
                 if actual:
@@ -890,7 +921,7 @@ class Game:
         )
         if hidden_actual:
             hidden_summary = "、".join(
-                f"{METRIC_LABELS.get(key, key)} {value:+d}" for key, value in hidden_actual.items()
+                f"{ALL_LABELS.get(key, key)} {value:+d}" for key, value in hidden_actual.items()
             )
             self.record_timeline(
                 "decision_hidden",
@@ -902,6 +933,24 @@ class Game:
         self.effects.add_banner(f"决策：{label}", result[:46], settings.ORANGE)
         self.audio.play("click")
         self.decision_screen.close()
+
+    # ------------------------------------------------------------------
+    # 决策效果路由：公司指标 / 生活数值 / 行动点
+    # ------------------------------------------------------------------
+    def _apply_choice_effects(self, effects: dict[str, Any], title: str, scene: str = "decision") -> None:
+        """选项上写出来的直接成本：按 key 路由到不同系统与日志分类。"""
+        life_reason = f"生活场景「{title}」" if scene == "life" else f"值班决策「{title}」"
+        for key, value in effects.items():
+            try:
+                delta = int(value)
+            except (TypeError, ValueError):
+                continue
+            if key in settings.LIFE_KEYS:
+                self.adjust_life(key, delta, life_reason)
+            elif key == "action_points":
+                self.adjust_action_points(delta, life_reason)
+            elif key in METRIC_LABELS:
+                self.adjust_metric(key, delta, f"值班决策「{title}」")
 
     # ------------------------------------------------------------------
     # 延迟决策后果
@@ -930,22 +979,46 @@ class Game:
             elif key == "security_below":
                 if self.player.security >= int(value):
                     return False
+            # 生活条件：严格小于 / 大于等于，和规范里的阈值一一对应
+            elif key == "energy_below":
+                if self.player.energy >= int(value):
+                    return False
+            elif key == "energy_at_least":
+                if self.player.energy < int(value):
+                    return False
+            elif key == "mood_below":
+                if self.player.mood >= int(value):
+                    return False
+            elif key == "mood_at_least":
+                if self.player.mood < int(value):
+                    return False
+            elif key == "family_below":
+                if self.player.family >= int(value):
+                    return False
+            elif key == "family_at_least":
+                if self.player.family < int(value):
+                    return False
             else:
                 return False
         return True
 
-    def _apply_effect_map(self, effects: Any, reason: str) -> None:
+    def _apply_effect_map(self, effects: Any, reason: str, *, metric_category: str = "系统") -> None:
+        """结算一组效果：公司指标走 adjust_metric，生活键/AP 走各自的通道。"""
         if not isinstance(effects, dict):
             return
         for key, value in effects.items():
-            if key not in ("security", "funds", "reputation", "availability", "integrity"):
-                continue
             try:
                 delta = int(value)
             except (TypeError, ValueError):
                 continue
-            if delta:
-                self.adjust_metric(key, delta, reason)
+            if not delta:
+                continue
+            if key in METRIC_LABELS:
+                self.adjust_metric(key, delta, reason, category=metric_category)
+            elif key in settings.LIFE_KEYS:
+                self.adjust_life(key, delta, reason)
+            elif key == "action_points":
+                self.adjust_action_points(delta, reason)
 
     def process_delayed_effects(self, force: bool = False) -> None:
         if not self.pending_delayed:
@@ -959,7 +1032,7 @@ class Game:
             effects = item.get("effects") if matched else item.get("else_effects")
             text = str(item.get("text") if matched else item.get("else_text") or "")
             reason = f"延迟决策「{item.get('source_title', '')}」"
-            self._apply_effect_map(effects, reason)
+            self._apply_effect_map(effects, reason, metric_category="情报")
             if text:
                 self.logs.add(
                     self.turn,
@@ -975,6 +1048,11 @@ class Game:
                 for key, value in actual.items()
                 if key in METRIC_LABELS
             )
+            life_summary = "、".join(
+                f"{ALL_LABELS.get(key, key)} {settings.format_signed(int(value))}"
+                for key, value in actual.items()
+                if key in settings.LIFE_KEYS or key == "action_points"
+            )
             self.record_timeline(
                 "delayed",
                 f"「{item.get('choice_label', '')}」的延迟后果：{text or '指标变化'}",
@@ -987,6 +1065,14 @@ class Game:
                     settings.clock_text(self.turn),
                     "系统",
                     f"延迟后果结算：{summary}",
+                )
+            if life_summary:
+                # 生活键的延迟结算归到「生活」分类
+                self.logs.add(
+                    self.turn,
+                    settings.clock_text(self.turn),
+                    settings.LIFE_CATEGORY,
+                    f"延迟后果结算：{life_summary}",
                 )
         self.pending_delayed = remaining
 
@@ -1014,7 +1100,7 @@ class Game:
             self.push_message(f"连击中断（{reason}）。", settings.ORANGE)
             self.combo = 0
 
-    def adjust_metric(self, key: str, delta: int, reason: str, *, push: bool = True) -> int:
+    def adjust_metric(self, key: str, delta: int, reason: str, *, push: bool = True, category: str = "系统") -> int:
         actual = self.player.adjust(key, delta, reason)
         if actual == 0:
             return 0
@@ -1022,7 +1108,7 @@ class Game:
         self.logs.add(
             self.turn,
             settings.clock_text(self.turn),
-            "系统",
+            category,
             f"{label} {actual:+d}（{reason}）",
         )
         if push:
@@ -1030,6 +1116,79 @@ class Game:
             self.push_message(f"{label} {actual:+d}：{reason}", color)
         if actual <= -4:
             self.effects.flash(settings.RED, 36)
+        return actual
+
+    # ------------------------------------------------------------------
+    # 生活线：体力 / 心情 / 家庭 / 行动点
+    # ------------------------------------------------------------------
+    def _apply_life_decay(self) -> None:
+        """夜班消耗：每回合只写一条合并日志，避免日志刷屏。"""
+        actual = self.player.decay_life()
+        detail = " · ".join(
+            f"{settings.LIFE_LABELS[key]} {settings.format_signed(actual[key])}"
+            for key in settings.LIFE_KEYS
+        )
+        current = " / ".join(str(int(getattr(self.player, key))) for key in settings.LIFE_KEYS)
+        self.logs.add(
+            self.turn,
+            settings.clock_text(self.turn),
+            settings.LIFE_CATEGORY,
+            f"夜班消耗：{detail}（当前 {current}）",
+        )
+
+    def _announce_ap_penalty(self) -> None:
+        """体力档位扣行动点时，补一条明确提示（否则玩家只会觉得“少了”）。"""
+        penalty = self.player.life_ap_penalty()
+        if penalty <= 0:
+            return
+        text = f"体力不支：本回合行动点 −{penalty}（体力 {self.player.energy}）"
+        self.logs.add(
+            self.turn,
+            settings.clock_text(self.turn),
+            settings.LIFE_CATEGORY,
+            text,
+        )
+        self.push_message(text, settings.RED if penalty >= settings.LIFE_AP_PENALTY_HEAVY else settings.ORANGE)
+
+    def adjust_life(self, key: str, delta: int, reason: str, *, push: bool = True) -> int:
+        """修改生活数值：写一条「生活」日志并推送消息。"""
+        if key not in settings.LIFE_KEYS:
+            return 0
+        actual = self.player.adjust_life(key, delta, reason)
+        if actual == 0:
+            return 0
+        label = settings.LIFE_LABELS.get(key, key)
+        text = f"{label} {settings.format_signed(actual)}（{reason}）"
+        self.logs.add(
+            self.turn,
+            settings.clock_text(self.turn),
+            settings.LIFE_CATEGORY,
+            text,
+        )
+        if push:
+            self.push_message(text, settings.GREEN if actual > 0 else settings.RED)
+        return actual
+
+    def adjust_action_points(self, delta: int, reason: str, *, push: bool = True) -> int:
+        """直接增减当前行动点（clamp 到 0–99），不进公司指标日志。"""
+        delta = int(delta)
+        if delta == 0:
+            return 0
+        old = int(self.player.action_points)
+        new = max(0, min(99, old + delta))
+        actual = new - old
+        if actual == 0:
+            return 0
+        self.player.action_points = new
+        text = f"行动点 {settings.format_signed(actual)}（{reason}）"
+        self.logs.add(
+            self.turn,
+            settings.clock_text(self.turn),
+            settings.LIFE_CATEGORY,
+            text,
+        )
+        if push:
+            self.push_message(text, settings.GREEN if actual > 0 else settings.ORANGE)
         return actual
 
     def spend_resources(self, ap: int, money: int, reason: str) -> bool:
@@ -1686,6 +1845,8 @@ class Game:
         self.log_panel.draw(self.screen, self)
         self.action_panel.draw(self.screen, self)
         self._draw_bottom()
+        # 顶栏「值班员状态」的悬停提示最后画，避免被下面的面板盖住
+        self.dashboard.draw_tooltip(self.screen)
 
     def _draw_turn_recap(self) -> None:
         """B1：推进回合后的 1.7 秒“呼吸”，压在拓扑图上，不挡告警列表。"""

@@ -25,6 +25,10 @@ class DecisionScreen:
         choices = decision.get("choices", [])
         if not isinstance(choices, list):
             choices = []
+        # 三个选项时把浮层加高，保证按钮不越过面板底边（1280x720 不能溢出）
+        count = max(1, min(3, len([item for item in choices if isinstance(item, dict)])))
+        height = 400 + max(0, count - 2) * 74
+        self.rect = pygame.Rect(230, 150, 820, height)
         for index, choice in enumerate(choices[:3]):
             if not isinstance(choice, dict):
                 continue
@@ -47,14 +51,23 @@ class DecisionScreen:
     def draw(self, surface: pygame.Surface, game: "object") -> None:
         if not self.visible or not self.decision:
             return
+        is_life = str(self.decision.get("kind", "") or "") == "life"
         overlay = draw_utils.dim_surface(surface.get_size(), 210)
         surface.blit(overlay, (0, 0))
-        pygame.draw.rect(surface, settings.PANEL_BG, self.rect, border_radius=12)
+        # 生活场景用暖色底 + 暖色标题/竖条，和值班决策区分开
+        pygame.draw.rect(surface, (26, 21, 16) if is_life else settings.PANEL_BG, self.rect, border_radius=12)
         pygame.draw.rect(surface, settings.ORANGE, self.rect, 1, border_radius=12)
+        if is_life:
+            pygame.draw.rect(
+                surface,
+                settings.ORANGE,
+                (self.rect.x + 7, self.rect.y + 16, 4, self.rect.height - 32),
+                border_radius=2,
+            )
 
         tiny = draw_utils.get_font(11)
         speaker = str(self.decision.get("speaker", "")).strip()
-        header = f"第 {game.turn} 回合 · 值班决策"
+        header = f"第 {game.turn} 回合 · {'生活场景' if is_life else '值班决策'}"
         if speaker:
             header += f" · {speaker}"
         surface.blit(
@@ -63,7 +76,11 @@ class DecisionScreen:
         )
         title_font = draw_utils.get_font(26, True)
         surface.blit(
-            title_font.render(str(self.decision.get("title", "紧急决策")), True, settings.TEXT),
+            title_font.render(
+                str(self.decision.get("title", "紧急决策")),
+                True,
+                settings.YELLOW if is_life else settings.TEXT,
+            ),
             (self.rect.x + 42, self.rect.y + 48),
         )
         draw_utils.draw_text_block(
@@ -77,8 +94,13 @@ class DecisionScreen:
             max_lines=4,
         )
         hint_font = draw_utils.get_font(11)
+        note = (
+            settings.LIFE_DECISION_NOTE
+            if is_life
+            else "选项只显示可预知的直接成本；安全影响可能在 1–3 回合后显现。"
+        )
         surface.blit(
-            hint_font.render("选项只显示可预知的直接成本；安全影响可能在 1–3 回合后显现。", True, settings.TEXT_FAINT),
+            hint_font.render(note, True, settings.TEXT_FAINT),
             (self.rect.x + 42, self.rect.y + 184),
         )
         mouse_pos = pygame.mouse.get_pos()

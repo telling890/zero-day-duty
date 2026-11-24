@@ -172,9 +172,24 @@
           color: 'var(--blue)',
           ratio: player.integrity / 100,
         },
+        {
+          // 生活线：一格装三行（体 / 心 / 家），否则顶栏会溢出
+          cls: 'life',
+          label: '值班员状态',
+          title: '体力影响每回合行动点；心情影响调查判断力；家庭影响结局评价。',
+          html: this.lifeCellHtml(player),
+          values: [player.energy, player.mood, player.family],
+        },
       ];
 
       this.refs.metrics.innerHTML = cells.map((cell) => {
+        if (cell.html) {
+          return `
+          <div class="metric ${cell.cls}" role="listitem" title="${esc(cell.title || cell.label)}">
+            ${cell.html}
+          </div>
+        `;
+        }
         const delta = Number(cell.delta || 0);
         const deltaHtml = delta
           ? `<span class="metric-delta ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '+' : ''}${delta}</span>`
@@ -203,6 +218,59 @@
       return match ? Number(match[0]) : null;
     }
 
+    /**
+     * 顶栏「值班员状态」：一行一个数值（体 / 心 / 家），细条 + 数字。
+     * 低于阈值（体力 <30、心情 <40、家庭 ≤25）转红——不用颜色单独承载信息，
+     * 数字与进度条同时在场，色盲用户也读得出来。
+     */
+    lifeCellHtml(player) {
+      const alert = ZDD.LIFE_ALERT || { energy: 30, mood: 40, family: 25 };
+      const rows = [
+        {
+          key: 'energy',
+          short: (ZDD.LIFE_SHORT && ZDD.LIFE_SHORT.energy) || '体',
+          label: '体力',
+          value: Number(player.energy),
+          color: 'var(--green)',
+          danger: Number(player.energy) < alert.energy,
+          hint: '体力 <55 会扣行动点',
+        },
+        {
+          key: 'mood',
+          short: (ZDD.LIFE_SHORT && ZDD.LIFE_SHORT.mood) || '心',
+          label: '心情',
+          value: Number(player.mood),
+          color: 'var(--purple)',
+          danger: Number(player.mood) < alert.mood,
+          hint: '心情 <40 会降低判断力',
+        },
+        {
+          key: 'family',
+          short: (ZDD.LIFE_SHORT && ZDD.LIFE_SHORT.family) || '家',
+          label: '家庭',
+          value: Number(player.family),
+          color: 'var(--orange)',
+          danger: Number(player.family) <= alert.family,
+          hint: '家庭 ≤25 会影响结局',
+        },
+      ];
+      const html = rows.map((row) => {
+        const tone = row.danger ? 'var(--red)' : row.color;
+        const width = Math.max(0, Math.min(100, row.value));
+        return `
+          <span class="life-row" data-key="${row.key}" data-danger="${row.danger ? 'true' : 'false'}" title="${esc(`${row.label} ${row.value} · ${row.hint}`)}">
+            <span class="life-key">${esc(row.short)}</span>
+            <b class="life-num" style="color:${tone}">${row.value}</b>
+            <span class="life-track" style="color:${tone}"><i style="width:${width}%"></i></span>
+          </span>
+        `;
+      }).join('');
+      return `
+        <div class="metric-label">值班员状态</div>
+        <div class="life-rows" role="list" aria-label="值班员状态：体力、心情、家庭">${html}</div>
+      `;
+    }
+
     /** 只有“单个数字”的指标才做滚动；回合/威胁/行动点是分数形式，直接跳过。 */
     metricFormat(key) {
       const map = {
@@ -222,6 +290,22 @@
       for (const cell of cells) {
         const key = String(cell.cls).split(' ')[0];
         next[key] = cell;
+        // 生活格是三条数值的复合格：不打滚动，只按“有没有掉”闪一下
+        if (cell.values) {
+          const before = previous[key];
+          if (before && Array.isArray(before.values)) {
+            const from = before.values.map(Number);
+            const to = cell.values.map(Number);
+            if (from.some((value, index) => value !== to[index])) {
+              const node = this.refs.metrics.querySelector(`.metric.${key}`);
+              if (node) {
+                const dropped = to.some((value, index) => value < from[index]);
+                node.classList.add(dropped ? 'tick-down' : 'tick-up');
+              }
+            }
+          }
+          continue;
+        }
         const format = this.metricFormat(key);
         if (!format) continue;
         const before = previous[key];
@@ -493,7 +577,7 @@
       if (atBottom) this.logStickToBottom = true;
       this.lastLogScroll = list.scrollTop;
 
-      const categories = ['全部', '邮件', '登录', '网络', '告警', '操作', '情报', '系统'];
+      const categories = ['全部', '邮件', '登录', '网络', '告警', '操作', '情报', '生活', '系统'];
       this.refs.logChips.innerHTML = categories.map((category) => `
         <button type="button" class="chip" role="tab" data-category="${esc(category)}"
           aria-selected="${category === ui.logCategory}">${esc(category)}</button>

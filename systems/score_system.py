@@ -25,6 +25,8 @@ class ScoreReport:
     doctrine: str = "混合型"
     timeline: list[dict[str, Any]] = field(default_factory=list)
     review: dict[str, Any] = field(default_factory=dict)
+    # 生活线：{"available", "energy", "mood", "family", "score", "comment"}
+    life: dict[str, Any] = field(default_factory=dict)
 
 
 ENDINGS = {
@@ -69,6 +71,19 @@ STYLE_COMMENTS = {
     "善后不足型": "你成功压制了攻击，但把清除根因留到了最后；控制不等于解决。",
 }
 
+# 生活评语（唯一权威文案）：按顺序匹配，命中第一条即用
+LIFE_COMMENTS = (
+    (lambda energy, mood, family: family <= settings.LIFE_FAMILY_BROKEN, "公司守住了，家里的灯没等到你。"),
+    (lambda energy, mood, family: energy <= settings.LIFE_ENERGY_BROKEN, "你守住了系统，但没守住自己。"),
+    (
+        lambda energy, mood, family: family >= settings.LIFE_FAMILY_BONDED
+        and energy >= settings.LIFE_ENERGY_BONDED,
+        "回家时天刚亮，家里还给你留着一份早饭。",
+    ),
+    (lambda energy, mood, family: mood <= settings.LIFE_MOOD_BROKEN, "整晚都在硬撑，你的判断力比平时差了一截。"),
+)
+LIFE_COMMENT_FALLBACK = "夜班结束，你还站得住。"
+
 
 class ScoreSystem:
     """根据结算数据计算分数、等级、结局与风格评价。"""
@@ -77,8 +92,11 @@ class ScoreSystem:
 
     def evaluate(self, summary: dict[str, Any]) -> ScoreReport:
         ending_key = self._choose_ending(summary)
-        ending_title, ending_text = ENDINGS[ending_key]
-        score = self._score(summary)
+        ending_title, ending_base = ENDINGS[ending_key]
+        life = self._life(summary)
+        # 生活评语只放在结算的「生活」区块里，结局正文保持公司叙事，避免同一句话出现两次
+        ending_text = ending_base
+        score = self._score(summary, life)
         grade = self._cap_grade(self._grade(score), ending_key)
         style = self._style(summary)
         stats = self._stats(summary)
@@ -98,7 +116,41 @@ class ScoreSystem:
             doctrine=str(summary.get("doctrine", "混合型")),
             timeline=list(summary.get("timeline", [])),
             review=self._review(summary),
+            life=life,
         )
+
+    # ------------------------------------------------------------------
+    def _life(self, summary: dict[str, Any]) -> dict[str, Any]:
+        """生活分与结局评语。
+
+        summary 里没有生活字段时安全降级：生活分视为中性（不加减分）、评语为空，
+        这样手工构造的结算数据（例如测试里的旧用例）不会抛 KeyError。
+        """
+        if not all(key in summary for key in settings.LIFE_KEYS):
+            return {
+                "available": False,
+                "energy": None,
+                "mood": None,
+                "family": None,
+                "score": settings.LIFE_SCORE_BASELINE,
+                "comment": "",
+            }
+        energy = int(summary.get("energy", settings.INITIAL_ENERGY))
+        mood = int(summary.get("mood", settings.INITIAL_MOOD))
+        family = int(summary.get("family", settings.INITIAL_FAMILY))
+        comment = LIFE_COMMENT_FALLBACK
+        for matched, text in LIFE_COMMENTS:
+            if matched(energy, mood, family):
+                comment = text
+                break
+        return {
+            "available": True,
+            "energy": energy,
+            "mood": mood,
+            "family": family,
+            "score": settings.life_score(energy, mood, family),
+            "comment": comment,
+        }
 
     def _review(self, summary: dict[str, Any]) -> dict[str, Any]:
         """从真实记录的时间线提取复盘，不按最终分数反推。"""
@@ -159,6 +211,19 @@ class ScoreSystem:
             achievements.append("闪电响应")
         if int(summary.get("funds", 0)) >= 1000:
             achievements.append("预算管家")
+        # 生活线成就按顺序补在原有成就后面（总数仍然最多 5 个）
+        if all(key in summary for key in settings.LIFE_KEYS):
+            energy = int(summary["energy"])
+            mood = int(summary["mood"])
+            family = int(summary["family"])
+            if (
+                energy >= settings.LIFE_ACHIEVEMENT_BALANCE
+                and mood >= settings.LIFE_ACHIEVEMENT_BALANCE
+                and family >= settings.LIFE_ACHIEVEMENT_BALANCE
+            ):
+                achievements.append("生活还在")
+            if family <= settings.LIFE_ACHIEVEMENT_FAMILY_LOST:
+                achievements.append("只赢了公司")
         return achievements[:5]
 
     # ------------------------------------------------------------------
@@ -194,7 +259,7 @@ class ScoreSystem:
         )
         return "perfect" if perfect else "costly"
 
-    def _score(self, summary: dict[str, Any]) -> int:
+    def _score(self, summary: dict[str, Any], life: dict[str, Any] | None = None) -> int:
         security = int(summary.get("security", 0))
         integrity = int(summary.get("integrity", 0))
         reputation = int(summary.get("reputation", 0))
@@ -221,6 +286,9 @@ class ScoreSystem:
         score -= false_isolations * 12
         score -= missed * 15
         score -= controlled_only * 2
+        # 生活分对总分：约 -6 ~ +5；缺生活数据时按中性 55 处理，不加减分
+        life_score = int((life or {}).get("score", settings.LIFE_SCORE_BASELINE))
+        score += round((life_score - settings.LIFE_SCORE_BASELINE) * settings.LIFE_SCORE_WEIGHT)
         return int(max(0, min(130, round(score))))
 
     def _grade(self, score: int) -> str:

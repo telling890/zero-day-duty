@@ -15,6 +15,9 @@ class MetricKey:
     REPUTATION = "reputation"
     AVAILABILITY = "availability"
     INTEGRITY = "integrity"
+    ENERGY = "energy"
+    MOOD = "mood"
+    FAMILY = "family"
 
 
 METRIC_LABELS = {
@@ -24,6 +27,12 @@ METRIC_LABELS = {
     MetricKey.AVAILABILITY: "服务可用性",
     MetricKey.INTEGRITY: "数据完整度",
 }
+
+LIFE_LABELS = dict(settings.LIFE_LABELS)
+# 公司指标 + 生活数值的合并标签表，供结算时间线/隐藏影响文案使用
+ALL_LABELS = dict(METRIC_LABELS)
+ALL_LABELS.update(LIFE_LABELS)
+ALL_LABELS["action_points"] = "行动点"
 
 
 @dataclass(frozen=True)
@@ -48,6 +57,15 @@ def new_stats() -> dict[str, Any]:
     }
 
 
+def _clamp_life(value: object, default: int = 0) -> int:
+    """把生活数值夹到 0–100 的整数，脏数据用初始值兜底。"""
+    try:
+        number = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        number = int(default)
+    return max(settings.LIFE_MIN, min(settings.LIFE_MAX, number))
+
+
 class PlayerState:
     """公司值班员的全局资源与指标。"""
 
@@ -60,6 +78,9 @@ class PlayerState:
         availability: int = settings.INITIAL_AVAILABILITY,
         integrity: int = settings.INITIAL_INTEGRITY,
         action_points: int = settings.ACTION_POINTS_PER_TURN,
+        energy: int = settings.INITIAL_ENERGY,
+        mood: int = settings.INITIAL_MOOD,
+        family: int = settings.INITIAL_FAMILY,
     ) -> None:
         self.security = security
         self.funds = funds
@@ -67,6 +88,10 @@ class PlayerState:
         self.availability = availability
         self.integrity = integrity
         self.action_points = action_points
+        # 生活线：体力 / 心情 / 家庭
+        self.energy = _clamp_life(energy)
+        self.mood = _clamp_life(mood)
+        self.family = _clamp_life(family)
         self.max_action_points = settings.ACTION_POINTS_PER_TURN
         self.turn = 0
         self.total_turns = settings.TOTAL_TURNS
@@ -80,6 +105,8 @@ class PlayerState:
     def _bounds(self, key: str) -> tuple[int, int]:
         if key == MetricKey.FUNDS:
             return 0, 999999
+        if key in settings.LIFE_KEYS:
+            return settings.LIFE_MIN, settings.LIFE_MAX
         return 0, 100
 
     def value(self, key: str) -> int:
@@ -109,6 +136,39 @@ class PlayerState:
         return self.changes[-limit:]
 
     # ------------------------------------------------------------------
+    # 生活线：体力 / 心情 / 家庭
+    # ------------------------------------------------------------------
+    def adjust_life(self, key: str, delta: int, reason: str) -> int:
+        """修改生活数值并记录原因，返回实际变化量（可能被 0–100 截断）。"""
+        if key not in settings.LIFE_KEYS:
+            return 0
+        return self.adjust(key, delta, reason)
+
+    def decay_life(self) -> dict[str, int]:
+        """夜班消耗：体力 -3 / 心情 -2 / 家庭 -3，返回每项实际变化量。"""
+        actual: dict[str, int] = {}
+        for key in settings.LIFE_KEYS:
+            actual[key] = self.adjust(key, int(settings.LIFE_DECAY[key]), "夜班消耗")
+        return actual
+
+    @property
+    def life_score(self) -> int:
+        return settings.life_score(self.energy, self.mood, self.family)
+
+    def life_ap_penalty(self) -> int:
+        """体力档位带来的行动点惩罚：>=55 无惩罚，30–54 减 1，<30 减 2。"""
+        if self.energy < settings.LIFE_AP_LOW_ENERGY:
+            return settings.LIFE_AP_PENALTY_HEAVY
+        if self.energy < settings.LIFE_AP_FULL_ENERGY:
+            return settings.LIFE_AP_PENALTY_LIGHT
+        return 0
+
+    def ap_for_turn(self, bonus: int = 0) -> int:
+        """本回合行动点 = max(下限 3, 基数 + 加成 - 体力惩罚)。"""
+        base = int(self.max_action_points) + int(bonus)
+        return max(settings.LIFE_AP_FLOOR, base - self.life_ap_penalty())
+
+    # ------------------------------------------------------------------
     # 资源
     # ------------------------------------------------------------------
     def can_pay(self, ap: int, money: int) -> bool:
@@ -122,9 +182,9 @@ class PlayerState:
             self.adjust(MetricKey.FUNDS, -money, reason)
         return True
 
-    def refresh_turn(self, turn: int) -> None:
+    def refresh_turn(self, turn: int, ap_bonus: int = 0) -> None:
         self.turn = turn
-        self.action_points = self.max_action_points
+        self.action_points = self.ap_for_turn(ap_bonus)
 
     # ------------------------------------------------------------------
     # 判定
@@ -152,6 +212,9 @@ class PlayerState:
             "availability": self.availability,
             "integrity": self.integrity,
             "action_points": self.action_points,
+            "energy": self.energy,
+            "mood": self.mood,
+            "family": self.family,
             "max_action_points": self.max_action_points,
             "turn": self.turn,
             "total_turns": self.total_turns,
@@ -172,6 +235,10 @@ class PlayerState:
             availability=int(data.get("availability", settings.INITIAL_AVAILABILITY)),
             integrity=int(data.get("integrity", settings.INITIAL_INTEGRITY)),
             action_points=int(data.get("action_points", settings.ACTION_POINTS_PER_TURN)),
+            # 旧存档没有这三个字段：按初始值补齐，存档版本号仍然保持 1
+            energy=_clamp_life(data.get("energy", settings.INITIAL_ENERGY), settings.INITIAL_ENERGY),
+            mood=_clamp_life(data.get("mood", settings.INITIAL_MOOD), settings.INITIAL_MOOD),
+            family=_clamp_life(data.get("family", settings.INITIAL_FAMILY), settings.INITIAL_FAMILY),
         )
         state.max_action_points = int(data.get("max_action_points", settings.ACTION_POINTS_PER_TURN))
         state.turn = int(data.get("turn", 0))
@@ -206,6 +273,9 @@ class PlayerState:
             MetricKey.REPUTATION: self.reputation,
             MetricKey.AVAILABILITY: self.availability,
             MetricKey.INTEGRITY: self.integrity,
+            "energy": self.energy,
+            "mood": self.mood,
+            "family": self.family,
             "action_points": self.action_points,
             "turn": self.turn,
         }

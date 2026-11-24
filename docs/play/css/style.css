@@ -1943,7 +1943,8 @@ ol {
 
 .result-grid {
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr) minmax(0, 0.72fr);
+  align-items: stretch;
   gap: 14px;
   margin-top: 16px;
 }
@@ -4475,5 +4476,255 @@ body.script-open #fx-feedback {
   .services-grid .service.back,
   .action-hint.is-feedback {
     animation: none !important;
+  }
+}
+
+/* ==========================================================================
+   生活线（v1.9.0）：值班员状态格 · 生活场景 · 结算生活卡
+   ========================================================================== */
+
+/* 顶栏多了「值班员状态」一格：把最小列宽收窄一点，
+   保证 1280×720 下九格都在同一行（.metrics 本身可横向滚动，但不该需要滚）。 */
+.metrics {
+  grid-auto-columns: minmax(84px, 1fr);
+}
+
+/* 1280 / 1366 这类办公室屏：顶栏要塞下品牌 + 九格 + 五个按钮。
+   按钮与指标各让几个像素，九格就能整行铺开，不会裁掉最后一格。 */
+@media (max-width: 1400px) {
+  .metrics {
+    grid-auto-columns: minmax(82px, 1fr);
+  }
+
+  .metrics .metric {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .top-actions {
+    gap: 4px;
+  }
+
+  .top-actions .icon-btn {
+    padding: 6px 8px;
+  }
+}
+
+/* ---------------------------- 值班员状态一格 ---------------------------- */
+.metric.life {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 1px 8px 3px;
+}
+
+.metric.life .metric-label {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+
+.life-rows {
+  display: grid;
+  gap: 1px;
+  margin-top: 1px;
+}
+
+/* 单字标签 + 数字 + 细进度条：三行塞进一格，不拆成三格 */
+.life-row {
+  display: grid;
+  grid-template-columns: 10px minmax(14px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 3px;
+  line-height: 1.2;
+}
+
+.life-key {
+  font-size: 9px;
+  color: var(--dim);
+  text-align: center;
+}
+
+.life-num {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.life-track {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: rgb(var(--border-rgb) / 0.8);
+  overflow: hidden;
+}
+
+.life-track i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: currentColor;
+  transition: width 320ms ease;
+}
+
+/* 低于阈值：体力 <30、心情 <40、家庭 ≤25 → 整行转红（数字与条一起） */
+.life-row[data-danger="true"] .life-key {
+  color: var(--red);
+}
+
+/* ---------------------------- 日志「生活」分类 ---------------------------- */
+.log-line[data-cat="生活"] {
+  --cat-color: var(--orange);
+}
+
+/* ---------------------------- 生活场景决策浮层 ---------------------------- */
+/* 暖色：卡片描边 + 标题（黄），与「值班决策」的橙红区分开 */
+.modal-card.life-decision {
+  border-color: rgb(var(--yellow-rgb) / 0.55);
+}
+
+.decision-card.life {
+  border-left: 3px solid var(--yellow);
+  padding-left: 12px;
+  color: var(--yellow);
+}
+
+.choice.life:hover {
+  border-color: var(--yellow);
+  transform: translateX(2px);
+}
+
+/* ---------------------------- 结算生活卡 ---------------------------- */
+.result-life {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid rgb(var(--orange-rgb) / 0.3);
+  background: var(--panel-alt);
+}
+
+.result-life h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.result-life h3 span {
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.result-life-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.life-item {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.life-item-label {
+  font-size: 10px;
+  color: var(--faint);
+}
+
+.life-item-value {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.life-item.score .life-item-value {
+  color: var(--accent);
+}
+
+.life-item-bar {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(var(--border-rgb) / 0.8);
+  overflow: hidden;
+}
+
+.life-item-bar em {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.life-comment {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-light);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--dim);
+}
+
+/* ---------------------------- 窄屏 ---------------------------- */
+@media (max-width: 980px) {
+  /* 指标改成网格铺开，生活格的三行反而更宽松一点 */
+  .metric.life {
+    padding: 2px 8px 3px;
+  }
+
+  .metric.life .metric-label {
+    font-size: 9px;
+  }
+
+  .life-num {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 560px) {
+  /* 手机上九格两列：生活格保持一格，行高再压一点，390px 宽不溢出 */
+  .metric.life {
+    padding: 1px 6px 2px;
+  }
+
+  .metric.life .metric-label {
+    font-size: 8.5px;
+  }
+
+  .life-row {
+    grid-template-columns: 9px minmax(12px, auto) minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .life-key {
+    font-size: 8px;
+  }
+
+  .life-num {
+    font-size: 9.5px;
+  }
+
+  .life-track {
+    height: 2px;
+  }
+
+  .result-life-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .result-life {
+    padding: 10px 12px 12px;
   }
 }

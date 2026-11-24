@@ -134,7 +134,21 @@ try {
   await session.evaluate(`__zdd.terminal.run('next')`);
   await sleep(420);
   session.check('next 推进到第 2 回合', (await session.evaluate(`__zdd.game.turn`)) === 2);
-  session.check('推进后终端仍在', await session.evaluate(`!document.getElementById('terminal').hidden`));
+  // v1.9.0：第 2 回合会先弹出生活场景，终端按既有规则收起（“关闭终端后处理决策”）
+  const pendingAfterNext = await session.evaluate(`(() => ({
+    hidden: document.getElementById('terminal').hidden,
+    kind: __zdd.game.pendingDecision ? String(__zdd.game.pendingDecision.kind || 'story') : '',
+  }))()`);
+  session.check(
+    '推进后终端让位给生活场景',
+    pendingAfterNext.hidden === true && pendingAfterNext.kind === 'life',
+    JSON.stringify(pendingAfterNext),
+  );
+  // 选掉生活场景，重新打开终端继续后面的命令检查
+  await session.evaluate(`__zdd.game.chooseDecision(0)`);
+  await session.evaluate(`__zdd.terminal.open()`);
+  await sleep(320);
+  session.check('选完生活场景后终端可重新打开', await session.evaluate(`!document.getElementById('terminal').hidden`));
 
   await session.evaluate(`__zdd.terminal.run('scna PC-01')`);
   const errorText = await session.evaluate(`document.getElementById('term-screen').textContent`);

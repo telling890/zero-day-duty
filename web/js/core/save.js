@@ -9,7 +9,6 @@
   const SAVE_VERSION = 1;
   const SAVE_KEY = 'zdd.savegame.v1';
   const HISTORY_KEY = 'zdd.history.v1';
-
   function pad2(value) {
     return String(value).padStart(2, '0');
   }
@@ -74,6 +73,9 @@
         pending_delayed: game.pendingDelayed.map((item) => Object.assign({}, item)),
         decision_history: game.decisionHistory.map((item) => Object.assign({}, item)),
         rng_state: game.rng.getState(),
+        // 生活线（体力 / 心情 / 家庭）随 player 一起存取：
+        // 版本号仍然是 1（不 bump，旧存档不作废），缺字段时由
+        // PlayerState.fromDict 用初始值 72 / 70 / 60 补齐。
         player: game.player.toDict(),
         devices: Object.fromEntries(
           Object.entries(game.devices).map(([id, device]) => [id, device.toState()]),

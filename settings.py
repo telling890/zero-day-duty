@@ -53,7 +53,7 @@ HISTORY_FILE = SAVE_DIR / "history.json"
 # 基本信息
 # ---------------------------------------------------------------------------
 GAME_TITLE = "零日值班：网络安全防御模拟器"
-GAME_VERSION = "v1.8.0"
+GAME_VERSION = "v1.9.0"
 COMPANY_NAME = "云栖示例科技（虚构）"
 
 SCREEN_WIDTH = 1280
@@ -81,6 +81,56 @@ INTEGRITY_FAIL = 20         # 数据完整度 <= 20 判负
 AVAILABILITY_FAIL = 40      # 可用性低于该值并持续若干回合判负
 AVAILABILITY_FAIL_TURNS = 3
 FUNDS_WARN = 120            # 资金低于该值时给出提示（第一阶段不做资金判负）
+
+# ---------------------------------------------------------------------------
+# 生活线（v1.9.0）：体力 / 心情 / 家庭
+# ---------------------------------------------------------------------------
+INITIAL_ENERGY = 72         # 初始体力
+INITIAL_MOOD = 70           # 初始心情
+INITIAL_FAMILY = 60         # 初始家庭
+
+LIFE_MIN = 0                # 三条生活数值的取值范围
+LIFE_MAX = 100
+
+LIFE_KEYS = ("energy", "mood", "family")
+LIFE_LABELS = {"energy": "体力", "mood": "心情", "family": "家庭"}
+LIFE_SHORT_LABELS = {"energy": "体", "mood": "心", "family": "家"}
+
+# 每回合消耗：第 1 回合不结算，从第 2 回合开始，在回合开始时、恢复行动点之前结算
+LIFE_DECAY = {"energy": -3, "mood": -2, "family": -3}
+LIFE_DECAY_START_TURN = 2
+
+# 体力 → 行动点：>= 55 满 AP；30–54 减 1；< 30 减 2；AP 下限 3
+LIFE_AP_FULL_ENERGY = 55
+LIFE_AP_LOW_ENERGY = 30
+LIFE_AP_PENALTY_LIGHT = 1
+LIFE_AP_PENALTY_HEAVY = 2
+LIFE_AP_FLOOR = 3
+
+# 心情 → 判断力：心情 < 40 时调查置信度再 -0.10
+LIFE_MOOD_FOCUS = 40
+LIFE_MOOD_CONFIDENCE_PENALTY = -0.10
+
+# 家庭 / 体力 / 心情 → 结局评语阈值
+LIFE_FAMILY_BROKEN = 25
+LIFE_ENERGY_BROKEN = 25
+LIFE_FAMILY_BONDED = 70
+LIFE_ENERGY_BONDED = 50
+LIFE_MOOD_BROKEN = 30
+
+# 生活相关成就阈值
+LIFE_ACHIEVEMENT_BALANCE = 60
+LIFE_ACHIEVEMENT_FAMILY_LOST = 20
+
+# 生活分对总分的加成：score += round((生活分 - 55) * 0.12)
+LIFE_SCORE_BASELINE = 55
+LIFE_SCORE_WEIGHT = 0.12
+
+LIFE_CATEGORY = "生活"
+LIFE_TOOLTIP = "体力影响每回合行动点；心情影响调查判断力；家庭影响结局评价。"
+LIFE_DECISION_NOTE = (
+    "生活选择会改变体力、心情与家庭：体力影响每回合行动点，心情影响判断力，家庭影响结局评价。"
+)
 
 # ---------------------------------------------------------------------------
 # 风险估计
@@ -165,6 +215,19 @@ METRIC_COLORS = {
     "reputation": PURPLE,
     "availability": GREEN,
     "integrity": BLUE,
+}
+
+# 生活线颜色：体力绿、心情紫、家庭橙；低于阈值时变红
+LIFE_COLORS = {
+    "energy": GREEN,
+    "mood": PURPLE,
+    "family": ORANGE,
+}
+
+LIFE_ALERT = {
+    "energy": LIFE_AP_LOW_ENERGY,   # 体力 < 30 变红
+    "mood": LIFE_MOOD_FOCUS,        # 心情 < 40 变红
+    "family": LIFE_FAMILY_BROKEN,   # 家庭 <= 25 变红
 }
 
 # ---------------------------------------------------------------------------
@@ -299,6 +362,35 @@ def clock_text(turn: int) -> str:
 
 def format_money(value: int) -> str:
     return f"¥{value}"
+
+
+def format_signed(value: int) -> str:
+    """带符号整数：负数用规范里的减号（U+2212），例如 “−3”。"""
+    value = int(value)
+    if value > 0:
+        return f"+{value}"
+    if value < 0:
+        return f"\u2212{abs(value)}"
+    return "0"
+
+
+def life_score(energy: int, mood: int, family: int) -> int:
+    """生活分 = round((体力 + 心情 + 家庭) / 3)。"""
+    total = int(energy) + int(mood) + int(family)
+    # 四舍五入用 round（Python 的 banker's rounding 对 .5 会取偶，这里保持规范写法）
+    return int(round(total / 3))
+
+
+def life_color(key: str, value: int) -> tuple[int, int, int]:
+    """生活数值的颜色：低于阈值时变红，否则用各自的基准色。"""
+    value = int(value)
+    if key == "energy" and value < LIFE_ALERT["energy"]:
+        return RED
+    if key == "mood" and value < LIFE_ALERT["mood"]:
+        return RED
+    if key == "family" and value <= LIFE_ALERT["family"]:
+        return RED
+    return LIFE_COLORS.get(key, TEXT_DIM)
 
 
 # ---------------------------------------------------------------------------

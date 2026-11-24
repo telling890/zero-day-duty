@@ -60,7 +60,8 @@ class ResultScreen:
             settings.TEXT_DIM,
             (self.rect.x + 40, self.rect.y + 100),
             self.rect.width - 80,
-            line_height=20,
+            line_height=18,
+            max_lines=3,
         )
         if report.news_headline:
             news_label = tiny.render("早间新闻", True, settings.ORANGE)
@@ -150,6 +151,9 @@ class ResultScreen:
                 )
                 x = tag_rect.right + 8
 
+        # 生活线区块：成就行下方、脚注上方（高度压到 46px，避免压住脚注）
+        self._draw_life(surface, report)
+
         # 免责声明与按钮
         footnote = "本局所有数据均为虚构；同一随机种子 + 同一难度可复现。"
         surface.blit(tiny.render(footnote, True, settings.TEXT_FAINT), (self.rect.x + 40, self.rect.bottom - 54))
@@ -159,6 +163,47 @@ class ResultScreen:
         self.timeline_button.draw(surface, mouse_pos)
         if self.timeline_visible:
             self._draw_timeline(surface, report, mouse_pos)
+
+    # ------------------------------------------------------------------
+    def _draw_life(self, surface: pygame.Surface, report: ScoreReport) -> None:
+        """生活区块：体力 / 心情 / 家庭三条细条 + 生活分 + 一句评语。"""
+        life = report.life or {}
+        if not life.get("available"):
+            return
+        tiny = draw_utils.get_font(11)
+        value_font = draw_utils.get_font(12, True)
+        rect = pygame.Rect(self.rect.x + 40, self.rect.y + 536, 700, 46)
+        pygame.draw.rect(surface, settings.PANEL_BG_ALT, rect, border_radius=8)
+        pygame.draw.rect(surface, settings.PANEL_BORDER, rect, 1, border_radius=8)
+        surface.blit(tiny.render("生活", True, settings.ORANGE), (rect.x + 12, rect.y + 6))
+
+        x = rect.x + 52
+        for key in settings.LIFE_KEYS:
+            value = int(life.get(key) or 0)
+            color = settings.life_color(key, value)
+            short = settings.LIFE_SHORT_LABELS.get(key, key)
+            surface.blit(value_font.render(f"{short} {value}", True, color), (x, rect.y + 5))
+            draw_utils.draw_bar(
+                surface,
+                pygame.Rect(x + 44, rect.y + 10, 96, 5),
+                value / 100.0,
+                color,
+                background=(30, 42, 58),
+            )
+            x += 150
+
+        score = int(life.get("score", 0))
+        score_color = settings.GREEN if score >= 60 else (settings.ORANGE if score >= 40 else settings.RED)
+        surface.blit(
+            tiny.render(f"生活分 {score}", True, score_color),
+            (rect.x + 508, rect.y + 6),
+        )
+        comment = draw_utils.ellipsize(
+            str(life.get("comment", "")),
+            tiny,
+            rect.width - 52 - 12,
+        )
+        surface.blit(tiny.render(comment, True, settings.TEXT_DIM), (rect.x + 52, rect.y + 26))
 
     @staticmethod
     def _dangerous_text(info: object) -> str:

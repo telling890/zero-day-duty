@@ -183,10 +183,9 @@ try {
 
   // next() 连续推进；先控制住邮件事件，避免第 3 回合末直接数据泄露掩盖决策测试
   await setCode('isolate("PC-01")\nnext()\nnext()\nnext()\nprint("不会执行到这里")');
-  await session.click('#script-run');
-  await sleep(3000);
-  const decision = await session.evaluate(`(() => ({
+  const readDecision = () => session.evaluate(`(() => ({
     pending: Boolean(__zdd.game.pendingDecision),
+    kind: __zdd.game.pendingDecision ? String(__zdd.game.pendingDecision.kind || 'story') : '',
     hidden: document.getElementById('script').hidden,
     turn: __zdd.game.turn,
     state: __zdd.game.state,
@@ -197,8 +196,28 @@ try {
     logs: __zdd.game.logs.entries.slice(-8).map((entry) => entry.message),
     status: document.getElementById('script-status').textContent,
   }))()`);
+  // v1.9.0：第 2 / 3 回合会先弹出生活场景（kind = life），脚本同样会暂停；
+  // 选掉生活场景再继续，剧情决策的断言保持原样。
+  let decision = null;
+  let lifeScenes = 0;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await session.evaluate('__zdd.script.open()');
+    await sleep(200);
+    await session.click('#script-run');
+    await sleep(2600);
+    decision = await readDecision();
+    if (!decision.pending || decision.kind !== 'life') break;
+    lifeScenes += 1;
+    await session.click('[data-act="decision-choose"][data-index="0"]');
+    await sleep(320);
+  }
+  session.check('生活场景也会让脚本暂停', lifeScenes >= 1, JSON.stringify(decision));
   session.check('脚本连续推进到第 4 回合', decision.turn === 4, JSON.stringify(decision));
-  session.check('遇到剧情决策自动暂停', decision.pending === true && decision.status === '等待决策', JSON.stringify(decision));
+  session.check(
+    '遇到剧情决策自动暂停',
+    decision.pending === true && decision.kind !== 'life' && decision.status === '等待决策',
+    JSON.stringify(decision),
+  );
   session.check('决策出现时收起剧本面板', decision.hidden === true);
   await session.reload();
   await sleep(450);

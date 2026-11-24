@@ -45,30 +45,70 @@
     善后不足型: '你成功压制了攻击，但把清除根因留到了最后；控制不等于解决。',
   };
 
+  // 生活线评语（v1.9.0）：按优先级从上到下匹配，命中第一条即用
+  const LIFE_COMMENTS = [
+    [(life) => life.family <= 25, '公司守住了，家里的灯没等到你。'],
+    [(life) => life.energy <= 25, '你守住了系统，但没守住自己。'],
+    [(life) => life.family >= 70 && life.energy >= 50, '回家时天刚亮，家里还给你留着一份早饭。'],
+    [(life) => life.mood <= 30, '整晚都在硬撑，你的判断力比平时差了一截。'],
+  ];
+  const LIFE_COMMENT_FALLBACK = '夜班结束，你还站得住。';
+
   class ScoreSystem {
     evaluate(summary) {
       const endingKey = this.chooseEnding(summary);
-      const [endingTitle, endingText] = ENDINGS[endingKey];
+      const [endingTitle, baseEndingText] = ENDINGS[endingKey];
       const score = this.score(summary);
       const grade = this.capGrade(this.grade(score), endingKey);
       const style = this.style(summary);
       const [newsHeadline, newsDetail] = this.news(summary, endingKey);
+      const life = this.life(summary);
       return {
         score,
         grade,
         endingKey,
         endingTitle,
-        endingText,
+        // 结局正文保持公司叙事；生活评语只在结算「生活」卡里出现一次
+        endingText: baseEndingText,
         style,
         styleComment: STYLE_COMMENTS[style] || '',
         stats: this.stats(summary),
         achievements: this.achievements(summary, endingKey),
+        life,
         newsHeadline,
         newsDetail,
         doctrine: String(summary.doctrine || '混合型'),
         timeline: Array.isArray(summary.timeline) ? summary.timeline.slice() : [],
         review: this.review(summary),
       };
+    }
+
+    // ------------------------------------------------------------------
+    // 生活线：生活分 / 生活评语（与桌面版一一对应）
+    // ------------------------------------------------------------------
+    lifeValue(value, fallback) {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return fallback;
+      return Math.max(0, Math.min(100, Math.round(num)));
+    }
+
+    lifeComment(energy, mood, family) {
+      const life = { energy, mood, family };
+      for (const [match, text] of LIFE_COMMENTS) {
+        if (match(life)) return text;
+      }
+      return LIFE_COMMENT_FALLBACK;
+    }
+
+    /** 结算用生活区块：三条数值 + 生活分 + 一句评语。 */
+    life(summary) {
+      const source = summary || {};
+      const initial = ZDD.LIFE_INITIAL || { energy: 72, mood: 70, family: 60 };
+      const energy = this.lifeValue(source.energy, initial.energy);
+      const mood = this.lifeValue(source.mood, initial.mood);
+      const family = this.lifeValue(source.family, initial.family);
+      const score = Math.round((energy + mood + family) / 3);
+      return { energy, mood, family, score, comment: this.lifeComment(energy, mood, family) };
     }
 
     review(summary) {
@@ -125,7 +165,12 @@
       const average = Number(summary.average_response || 0);
       if (average > 0 && average <= 1 && Number(summary.resolved || 0) > 0) list.push('闪电响应');
       if (Number(summary.funds || 0) >= 1000) list.push('预算管家');
-      return list.slice(0, 5);
+      // 原有逻辑最多 5 个；生活线成就按顺序补在后面
+      const result = list.slice(0, 5);
+      const life = this.life(summary);
+      if (life.energy >= 60 && life.mood >= 60 && life.family >= 60) result.push('生活还在');
+      if (life.family <= 20) result.push('只赢了公司');
+      return result;
     }
 
     chooseEnding(summary) {
@@ -176,6 +221,16 @@
       value -= falseIsolations * 12;
       value -= missed * 15;
       value -= controlledOnly * 2;
+      // 生活分：round((生活分 − 55) × 0.12)，约 −6 ~ +5
+      const initial = ZDD.LIFE_INITIAL || { energy: 72, mood: 70, family: 60 };
+      const lifeScore = Number.isFinite(Number(summary.life_score))
+        ? Number(summary.life_score)
+        : Math.round(
+          (this.lifeValue(summary.energy, initial.energy)
+            + this.lifeValue(summary.mood, initial.mood)
+            + this.lifeValue(summary.family, initial.family)) / 3,
+        );
+      value += Math.round((lifeScore - 55) * 0.12);
       return Math.max(0, Math.min(130, Math.round(value)));
     }
 

@@ -31,6 +31,13 @@
     showFeedback() {},
   };
 
+  /** 生活线文案统一用真正的减号（−），和日志里的“体力 −3”保持一致。 */
+  function signedValue(value) {
+    const amount = Number(value) || 0;
+    if (!amount) return '0';
+    return amount > 0 ? `+${amount}` : `−${Math.abs(amount)}`;
+  }
+
   // 每种操作一个音色：同一个“对了”，听起来必须不一样
   const ACTION_SOUNDS = {
     investigate: 'investigate',
@@ -180,12 +187,15 @@
 
     startTurn() {
       this.turn += 1;
-      this.player.refreshTurn(this.turn);
+      // 生活线：先结算夜班消耗，再按体力档位恢复行动点（第 1 回合不消耗）
+      this.player.turn = this.turn;
+      this.applyLifeDecay();
+      const actionPoints = this.refreshActionPoints();
       this.logs.add(
         this.turn,
         clockText(this.turn),
         '系统',
-        `第 ${this.turn} 回合开始，行动点重置为 ${this.player.actionPoints}。`,
+        `第 ${this.turn} 回合开始，行动点重置为 ${actionPoints}。`,
       );
       this.pushMessage(`第 ${this.turn} 回合开始（${clockText(this.turn)}），行动点已重置。`, 'accent');
 
@@ -217,6 +227,80 @@
       this.processDelayedEffects();
       this.maybeTriggerDecision();
       this.touch();
+    }
+
+    // ==================================================================
+    // 生活线（体力 / 心情 / 家庭）：只做整数结算，绝不调用 RNG
+    // ==================================================================
+    /** 夜班消耗：第 1 回合不结算；从第 2 回合起 −3 / −2 / −3，只写一条合并日志。 */
+    applyLifeDecay() {
+      if (this.turn < 2) return null;
+      const before = {
+        energy: this.player.energy,
+        mood: this.player.mood,
+        family: this.player.family,
+      };
+      const applied = this.player.decayLife();
+      const text = `夜班消耗：体力 ${signedValue(applied.energy)} · 心情 ${signedValue(applied.mood)} · 家庭 ${signedValue(applied.family)}（当前 ${this.player.energy} / ${this.player.mood} / ${this.player.family}）`;
+      this.logs.add(this.turn, clockText(this.turn), '生活', text);
+      return {
+        before,
+        after: {
+          energy: this.player.energy,
+          mood: this.player.mood,
+          family: this.player.family,
+        },
+      };
+    }
+
+    /** 恢复行动点：体力 ≥55 满 AP；30–54 扣 1；<30 扣 2（下限 3）。 */
+    refreshActionPoints() {
+      const actionPoints = this.player.refreshTurn(this.turn);
+      const penalty = this.player.lifePenalty;
+      if (penalty > 0) {
+        const text = `体力不支：本回合行动点 −${penalty}（体力 ${this.player.energy}）`;
+        this.logs.add(this.turn, clockText(this.turn), '生活', text);
+        this.pushMessage(text, 'orange');
+      }
+      return actionPoints;
+    }
+
+    /** 生活数值变化：一条「生活」日志 + 一条消息（clamp 后取实际变化）。 */
+    adjustLife(key, delta, reason, push) {
+      if (!ZDD.LIFE_KEYS.includes(key)) return 0;
+      const actual = this.player.adjustLife(key, delta, reason);
+      if (!actual) return 0;
+      const label = ZDD.LIFE_LABELS[key] || key;
+      const text = `${label} ${signedValue(actual)}（${reason}）`;
+      this.logs.add(this.turn, clockText(this.turn), '生活', text);
+      if (push !== false) this.pushMessage(text, actual > 0 ? 'green' : 'orange');
+      if (actual <= -6) this.effects.flash('red', 30);
+      this.touch();
+      return actual;
+    }
+
+    /** 行动点直接增减（生活场景用）：clamp 0–99，只推送消息，不动公司指标。 */
+    applyActionPointDelta(delta, reason, silent) {
+      const amount = Number(delta) | 0;
+      if (!amount) return 0;
+      const before = this.player.actionPoints;
+      this.player.actionPoints = ZDD.clamp(before + amount, 0, 99);
+      const actual = this.player.actionPoints - before;
+      if (!actual) return 0;
+      if (!silent) {
+        const text = `行动点 ${signedValue(actual)}（${reason}）`;
+        this.logs.add(this.turn, clockText(this.turn), '生活', text);
+        this.pushMessage(text, actual > 0 ? 'green' : 'orange');
+        this.recordTimeline('life_ap', text);
+      }
+      this.touch();
+      return actual;
+    }
+
+    /** 指标 / 生活值的统一中文名，日志与复盘都用它。 */
+    valueLabel(key) {
+      if (key === 'action_points') return '行动点';
+      return ZDD.LIFE_LABELS[key] || ZDD.METRIC_LABELS[key] || key;
     }
 
     maybeTriggerDecision() {
@@ -422,6 +506,11 @@
         reputation: this.player.reputation,
         availability: this.player.availability,
         integrity: this.player.integrity,
+        // 生活线：结算用它算生活分、生活评语与成就
+        energy: this.player.energy,
+        mood: this.player.mood,
+        family: this.player.family,
+        life_score: this.player.lifeScore,
         total_events: events.length,
         resolved: resolved.length,
         controlled_only: controlledOnly.length,
@@ -536,7 +625,10 @@
     }
 
     get confidenceBonus() {
-      return Number(this.modifiers.confidence_bonus || 0);
+      const base = Number(this.modifiers.confidence_bonus || 0);
+      // 心情 <40：整晚都在硬撑，调查置信度再 −10%（只叠加在这里，不动风险引擎）
+      const tired = this.player.mood < 40 ? 0.10 : 0;
+      return base - tired;
     }
 
     buyUpgrade(upgradeId) {
@@ -568,19 +660,40 @@
       if (!choice || typeof choice !== 'object') return;
       const label = String(choice.label || '选择');
       const title = String(decision.title || '值班决策');
-      const allowedKeys = ['security', 'funds', 'reputation', 'availability', 'integrity'];
+      // 生活场景与剧情决策共用同一套生效流程，只是文案与日志分类不同
+      const reason = decision.kind === 'life'
+        ? `生活场景「${title}」`
+        : `值班决策「${title}」`;
+      const hiddenReason = decision.kind === 'life'
+        ? `生活场景「${title}」的隐性影响`
+        : `值班决策「${title}」的隐性影响`;
+      const metricKeys = ['security', 'funds', 'reputation', 'availability', 'integrity'];
       const hiddenActual = {};
       const applyMap = (map, visible) => {
         if (!map || typeof map !== 'object') return;
         for (const [key, value] of Object.entries(map)) {
-          if (!allowedKeys.includes(key)) continue;
           const delta = Number(value);
           if (!Number.isFinite(delta) || !delta) continue;
+          if (key === 'action_points') {
+            const actual = this.applyActionPointDelta(delta, reason, !visible);
+            if (actual && !visible) hiddenActual[key] = actual;
+            continue;
+          }
+          if (ZDD.LIFE_KEYS.includes(key)) {
+            if (visible) {
+              this.adjustLife(key, delta, reason);
+            } else {
+              // 隐藏影响：立即改变状态，但不写精确数值日志；只进入结算时间线
+              const actual = this.player.adjustLife(key, delta, hiddenReason);
+              if (actual) hiddenActual[key] = actual;
+            }
+            continue;
+          }
+          if (!metricKeys.includes(key)) continue;
           if (visible) {
-            this.adjustMetric(key, delta, `值班决策「${title}」`);
+            this.adjustMetric(key, delta, reason);
           } else {
-            // 隐藏影响：立即改变状态，但不写精确数值日志；只进入结算时间线
-            const actual = this.player.adjust(key, delta, `值班决策「${title}」的隐性影响`);
+            const actual = this.player.adjust(key, delta, hiddenReason);
             if (actual) hiddenActual[key] = actual;
           }
         }
@@ -623,7 +736,7 @@
       });
       if (Object.keys(hiddenActual).length) {
         const hiddenSummary = Object.entries(hiddenActual)
-          .map(([key, value]) => `${ZDD.METRIC_LABELS[key] || key} ${value > 0 ? '+' : ''}${value}`)
+          .map(([key, value]) => `${this.valueLabel(key)} ${value > 0 ? '+' : ''}${value}`)
           .join('、');
         this.recordTimeline(
           'decision_hidden',
@@ -633,7 +746,11 @@
       }
       const result = String(choice.result || '');
       this.pushMessage(`决策：${label}。${result}`, 'accent');
-      this.effects.addBanner(`决策：${label}`, result.slice(0, 46), 'orange');
+      this.effects.addBanner(
+        `决策：${label}`,
+        result.slice(0, 46),
+        decision.kind === 'life' ? 'yellow' : 'orange',
+      );
       this.audio.play('click');
       this.pendingDecision = null;
       this.touch();
@@ -655,6 +772,18 @@
           if (Number(this.player.stats.false_isolations || 0) < Number(value)) return false;
         } else if (key === 'security_below') {
           if (this.player.security >= Number(value)) return false;
+        } else if (key === 'energy_below') {
+          if (this.player.energy >= Number(value)) return false;
+        } else if (key === 'energy_at_least') {
+          if (this.player.energy < Number(value)) return false;
+        } else if (key === 'mood_below') {
+          if (this.player.mood >= Number(value)) return false;
+        } else if (key === 'mood_at_least') {
+          if (this.player.mood < Number(value)) return false;
+        } else if (key === 'family_below') {
+          if (this.player.family >= Number(value)) return false;
+        } else if (key === 'family_at_least') {
+          if (this.player.family < Number(value)) return false;
         } else {
           return false;
         }
@@ -675,24 +804,45 @@
         const text = matched ? item.text : (item.elseText || '');
         const reason = `延迟决策「${item.sourceTitle || ''}」`;
         const actual = {};
+        let hasLife = false;
+        const metricKeys = ['security', 'funds', 'reputation', 'availability', 'integrity'];
         for (const [key, value] of Object.entries(effects && typeof effects === 'object' ? effects : {})) {
-          if (!['security', 'funds', 'reputation', 'availability', 'integrity'].includes(key)) continue;
           const delta = Number(value);
           if (!Number.isFinite(delta) || !delta) continue;
+          if (key === 'action_points') {
+            hasLife = true;
+            const applied = this.applyActionPointDelta(delta, reason, true);
+            if (applied) actual[key] = applied;
+            continue;
+          }
+          if (ZDD.LIFE_KEYS.includes(key)) {
+            hasLife = true;
+            const applied = this.adjustLife(key, delta, reason, false);
+            if (applied) actual[key] = applied;
+            continue;
+          }
+          if (!metricKeys.includes(key)) continue;
           actual[key] = delta;
           this.adjustMetric(key, delta, reason);
         }
+        // 生活键走「生活」分类，公司指标仍走「情报」
+        const category = hasLife ? '生活' : '情报';
         if (text) {
           const clock = clockText(this.turn);
-          this.logs.add(this.turn, clock, '情报', `延迟后果：${text}`);
+          this.logs.add(this.turn, clock, category, `延迟后果：${text}`);
           this.pushMessage(`延迟后果：${text}`, 'orange');
           this.effects.addBanner('延迟后果', text.slice(0, 46), 'orange');
         }
         const summary = Object.entries(actual)
-          .map(([key, value]) => `${ZDD.METRIC_LABELS[key] || key} ${value > 0 ? '+' : ''}${value}`)
+          .map(([key, value]) => `${this.valueLabel(key)} ${value > 0 ? '+' : ''}${value}`)
           .join('、');
         if (summary) {
-          this.logs.add(this.turn, clockText(this.turn), '系统', `延迟后果结算：${summary}`);
+          this.logs.add(
+            this.turn,
+            clockText(this.turn),
+            hasLife ? '生活' : '系统',
+            `延迟后果结算：${summary}`,
+          );
         }
         this.recordTimeline(
           'delayed',

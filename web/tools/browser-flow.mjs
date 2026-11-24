@@ -12,7 +12,7 @@ try {
   // ============================ 教程 ============================
   await click('#menu-tutorial');
   check('教程第 1 页', await evaluate(`document.querySelector('.modal-title').textContent.includes('一分钟看懂')`));
-  check('教程共 15 页', (await evaluate(`document.querySelectorAll('.tutorial-pages i').length`)) === 15);
+  check('教程共 16 页', (await evaluate(`document.querySelectorAll('.tutorial-pages i').length`)) === 16);
   await screenshot('10-tutorial-page1');
 
   for (let i = 0; i < 3; i += 1) await click('[data-act="tutorial-next"]');
@@ -34,8 +34,17 @@ try {
   check('第 14 页讲脚本', await evaluate(`document.querySelector('.modal-title').textContent.includes('脚本')`));
   await screenshot('10e-tutorial-script');
 
+  // v1.9.0：新增一页生活线，插在「准备实战」之前，原有页码顺序不变
   await click('[data-act="tutorial-next"]');
-  check('教程到第 15 页', await evaluate(`document.querySelector('.modal-kicker').textContent.includes('15 / 15')`));
+  check('第 15 页讲生活线', await evaluate(`document.querySelector('.modal-title').textContent.includes('值班之外：生活线')`));
+  check('生活线页写清数值、消耗与影响', await evaluate(`(() => {
+    const text = document.getElementById('modal-card').textContent;
+    return text.includes('72 / 70 / 60') && text.includes('体力 −3') && text.includes('心情 <40') && text.includes('值班员不是机器');
+  })()`));
+  await screenshot('10f-tutorial-life');
+
+  await click('[data-act="tutorial-next"]');
+  check('教程到第 16 页', await evaluate(`document.querySelector('.modal-kicker').textContent.includes('16 / 16')`));
   await screenshot('11-tutorial-last');
   await click('[data-act="tutorial-next"]');
   check('实战演练提示卡出现', await evaluate(`!document.getElementById('guide').hidden`));
@@ -104,6 +113,20 @@ try {
   check('安全体系崩溃结局', await evaluate(`document.querySelector('.ending-title').textContent.includes('安全体系崩溃')`));
   check('等级被限制为 D', (await evaluate(`document.querySelector('.result-head .grade').textContent`)).trim() === 'D');
   check('结算统计 12 项', (await evaluate(`document.querySelectorAll('.stats-grid .stat').length`)) === 12);
+  // 生活区块单独一张卡：三条数值 + 生活分 + 一句评语（不塞进 12 行统计网格）
+  check('结算页有生活卡（三条数值 + 生活分 + 评语）', await evaluate(`(() => {
+    const card = document.querySelector('.result-life');
+    if (!card) return false;
+    const comment = card.querySelector('.life-comment');
+    return card.querySelectorAll('.life-item').length === 4
+      && card.textContent.includes('生活分')
+      && Boolean(comment) && comment.textContent.length > 4;
+  })()`));
+  // 生活评语只出现一次：在生活卡里，结局正文保持公司叙事
+  check('结局正文不重复生活评语', await evaluate(`(() => {
+    const text = document.querySelector('.result-head .modal-sub').textContent;
+    return ['公司守住了，家里的灯没等到你。', '你守住了系统，但没守住自己。', '回家时天刚亮，家里还给你留着一份早饭。', '整晚都在硬撑，你的判断力比平时差了一截。', '夜班结束，你还站得住。'].every((line) => !text.includes(line));
+  })()`));
   await screenshot('15-result');
 
   await click('[data-act="result-restart"]');

@@ -191,6 +191,19 @@
       note: '脚本不替你判断误报：调查后拿到 a.false_positive 再决定是否批量隔离，避免误封扣分。',
     },
     {
+      title: '值班之外：生活线',
+      body: '你是夜班安全管理员，也是一个有身体、有情绪、有家的人。除了告警和指标，这个夜班还跟着三条生活数值：体力、心情、家庭。',
+      bullets: [
+        '三条数值：体力 / 心情 / 家庭，初值 72 / 70 / 60，范围 0–100；顶栏「值班员状态」一格看完。',
+        '每回合消耗：第 2 回合起，每回合开始时体力 −3、心情 −2、家庭 −3（第 1 回合不扣）。',
+        '体力 → 行动点：≥55 是满 6 点；30–54 只剩 5 点；<30 只剩 4 点（下限 3 点）。',
+        '心情 → 判断力：心情 <40 时，调查置信度 −10%，风险区间变宽。',
+        '家庭 → 结局：家庭 ≤25 触发「没守住家」；家庭 ≥70 且体力 ≥50 会「带回了早饭」。',
+        '第 2/3/6/9/10 回合会出现生活场景：工资到账、老板发火、家里视频、天亮回家、早会。选项只写直接成本，隐性影响到期才解释。',
+      ],
+      note: '值班员不是机器。',
+    },
+    {
       title: '准备实战：6 步带练',
       body: '接下来用一条钓鱼事件走完整循环，而且刻意让你三种输入方式各用一次：点按钮、敲命令、跑脚本。',
       steps: ['选告警', '调查', '命令隔离', '清除', '脚本恢复', '推进'],
@@ -326,7 +339,9 @@
         this.hideModal();
         return;
       }
-      const extra = kind === 'tutorial' || kind === 'tutorial-complete' ? 'purple' : kind === 'shop' || kind === 'history' ? 'wide' : '';
+      const extra = kind === 'decision' && game && game.pendingDecision && game.pendingDecision.kind === 'life'
+        ? 'life-decision'
+        : kind === 'tutorial' || kind === 'tutorial-complete' ? 'purple' : kind === 'shop' || kind === 'history' ? 'wide' : '';
       this.showModal(kind, renderer(), extra);
     }
 
@@ -514,19 +529,28 @@
       if (!decision) return '';
       const speaker = String(decision.speaker || '').trim();
       const choices = Array.isArray(decision.choices) ? decision.choices : [];
+      const choiceButtons = choices.slice(0, 3).map((choice, index) => `
+        <button class="choice${decision.kind === 'life' ? ' life' : ''}" data-act="decision-choose" data-index="${index}">
+          <strong>${esc(choice.label || '选择')}</strong>
+          <span>${esc(choice.hint || '')}</span>
+        </button>
+      `).join('');
+      // 生活场景：暖色、眉题换成「生活场景」，说明行讲清三条生活数值怎么影响玩法
+      if (decision.kind === 'life') {
+        return `
+          <p class="modal-kicker">第 ${game.turn} 回合 · 生活场景${speaker ? ` · ${esc(speaker)}` : ''}</p>
+          <h2 class="modal-title decision-card life" id="modal-title">${esc(decision.title || '生活场景')}</h2>
+          <p class="modal-sub">${esc(decision.prompt || '')}</p>
+          <p class="modal-note">生活选择会改变体力、心情与家庭：体力影响每回合行动点，心情影响判断力，家庭影响结局评价。</p>
+          <div>${choiceButtons}</div>
+        `;
+      }
       return `
         <p class="modal-kicker">第 ${game.turn} 回合 · 值班决策${speaker ? ` · ${esc(speaker)}` : ''}</p>
         <h2 class="modal-title decision-card" id="modal-title">${esc(decision.title || '紧急决策')}</h2>
         <p class="modal-sub">${esc(decision.prompt || '')}</p>
         <p class="modal-note">选项只显示可预知的直接成本；安全与业务影响可能在 1–3 回合后显现，结算时会解释。</p>
-        <div>
-          ${choices.slice(0, 3).map((choice, index) => `
-            <button class="choice" data-act="decision-choose" data-index="${index}">
-              <strong>${esc(choice.label || '选择')}</strong>
-              <span>${esc(choice.hint || '')}</span>
-            </button>
-          `).join('')}
-        </div>
+        <div>${choiceButtons}</div>
       `;
     }
 
@@ -652,6 +676,44 @@
     // ------------------------------------------------------------------
     // 结算
     // ------------------------------------------------------------------
+    /**
+     * 结算页「生活」卡：三条数值 + 生活分 + 一句评语。
+     * 不塞进 12 行值班统计网格，避免布局溢出。
+     */
+    lifeCardHtml(life) {
+      const data = life || {};
+      const alert = ZDD.LIFE_ALERT || { energy: 30, mood: 40, family: 25 };
+      const rows = [
+        { label: '体力', value: Number(data.energy ?? 0), color: 'var(--green)', danger: Number(data.energy) < alert.energy },
+        { label: '心情', value: Number(data.mood ?? 0), color: 'var(--purple)', danger: Number(data.mood) < alert.mood },
+        { label: '家庭', value: Number(data.family ?? 0), color: 'var(--orange)', danger: Number(data.family) <= alert.family },
+      ];
+      const items = rows.map((row) => {
+        const tone = row.danger ? 'var(--red)' : row.color;
+        const width = Math.max(0, Math.min(100, row.value));
+        return `
+          <div class="life-item">
+            <span class="life-item-label">${esc(row.label)}</span>
+            <b class="life-item-value" style="color:${tone}">${row.value}</b>
+            <i class="life-item-bar" style="color:${tone}"><em style="width:${width}%"></em></i>
+          </div>
+        `;
+      }).join('');
+      return `
+        <div class="result-life">
+          <h3>生活 <span>体力 / 心情 / 家庭</span></h3>
+          <div class="result-life-grid">
+            ${items}
+            <div class="life-item score">
+              <span class="life-item-label">生活分</span>
+              <b class="life-item-value">${Number(data.score ?? 0)}</b>
+            </div>
+          </div>
+          <p class="life-comment">${esc(data.comment || '')}</p>
+        </div>
+      `;
+    }
+
     resultHtml(game) {
       const report = game.report;
       if (!report) return '';
@@ -691,6 +753,7 @@
               `).join('')}
             </div>
           </div>
+          ${this.lifeCardHtml(report.life)}
         </div>
         ${report.achievements.length ? `
           <div class="achievements">
