@@ -199,7 +199,9 @@
         '体力 → 行动点：≥55 是满 6 点；30–54 只剩 5 点；<30 只剩 4 点（下限 3 点）。',
         '心情 → 判断力：心情 <40 时，调查置信度 −10%，风险区间变宽。',
         '家庭 → 结局：家庭 ≤25 触发「没守住家」；家庭 ≥70 且体力 ≥50 会「带回了早饭」。',
-        '第 2/3/6/9/10 回合会出现生活场景：工资到账、老板发火、家里视频、天亮回家、早会。选项只写直接成本，隐性影响到期才解释。',
+        '第 2/3/6/9/10 回合会出现生活场景：工资到账、老板发火、家里视频、天亮回家、早会。它们以手机微信/短信出现，按 P 随时打开。',
+        '手机里还能主动做事：给家里转账、点宵夜、买咖啡、打视频通话——花资金或行动点换体力 / 心情 / 家庭。',
+        '开局还有三张「今晚的状况」可选：发薪日、暴雨夜、实习生跟班……选一张，改变这一局的资源或规则。',
       ],
       note: '值班员不是机器。',
     },
@@ -324,11 +326,12 @@
         return;
       }
       const renderers = {
-        briefing: () => this.briefingHtml(),
+        briefing: () => this.briefingHtml(game),
         tutorial: () => this.tutorialHtml(ui),
         'tutorial-complete': () => this.tutorialCompleteHtml(),
         help: () => this.helpHtml(),
         decision: () => this.decisionHtml(game),
+        phone: () => this.phoneHtml(game, ui),
         shop: () => this.shopHtml(game),
         history: () => this.historyHtml(game),
         result: () => this.resultHtml(game),
@@ -339,21 +342,40 @@
         this.hideModal();
         return;
       }
-      const extra = kind === 'decision' && game && game.pendingDecision && game.pendingDecision.kind === 'life'
-        ? 'life-decision'
-        : kind === 'tutorial' || kind === 'tutorial-complete' ? 'purple' : kind === 'shop' || kind === 'history' ? 'wide' : '';
+      const extra = kind === 'phone'
+        ? 'phone'
+        : kind === 'decision' && game && game.pendingDecision && game.pendingDecision.kind === 'life'
+          ? 'life-decision'
+          : kind === 'tutorial' || kind === 'tutorial-complete' ? 'purple' : kind === 'shop' || kind === 'history' ? 'wide' : '';
       this.showModal(kind, renderer(), extra);
     }
 
     // ------------------------------------------------------------------
     // 简报
     // ------------------------------------------------------------------
-    briefingHtml() {
+    briefingHtml(game) {
       const people = [
         ['主管 · 陈可', '客户在催交付，任何停服都要先报备。别把“安全”变成“全停”。', 'var(--accent)'],
         ['公关 · 林岚', '媒体来问先别擅自回应，把情况同步给我。', 'var(--purple)'],
         ['IT 运维 · 阿哲', '备份服务器在 BAK-01。别等数据库被加密了才想起它。', 'var(--orange)'],
       ];
+      const choices = Array.isArray(game.modifierChoices) ? game.modifierChoices : [];
+      const selected = game.runModifier ? game.runModifier.id : '';
+      const modifiers = choices.length ? `
+        <div class="run-modifiers">
+          <p class="modal-kicker">今晚的状况 · 三选一</p>
+          <div class="run-modifier-grid">
+            ${choices.map((modifier) => `
+              <button type="button" class="run-modifier ${selected === modifier.id ? 'is-active' : ''}"
+                data-act="modifier-pick" data-id="${esc(modifier.id)}" ${selected && selected !== modifier.id ? 'disabled' : ''}>
+                <span class="run-mod-tag">${esc(modifier.tag)}</span>
+                <b>${esc(modifier.name)}</b>
+                <span>${esc(modifier.desc)}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      ` : '';
       return `
         <p class="modal-kicker">22:00 · 夜班交接 · 云栖示例科技（虚构）</p>
         <h2 class="modal-title" id="modal-title">今晚，守住这家公司。</h2>
@@ -366,8 +388,9 @@
             </div>
           `).join('')}
         </div>
+        ${modifiers}
         <p class="objective">今晚目标：08:00 前清除全部攻击链，同时让业务保持在线。</p>
-        <p class="modal-note">提示：先调查，再控制；控制后还要清除，最后恢复业务。</p>
+        <p class="modal-note">${choices.length && !selected ? '可选：选一个「今晚的状况」改变这一局的资源或规则；不选就按标准夜班开始。' : '提示：先调查，再控制；控制后还要清除，最后恢复业务。'}</p>
         <div class="modal-actions">
           <button class="btn primary" data-act="briefing-enter">进入值班</button>
         </div>
@@ -522,7 +545,156 @@
     }
 
     // ------------------------------------------------------------------
-    // 决策
+    // 手机：生活线
+    // ------------------------------------------------------------------
+    phoneStatsHtml(player) {
+      const rows = [
+        ['体力', player.energy, 'var(--green)', 30],
+        ['心情', player.mood, 'var(--purple)', 40],
+        ['家庭', player.family, 'var(--orange)', 25],
+      ];
+      return `
+        <div class="phone-stats" role="list" aria-label="生活状态">
+          ${rows.map(([label, value, color, danger]) => `
+            <div class="phone-stat" role="listitem">
+              <span>${label}</span>
+              <b style="color:${value <= danger ? 'var(--red)' : color}">${value}</b>
+              <i style="color:${value <= danger ? 'var(--red)' : color}"><em style="width:${Math.max(0, Math.min(100, value))}%"></em></i>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    phoneAppName(decision) {
+      const speaker = String(decision && decision.speaker ? decision.speaker : '');
+      if (/银行/.test(speaker)) return '短信';
+      if (/经理|企业微信/.test(speaker)) return '企业微信';
+      if (/家里|视频/.test(speaker)) return '微信视频';
+      if (/窗外|天气/.test(speaker)) return '天气';
+      if (/会议室|早会/.test(speaker)) return '日历';
+      return '微信';
+    }
+
+    phoneHtml(game, ui) {
+      const pending = game.pendingDecision && game.pendingDecision.kind === 'life' ? game.pendingDecision : null;
+      const result = ui.phoneResult || null;
+      let screen;
+      if (result) screen = this.phoneResultHtml(result);
+      else if (pending) screen = this.phoneChatHtml(pending);
+      else screen = this.phoneHomeHtml(game, ui);
+      return `
+        <div class="phone-shell">
+          <div class="phone-status">
+            <span>${esc(ZDD.clockText(game.turn))}</span>
+            <span>值班手机 · 5G</span>
+            <b>${Math.max(12, 100 - game.turn * 5)}%</b>
+          </div>
+          <div class="phone-head">
+            <span class="phone-app-title">${esc(pending ? this.phoneAppName(pending) : '生活')}</span>
+            <button class="phone-close" data-act="phone-close" aria-label="收起手机">×</button>
+          </div>
+          ${this.phoneStatsHtml(game.player)}
+          ${screen}
+        </div>
+      `;
+    }
+
+    phoneChatHtml(decision) {
+      const speaker = String(decision.speaker || '').trim();
+      const [who, when] = speaker.split('·').map((part) => part.trim());
+      const prompt = String(decision.prompt || '');
+      const parts = prompt.match(/[^。！？\n]+[。！？]?/g) || [prompt];
+      const choices = Array.isArray(decision.choices) ? decision.choices : [];
+      const isVideo = /视频/.test(speaker);
+      return `
+        <div class="phone-chat">
+          <div class="phone-contact"><b>${esc(who || '值班手机')}</b><span>${esc(when || '')}</span></div>
+          <div class="phone-thread">
+            ${parts.map((text, index) => `<div class="bubble them" style="--i:${index}">${esc(text.trim())}</div>`).join('')}
+            ${isVideo ? '<div class="bubble call">📹 视频通话邀请 · 接通后可以看见家里</div>' : ''}
+            <div class="phone-typing"><i></i><i></i><i></i> 对方正在输入…</div>
+          </div>
+          <div class="phone-replies">
+            ${choices.slice(0, 3).map((choice, index) => `
+              <button type="button" data-act="phone-choose" data-index="${index}">
+                <b>${esc(choice.label || '回复')}</b>
+                <span>${esc(choice.hint || '')}</span>
+              </button>
+            `).join('')}
+          </div>
+          <p class="phone-note">生活选择会改变体力 / 心情 / 家庭；完整游戏里还会同步资金、行动点与结局。</p>
+        </div>
+      `;
+    }
+
+    phoneResultHtml(result) {
+      const deltas = result.deltas && Object.keys(result.deltas).length
+        ? `<div class="phone-deltas">${Object.entries(result.deltas).map(([key, value]) => {
+          const label = { energy: '体力', mood: '心情', family: '家庭' }[key] || key;
+          return `<span class="${value > 0 ? 'up' : 'down'}">${label} ${value > 0 ? '+' : ''}${value}</span>`;
+        }).join('')}</div>`
+        : '';
+      return `
+        <div class="phone-chat">
+          <div class="phone-thread">
+            <div class="bubble me">${esc(result.label || '')}</div>
+            <div class="bubble them">${esc(result.result || '')}</div>
+            ${deltas}
+          </div>
+          <button type="button" class="phone-primary" data-act="phone-after">收起手机，继续值班</button>
+        </div>
+      `;
+    }
+
+    phoneHomeHtml(game, ui) {
+      const p = game.player;
+      const used = ui.phoneUsed || {};
+      const done = (kind) => used[kind] === game.turn;
+      const disabled = (condition) => (condition ? 'disabled' : '');
+      const toast = ui.phoneToast ? `<div class="phone-toast">${esc(ui.phoneToast)}</div>` : '';
+      return `
+        <div class="phone-home">
+          ${toast}
+          <p class="phone-greeting">${esc(ZDD.clockText(game.turn))} · 距离 08:00 交接还有 ${Math.max(0, p.totalTurns - game.turn + 1)} 小时</p>
+
+          <div class="phone-app">
+            <h4>钱包 <span>${ZDD.formatMoney(p.funds)}</span></h4>
+            <button type="button" data-act="phone-do" data-kind="transfer" ${disabled(done('transfer') || p.funds < 200)}>
+              <b>${done('transfer') ? '今晚已经转过' : '给家里转 ¥200'}</b>
+              <span>家庭 +6 · 心情 +2</span>
+            </button>
+          </div>
+
+          <div class="phone-app">
+            <h4>外卖 <span>值班室</span></h4>
+            <button type="button" data-act="phone-do" data-kind="takeout" ${disabled(done('takeout') || p.funds < 60)}>
+              <b>${done('takeout') ? '今晚已经点过' : '点一份宵夜 ¥60'}</b>
+              <span>体力 +8 · 心情 +8</span>
+            </button>
+            <button type="button" data-act="phone-do" data-kind="coffee" ${disabled(done('coffee') || p.funds < 25)}>
+              <b>${done('coffee') ? '咖啡喝过了' : '楼下买杯咖啡 ¥25'}</b>
+              <span>体力 +5</span>
+            </button>
+          </div>
+
+          <div class="phone-app">
+            <h4>家人 <span>微信视频</span></h4>
+            <button type="button" data-act="phone-do" data-kind="call" ${disabled(done('call') || p.actionPoints < 1)}>
+              <b>${done('call') ? '今晚已经通过话' : '打个视频通话'}</b>
+              <span>行动点 -1 · 家庭 +8 · 心情 +4</span>
+            </button>
+          </div>
+
+          <p class="phone-note">手机随时可以打开（P）。主动花的钱和行动点，都会立刻写进这一晚的账里。</p>
+          <button type="button" class="phone-primary" data-act="phone-close">收起手机</button>
+        </div>
+      `;
+    }
+
+
+    // ------------------------------------------------------------------
+    // 决策（剧情决策仍用弹窗；生活线走手机）
     // ------------------------------------------------------------------
     decisionHtml(game) {
       const decision = game.pendingDecision;

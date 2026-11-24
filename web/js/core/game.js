@@ -38,6 +38,58 @@
     return amount > 0 ? `+${amount}` : `−${Math.abs(amount)}`;
   }
 
+  // 开局「今晚的状况」：三选一，给每局一点不同的规则/资源。
+  // 不用随机数，按种子轮转，保证同种子复现。
+  const RUN_MODIFIERS = [
+    {
+      id: 'payday',
+      name: '发薪日',
+      tag: '工资到账',
+      desc: '工资短信比平时早到，家里也等着这笔钱。',
+      effects: { family: 10, mood: 6 },
+    },
+    {
+      id: 'boss_away',
+      name: '老板出差',
+      tag: '群里安静了',
+      desc: '经理在飞机上，今晚没人半夜 @ 你，但客户会直接找过来。',
+      effects: { reputation: 8, mood: 4 },
+    },
+    {
+      id: 'intern',
+      name: '实习生跟班',
+      tag: '多一个人',
+      desc: '实习生帮你看告警，每回合多 1 点行动点；但他不敢替你拍板。',
+      effects: { ap_bonus: 1 },
+    },
+    {
+      id: 'promo',
+      name: '客户大促',
+      tag: '收入 +40/回合',
+      desc: '大促把订单打满，每回合多进账 ¥40，但对外服务更经不起停。',
+      effects: { income_bonus: 40, availability: -5 },
+    },
+    {
+      id: 'audit',
+      name: '空降审计',
+      tag: '判断更准，口碑更差',
+      desc: '总部审计组明天到，情报插件临时升级；但大家今晚都很紧张。',
+      effects: { confidence_bonus: 0.08, reputation: -6 },
+    },
+    {
+      id: 'rain',
+      name: '暴雨夜',
+      tag: '打车涨价',
+      desc: '全城暴雨，打车贵得离谱；家里倒是难得没催你。',
+      effects: { funds: -80, family: 6, mood: 3 },
+    },
+  ];
+
+  function modifierChoicesFor(seed) {
+    const start = Math.abs(Number(seed) || 0) % RUN_MODIFIERS.length;
+    return [0, 1, 2].map((offset) => RUN_MODIFIERS[(start + offset) % RUN_MODIFIERS.length]);
+  }
+
   // 每种操作一个音色：同一个“对了”，听起来必须不一样
   const ACTION_SOUNDS = {
     investigate: 'investigate',
@@ -151,6 +203,8 @@
       this.seenDecisions = new Set();
       this.report = null;
       this.pendingDecision = null;
+      this.runModifier = null;
+      this.modifierChoices = briefing && !tutorial ? modifierChoicesFor(this.seed) : [];
       this.showBriefing = briefing;
       this.state = 'playing';
       this.hintsUsed = 0;
@@ -185,9 +239,33 @@
       this.touch();
     }
 
+    applyRunModifier(id) {
+      const modifier = RUN_MODIFIERS.find((item) => item.id === id);
+      if (!modifier || this.runModifier) return false;
+      this.runModifier = modifier;
+      const effects = modifier.effects || {};
+      const lifeKeys = ['energy', 'mood', 'family'];
+      for (const [key, value] of Object.entries(effects)) {
+        if (key === 'ap_bonus') {
+          this.player.maxActionPoints += Number(value);
+          this.player.actionPoints += Number(value);
+        } else if (key === 'income_bonus' || key === 'confidence_bonus') {
+          // 读取时叠加，不直接改数值
+        } else if (lifeKeys.includes(key)) {
+          this.adjustLife(key, Number(value), `今晚的状况「${modifier.name}」`);
+        } else {
+          this.adjustMetric(key, Number(value), `今晚的状况「${modifier.name}」`);
+        }
+      }
+      this.logs.add(0, clockText(0), '系统', `今晚的状况：${modifier.name} — ${modifier.desc}`);
+      this.recordTimeline('modifier', `今晚的状况「${modifier.name}」：${modifier.desc}`);
+      this.pushMessage(`今晚的状况：${modifier.name} — ${modifier.desc}`, 'purple');
+      this.touch();
+      return true;
+    }
+
     startTurn() {
-      this.turn += 1;
-      // 生活线：先结算夜班消耗，再按体力档位恢复行动点（第 1 回合不消耗）
+      this.turn += 1;      // 生活线：先结算夜班消耗，再按体力档位恢复行动点（第 1 回合不消耗）
       this.player.turn = this.turn;
       this.applyLifeDecay();
       const actionPoints = this.refreshActionPoints();
@@ -200,12 +278,13 @@
       this.pushMessage(`第 ${this.turn} 回合开始（${clockText(this.turn)}），行动点已重置。`, 'accent');
 
       const serviceIncome = this.services.income(this.devices, Number(this.modifiers.income_floor || 0));
-      const incomeBonus = Math.trunc(this.modifiers.income_bonus || 0);
+      const incomeBonus = Math.trunc(this.modifiers.income_bonus || 0)
+        + Math.trunc(Number(this.runModifier?.income_bonus || 0));
       this.adjustMetric(
         'funds',
         serviceIncome + incomeBonus,
         `服务收入（SLA 结算，满额 ¥${consts.TURN_INCOME}）`
-          + (incomeBonus ? ` + 多线路加固 ¥${incomeBonus}` : ''),
+          + (incomeBonus ? ` + 收入加成 ¥${incomeBonus}` : ''),
         false,
       );
       if (serviceIncome < consts.TURN_INCOME) {
@@ -625,7 +704,8 @@
     }
 
     get confidenceBonus() {
-      const base = Number(this.modifiers.confidence_bonus || 0);
+      const base = Number(this.modifiers.confidence_bonus || 0)
+        + Number(this.runModifier?.confidence_bonus || 0);
       // 心情 <40：整晚都在硬撑，调查置信度再 −10%（只叠加在这里，不动风险引擎）
       const tired = this.player.mood < 40 ? 0.10 : 0;
       return base - tired;

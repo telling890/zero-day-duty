@@ -90,6 +90,10 @@
     logKeyword: '',
     terminalOpen: false,
     scriptOpen: false,
+    phoneTurn: 0,
+    phoneUsed: {},
+    phoneToast: '',
+    phoneResult: null,
   };
 
   const terminal = new ZDD.Terminal({
@@ -252,10 +256,13 @@
   function activeModalKind() {
     if (game.showBriefing) return 'briefing';
     if (ui.tutorialOpen) return 'tutorial';
-    if (game.pendingDecision) return 'decision';
+    if (game.pendingDecision) {
+      return game.pendingDecision.kind === 'life' ? 'phone' : 'decision';
+    }
     if (ui.terminalOpen) return 'terminal';
     if (ui.scriptOpen) return 'script';
     if (game.tutorialMode) return ui.guideCompleted ? 'tutorial-complete' : null;
+    if (ui.modal === 'phone') return 'phone';
     if (ui.modal === 'help') return 'help';
     if (ui.modal === 'shop') return 'shop';
     if (ui.modal === 'history') return 'history';
@@ -268,6 +275,20 @@
     if (game.state === 'result' && ui.modal) ui.modal = null;
     if (game.pendingDecision && ui.modal) ui.modal = null;
     if (game.state !== 'playing' && terminal.isOpen) terminal.hide();
+
+    // 手机：每回合重置主动操作；有待回复的生活消息时给顶栏加角标
+    if (ui.phoneTurn !== game.turn) {
+      ui.phoneTurn = game.turn;
+      ui.phoneUsed = {};
+      ui.phoneToast = '';
+      ui.phoneResult = null;
+    }
+    const phoneBadge = $('phone-badge');
+    if (phoneBadge) {
+      const unread = game.pendingDecision && game.pendingDecision.kind === 'life';
+      phoneBadge.hidden = !unread;
+      phoneBadge.textContent = unread ? '1' : '';
+    }
 
     // B1：只有“刚推进过”的回合才播摘要，读档/重开不会误播
     if (game.turnRecap && game.turnRecap.seq !== lastRecapSeq) {
@@ -476,10 +497,56 @@
   // ------------------------------------------------------------------
   // 模态按钮
   // ------------------------------------------------------------------
+  function phoneDo(kind) {
+    const player = game.player;
+    const used = ui.phoneUsed || {};
+    if (used[kind] === game.turn) {
+      ui.phoneToast = '这一项今晚已经做过了，先顾告警吧。';
+      renderAll();
+      return;
+    }
+    if (kind === 'transfer') {
+      if (player.funds < 200) { ui.phoneToast = '资金不够，转不了。'; renderAll(); return; }
+      game.adjustMetric('funds', -200, '手机 · 给家里转账');
+      game.adjustLife('family', 6, '手机 · 给家里转账');
+      game.adjustLife('mood', 2, '手机 · 给家里转账');
+      ui.phoneToast = '转账成功：家庭 +6，心情 +2。';
+    } else if (kind === 'takeout') {
+      if (player.funds < 60) { ui.phoneToast = '资金不够，点不了宵夜。'; renderAll(); return; }
+      game.adjustMetric('funds', -60, '手机 · 点宵夜');
+      game.adjustLife('energy', 8, '手机 · 点宵夜');
+      game.adjustLife('mood', 8, '手机 · 点宵夜');
+      ui.phoneToast = '宵夜到了：体力 +8，心情 +8。';
+    } else if (kind === 'coffee') {
+      if (player.funds < 25) { ui.phoneToast = '资金不够，买不了咖啡。'; renderAll(); return; }
+      game.adjustMetric('funds', -25, '手机 · 买咖啡');
+      game.adjustLife('energy', 5, '手机 · 买咖啡');
+      ui.phoneToast = '喝了口热的：体力 +5。';
+    } else if (kind === 'call') {
+      if (player.actionPoints < 1) { ui.phoneToast = '行动点不够，先把手头的处置做完。'; renderAll(); return; }
+      game.applyActionPointDelta(-1, '手机 · 视频通话');
+      game.adjustLife('family', 8, '手机 · 视频通话');
+      game.adjustLife('mood', 4, '手机 · 视频通话');
+      ui.phoneToast = '视频接通了：家庭 +8，心情 +4。';
+    } else {
+      return;
+    }
+    used[kind] = game.turn;
+    ui.phoneUsed = used;
+    ui.phoneResult = null;
+    ui.modal = 'phone';
+    audio.play('click');
+    renderAll();
+  }
+
   function handleModalAction(act, target) {
     switch (act) {
       case 'briefing-enter':
         game.showBriefing = false;
+        renderAll();
+        break;
+      case 'modifier-pick':
+        game.applyRunModifier(target.dataset.id);
         renderAll();
         break;
       case 'tutorial-prev':
@@ -520,6 +587,49 @@
       case 'decision-choose':
         game.chooseDecision(Number(target.dataset.index));
         renderAll();
+        break;
+      case 'phone-choose': {
+        const decision = game.pendingDecision;
+        const index = Number(target.dataset.index);
+        if (!decision || !Array.isArray(decision.choices) || !decision.choices[index]) break;
+        const choice = decision.choices[index];
+        const before = { energy: game.player.energy, mood: game.player.mood, family: game.player.family };
+        game.chooseDecision(index);
+        const deltas = {};
+        ['energy', 'mood', 'family'].forEach((key) => {
+          const delta = game.player[key] - before[key];
+          if (delta) deltas[key] = delta;
+        });
+        ui.phoneResult = {
+          title: decision.title || '',
+          label: choice.label || '',
+          result: choice.result || '',
+          deltas,
+        };
+        ui.modal = 'phone';
+        audio.play('click');
+        renderAll();
+        break;
+      }
+      case 'phone-after':
+        ui.phoneResult = null;
+        ui.phoneToast = '';
+        ui.modal = null;
+        renderAll();
+        break;
+      case 'phone-close':
+        if (game.pendingDecision && game.pendingDecision.kind === 'life') {
+          ui.phoneToast = '先把这条消息回掉，再继续值班。';
+          renderAll();
+          break;
+        }
+        ui.phoneResult = null;
+        ui.phoneToast = '';
+        ui.modal = null;
+        renderAll();
+        break;
+      case 'phone-do':
+        phoneDo(target.dataset.kind);
         break;
       case 'shop-buy': {
         const [ok, message] = game.buyUpgrade(target.dataset.upgrade);
@@ -709,6 +819,23 @@
       ensureTutorialScript();
       script.open();
     });
+    $('btn-phone').addEventListener('click', () => {
+      if (game.state !== 'playing') return;
+      if (game.pendingDecision && game.pendingDecision.kind === 'life') {
+        ui.modal = 'phone';
+        renderAll();
+        return;
+      }
+      if (activeModalKind() && activeModalKind() !== 'phone') return;
+      if (ui.modal === 'phone') {
+        ui.modal = null;
+        ui.phoneResult = null;
+        ui.phoneToast = '';
+      } else {
+        ui.modal = 'phone';
+      }
+      renderAll();
+    });
     refs.advance.addEventListener('click', () => {
       if (game.state !== 'playing' || activeModalKind()) return;
       clearConfirm();
@@ -853,6 +980,26 @@
         return;
       }
 
+      if (event.key === 'p' || event.key === 'P') {
+        if (!['playing', 'paused'].includes(game.state)) return;
+        if (game.pendingDecision && game.pendingDecision.kind === 'life') {
+          ui.modal = 'phone';
+          renderAll();
+          return;
+        }
+        if (ui.terminalOpen || ui.scriptOpen) return;
+        if (activeModalKind() && activeModalKind() !== 'phone') return;
+        if (ui.modal === 'phone') {
+          ui.modal = null;
+          ui.phoneResult = null;
+          ui.phoneToast = '';
+        } else {
+          ui.modal = 'phone';
+        }
+        renderAll();
+        return;
+      }
+
       if (event.key === 'm' || event.key === 'M') {
         const muted = audio.toggleMute();
         if (game.state === 'playing') game.pushMessage(`音效已${muted ? '关闭' : '开启'}。`, 'dim');
@@ -896,6 +1043,18 @@
         }
         if (kind === 'terminal') {
           terminal.close();
+          return;
+        }
+        if (kind === 'phone') {
+          if (game.pendingDecision && game.pendingDecision.kind === 'life') {
+            ui.phoneToast = '先把这条消息回掉，再继续值班。';
+            renderAll();
+            return;
+          }
+          ui.modal = null;
+          ui.phoneResult = null;
+          ui.phoneToast = '';
+          renderAll();
           return;
         }
         if (kind === 'briefing' || kind === 'decision') return;

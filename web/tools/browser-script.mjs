@@ -208,8 +208,10 @@ try {
     decision = await readDecision();
     if (!decision.pending || decision.kind !== 'life') break;
     lifeScenes += 1;
-    await session.click('[data-act="decision-choose"][data-index="0"]');
-    await sleep(320);
+    await session.click('.phone-replies button[data-index="0"]');
+    await sleep(280);
+    await session.click('[data-act="phone-after"]');
+    await sleep(280);
   }
   session.check('生活场景也会让脚本暂停', lifeScenes >= 1, JSON.stringify(decision));
   session.check('脚本连续推进到第 4 回合', decision.turn === 4, JSON.stringify(decision));

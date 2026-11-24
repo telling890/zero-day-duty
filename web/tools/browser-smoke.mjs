@@ -189,6 +189,7 @@ async function main() {
   await sleep(300);
   await screenshot('02-briefing');
   check('夜班简报出现', await evaluate(`!!document.querySelector('[data-act="briefing-enter"]')`));
+  check('简报有「今晚的状况」三选一', await evaluate(`document.querySelectorAll('.run-modifier').length === 3`));
 
   await click('[data-act="briefing-enter"]');
   await sleep(300);
@@ -257,27 +258,25 @@ async function main() {
   await key(' ', 'Space');
   await sleep(400);
   check('空格推进到第 2 回合', (await evaluate(`document.querySelector('.metric.turn .metric-value').textContent`)).includes('2 / 10'));
-  // 第 2 回合会先弹出生活场景：眉题改成「生活场景」、暖色标题、说明行换成生活说明
-  check('第 2 回合弹出生活场景', await evaluate(`(() => {
+  // 第 2 回合：生活场景改为「手机聊天」
+  check('第 2 回合打开生活手机', await evaluate(`(() => {
     const d = __zdd.game.pendingDecision;
-    const kicker = document.querySelector('.modal-kicker');
-    const title = document.querySelector('.modal-title.decision-card.life');
-    const note = document.querySelector('.modal-note');
-    return Boolean(d && d.kind === 'life')
-      && Boolean(kicker && kicker.textContent.includes('生活场景'))
-      && Boolean(title) && Boolean(note && note.textContent.includes('体力影响每回合行动点'));
+    const phone = document.querySelector('.phone-shell');
+    const replies = document.querySelectorAll('.phone-replies button');
+    return Boolean(d && d.kind === 'life') && Boolean(phone) && replies.length === 3;
   })()`));
-  check('生活场景浮层用暖色', await evaluate(`(() => {
-    const card = document.getElementById('modal-card');
-    const title = document.querySelector('.modal-title.life');
-    if (!card || !title) return false;
-    return card.classList.contains('life-decision') && getComputedStyle(title).borderLeftColor !== 'rgba(0, 0, 0, 0)';
+  check('手机显示三条生活数值', await evaluate(`(() => {
+    const values = Array.from(document.querySelectorAll('.phone-stat b')).map((el) => el.textContent);
+    return values.join('/') === '69/68/57';
   })()`));
   await screenshot('06-turn2');
-  // 选掉生活场景（选 0），才能继续测暂停
-  await click('[data-act="decision-choose"][data-index="0"]');
+  // 在手机里回复第一条，出现结果后收起
+  await click('.phone-replies button[data-index="0"]');
   await sleep(350);
-  check('生活场景选完后关闭', await evaluate(`__zdd.game.pendingDecision === null`));
+  check('手机回复后出现结果', await evaluate(`Boolean(document.querySelector('.bubble.me') && document.querySelector('[data-act="phone-after"]'))`));
+  await click('[data-act="phone-after"]');
+  await sleep(350);
+  check('生活场景选完后关闭', await evaluate(`__zdd.game.pendingDecision === null && !document.querySelector('.phone-shell')`));
   check(
     '生活场景改变生活数值（家庭 57 → 71）',
     (await evaluate(`document.querySelector('.metric.life .life-row[data-key="family"] .life-num').textContent`)) === '71',
