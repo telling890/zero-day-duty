@@ -584,7 +584,7 @@
       const choices = Array.isArray(config.choices) ? config.choices : [];
       return `
         <div class="phone-chat">
-          <div class="phone-contact"><b>${esc(config.title || '手机通知')}</b><span>${esc(config.speaker || '')}</span></div>
+          <div class="phone-contact"><b>${esc(config.title || '手机通知')}</b><span>${esc(config.category || '生活')} · ${esc(config.speaker || '')}</span></div>
           <div class="phone-thread">
             ${parts.map((text, index) => `<div class="bubble them" style="--i:${index}">${esc(text.trim())}</div>`).join('')}
             <div class="phone-typing"><i></i><i></i><i></i> 等你处理…</div>
@@ -613,7 +613,7 @@
       else if (result) screen = this.phoneResultHtml(result);
       else if (pending) screen = this.phoneChatHtml(pending);
       else screen = this.phoneHomeHtml(game, ui);
-      const appName = random ? '通知' : this.phoneAppName(pending);
+      const appName = random ? `通知 · ${random.config.category || '生活'}` : this.phoneAppName(pending);
       return `
         <div class="phone-shell">
           <div class="phone-status">
@@ -622,7 +622,7 @@
             <b>${Math.max(12, 100 - game.turn * 5)}%</b>
           </div>
           <div class="phone-head">
-            <span class="phone-app-title">${esc(pending ? appName : (random ? '通知' : '生活'))}</span>
+            <span class="phone-app-title">${esc(pending ? appName : (random ? appName : '生活'))}</span>
             <button class="phone-close" data-act="phone-close" aria-label="收起手机">×</button>
           </div>
           ${this.phoneStatsHtml(game.player)}
@@ -695,7 +695,7 @@
               ${(game.randomActive || []).map((event) => `
                 <button type="button" data-act="phone-random-open" data-id="${esc(event.id)}">
                   <b>${esc(event.config.title)}</b>
-                  <span>${esc(event.config.speaker || '')} · 点开处理</span>
+                  <span>${esc(event.config.category || '生活')} · ${esc(event.config.speaker || '')} · 点开处理</span>
                 </button>
               `).join('')}
             </div>

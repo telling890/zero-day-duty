@@ -208,6 +208,7 @@
       this.pendingDecision = null;
       this.randomActive = [];
       this.randomUsed = new Set();
+      this.randomLastCategory = null;
       this.runModifier = null;
       this.modifierChoices = briefing && !tutorial ? modifierChoicesFor(this.seed) : [];
       this.showBriefing = briefing;
@@ -417,12 +418,13 @@
       const config = this.randomEventConfigs.find((item) => item.id === id);
       if (!config || this.randomActive.length) return null;
       this.randomUsed.add(config.id);
+      this.randomLastCategory = config.category || '生活';
       const active = { id: config.id, config, expiresTurn: this.turn + 1 };
       this.randomActive.push(active);
       this.logs.add(this.turn, clockText(this.turn), '系统', `手机通知：${config.title}`);
       this.pushMessage(`手机收到一条通知：${config.title}`, 'purple');
       if (this.effects && this.effects.addBanner) {
-        this.effects.addBanner('手机通知', config.title, 'purple');
+        this.effects.addBanner(`手机通知 · ${this.randomLastCategory}`, config.title, 'purple');
       }
       this.touch();
       return active;
@@ -436,7 +438,12 @@
       if (h % 100 >= 55) return null;
       const pool = this.randomEventConfigs.filter((item) => !this.randomUsed.has(item.id));
       if (!pool.length) return null;
-      return this.spawnRandomEvent(pool[h % pool.length].id);
+      // 同类事件不连着来：先排除上一个类别，避免一晚上全是“借钱/房东”
+      const diverse = this.randomLastCategory
+        ? pool.filter((item) => (item.category || '生活') !== this.randomLastCategory)
+        : pool;
+      const candidates = diverse.length ? diverse : pool;
+      return this.spawnRandomEvent(candidates[h % candidates.length].id);
     }
 
     applyRandomEffects(effects, reason) {
@@ -1427,6 +1434,7 @@
         return config ? { id: config.id, config, expiresTurn: Number(item.expiresTurn) || this.turn } : null;
       }).filter(Boolean);
       this.randomUsed = data.randomUsed || new Set();
+      this.randomLastCategory = data.randomLastCategory || null;
       this.difficultyId = this.difficultySet.get(data.difficultyId).id;
       this.hintsUsed = Math.max(0, Number(data.hintsUsed || 0));
       this.timeline = (data.timeline || []).map((item) => Object.assign({}, item));
